@@ -1,17 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import RequestList from './components/RequestList';
 import RequestForm from './components/RequestForm';
-import { MOCK_REQUESTS } from './constants';
-import { RequestItem, RequestCategory, NewRequestPayload } from './types';
+import FieldRequestForm from './components/FieldRequestForm';
+import { RequestItem, NewRequestPayload } from './types';
+import { 
+  fetchPersonaRequerimientos, 
+  createPersonaRequerimiento, 
+  updatePersonaRequerimiento 
+} from './services/supabaseService';
 
-type ViewState = 'list' | 'create';
+type ViewState = 'list' | 'create' | 'fieldRequest';
 
 function App() {
   const [view, setView] = useState<ViewState>('list');
   const [editingItem, setEditingItem] = useState<RequestItem | null>(null);
-  const [requests, setRequests] = useState<RequestItem[]>(MOCK_REQUESTS);
+  const [requests, setRequests] = useState<RequestItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const loadRequests = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchPersonaRequerimientos();
+      setRequests(data);
+    } catch (error) {
+      console.error('Error loading requests:', error);
+      alert('Error al cargar las solicitudes. Por favor, intente nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleEdit = (item: RequestItem) => {
     setEditingItem(item);
@@ -23,36 +47,58 @@ function App() {
     setView('create');
   };
 
-  const handleSave = (data: NewRequestPayload) => {
-    if (editingItem) {
-      // Update existing item
-      setRequests(prev => prev.map(item => 
-        item.id === editingItem.id 
-          ? { ...item, ...data } // Merge existing data (id, rut, category) with form data
-          : item
-      ));
-    } else {
-      // Create new item
-      const newItem: RequestItem = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: data.name,
-        rut: '11.111.111-1', // Placeholder RUT since not in form
-        requirement: data.requirement,
-        category: RequestCategory.Courses, // Default category
-        status: data.status,
-        adjudicationDate: data.adjudicationDate || '-',
-        expirationDate: data.expirationDate || '-',
-      };
-      setRequests(prev => [newItem, ...prev]);
-    }
-    
+  const handleNavigateToList = () => {
     setEditingItem(null);
     setView('list');
   };
 
+  const handleNavigateToFieldRequest = () => {
+    setEditingItem(null);
+    setView('fieldRequest');
+  };
+
+  const handleSave = async (data: NewRequestPayload) => {
+    console.log('🔥 handleSave recibió:', data);
+    console.log('🔥 Estado en data:', data.estado);
+    
+    try {
+      if (editingItem && editingItem.id) {
+        console.log('✏️ Editando registro ID:', editingItem.id);
+        // Actualizar registro existente
+        await updatePersonaRequerimiento(
+          parseInt(editingItem.id),
+          data.fecha_vigencia,
+          data.fecha_vencimiento,
+          data.estado
+        );
+      } else {
+        // Crear nuevo registro
+        await createPersonaRequerimiento(
+          data.persona_id,
+          data.requerimiento_id,
+          data.fecha_vigencia,
+          data.fecha_vencimiento
+        );
+      }
+      
+      // Recargar la lista
+      await loadRequests();
+      setEditingItem(null);
+      setView('list');
+    } catch (error) {
+      console.error('Error saving request:', error);
+      alert('Error al guardar la solicitud. Por favor, intente nuevamente.');
+    }
+  };
+
   return (
     <div className="relative flex min-h-screen w-full flex-row overflow-x-hidden">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+        onNavigateToRequests={handleNavigateToList}
+        onNavigateToFieldRequest={handleNavigateToFieldRequest}
+      />
       
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
@@ -67,11 +113,22 @@ function App() {
       </div>
 
       <main className="flex flex-1 flex-col h-full min-h-screen bg-[#f8fafc] pt-[60px] lg:pt-0">
-        {view === 'list' ? (
+        {loading ? (
+          <div className="flex items-center justify-center h-full min-h-screen">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+              <p className="text-gray-600">Cargando solicitudes...</p>
+            </div>
+          </div>
+        ) : view === 'list' ? (
           <RequestList 
             requests={requests} 
             onCreateNew={handleCreateNew} 
             onEdit={handleEdit}
+          />
+        ) : view === 'fieldRequest' ? (
+          <FieldRequestForm 
+            onBack={() => setView('list')} 
           />
         ) : (
           <RequestForm 
