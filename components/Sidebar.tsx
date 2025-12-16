@@ -1,9 +1,29 @@
 import React from 'react';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   return (
-    <aside className="hidden w-20 flex-col border-r border-[#e5e7eb] bg-white lg:flex h-screen sticky top-0 transition-all duration-300 ease-in-out z-20">
-      <div className="flex h-full flex-col justify-between py-6 w-full items-center">
+    <>
+      {/* Overlay para móvil */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:sticky top-0 h-screen w-20 flex-col border-r border-[#e5e7eb] bg-white z-50
+        transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        lg:flex
+      `}>
+        <div className="flex h-full flex-col justify-between py-6 w-full items-center">
         <div className="flex flex-col gap-6 w-full items-center">
           <div className="flex flex-col items-center justify-center">
             <div 
@@ -37,6 +57,7 @@ const Sidebar: React.FC = () => {
         </div>
       </div>
     </aside>
+    </>
   );
 };
 

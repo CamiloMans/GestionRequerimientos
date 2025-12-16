@@ -90,30 +90,31 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
         </div>
 
         {/* Header */}
-        <div className="mb-8 flex flex-wrap justify-between items-end gap-4 border-b border-[#e5e7eb] pb-6">
+        <div className="mb-6 lg:mb-8 flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 border-b border-[#e5e7eb] pb-4 lg:pb-6">
           <div className="flex flex-col gap-2">
-            <h1 className="text-[#111318] text-3xl font-bold tracking-tight">Listado de Requerimientos</h1>
-            <p className="text-[#616f89] text-base font-normal">Visualice y gestione los requerimientos de los colaboradores en formato tabla.</p>
+            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Listado de Requerimientos</h1>
+            <p className="text-[#616f89] text-sm lg:text-base font-normal">Visualice y gestione los requerimientos de los colaboradores.</p>
           </div>
-          <div>
+          <div className="w-full lg:w-auto">
             <button 
               onClick={onCreateNew}
-              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-all shadow-primary/20 hover:shadow-primary/40"
+              className="w-full lg:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-all shadow-primary/20 hover:shadow-primary/40"
             >
               <span className="material-symbols-outlined text-[20px]">add_circle</span>
-              Crear Nuevo Registro
+              <span className="hidden sm:inline">Crear Nuevo Registro</span>
+              <span className="sm:hidden">Crear Nuevo</span>
             </button>
           </div>
         </div>
 
         {/* Filters Toolbar */}
         <div className="mb-6 flex flex-col gap-4">
-          <div className="flex gap-4">
-            <div className="relative flex-1 max-w-md">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined">search</span>
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <div className="relative flex-1 sm:max-w-md">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-[20px]">search</span>
               <input 
                 type="text" 
-                placeholder="Buscar por nombre, RUT o requerimiento..." 
+                placeholder="Buscar por nombre, RUT..." 
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -122,10 +123,10 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
             <div className="flex gap-2">
               <button 
                 onClick={() => setShowFilters(!showFilters)}
-                className={`px-4 py-2.5 border rounded-lg flex items-center gap-2 text-sm font-medium transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+                className={`flex-1 sm:flex-none px-4 py-2.5 border rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
               >
                 <span className="material-symbols-outlined text-[18px]">filter_list</span> 
-                Filtros
+                <span className="hidden sm:inline">Filtros</span>
                 {(filterStatus || filterCategory || filterRequirement) && (
                   <span className="flex h-2 w-2 rounded-full bg-primary ml-1"></span>
                 )}
@@ -195,8 +196,8 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
           )}
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Desktop Table - Hidden on mobile */}
+        <div className="hidden lg:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-[#616f89] uppercase bg-gray-50 border-b border-gray-100">
@@ -267,6 +268,87 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
               </div>
             )}
           </div>
+        </div>
+
+        {/* Mobile Cards - Shown only on mobile */}
+        <div className="lg:hidden flex flex-col gap-4">
+          {filteredRequests.map((req) => (
+            <div key={req.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 relative">
+              {/* Status Badge - Top Right */}
+              <div className="absolute top-4 right-4">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border inline-flex items-center gap-1.5 ${getStatusBadge(req.status)}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(req.status)}`}></span> 
+                  {req.status}
+                </span>
+              </div>
+
+              {/* Name and RUT */}
+              <div className="mb-4 pr-24">
+                <h3 className="font-semibold text-[#111318] text-lg mb-1">{req.name}</h3>
+                <p className="font-mono text-sm text-gray-600">{req.rut}</p>
+              </div>
+
+              {/* Grid Info */}
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-gray-400 text-[20px]">assignment</span>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 uppercase font-semibold">Requerimiento</p>
+                    <p className="text-sm text-gray-900">{req.requirement}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-gray-400 text-[20px]">folder</span>
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 uppercase font-semibold">Categoría</p>
+                    <span className="inline-block mt-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                      {req.category}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">F. Adjudicación</p>
+                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                      <span className={`material-symbols-outlined text-[16px] ${req.adjudicationDate !== '-' ? 'text-primary' : 'text-gray-400'}`}>event_available</span>
+                      {formatDate(req.adjudicationDate)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">F. Vencimiento</p>
+                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                      <span className={`material-symbols-outlined text-[16px] ${req.expirationDate !== '-' ? 'text-red-500' : 'text-gray-400'}`}>event_busy</span>
+                      {formatDate(req.expirationDate)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button 
+                onClick={() => onEdit(req)}
+                className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary hover:bg-primary hover:text-white px-4 py-2.5 rounded-lg font-medium transition-all border border-primary/20"
+              >
+                <span className="material-symbols-outlined text-[20px]">edit</span>
+                Editar Solicitud
+              </button>
+            </div>
+          ))}
+
+          {filteredRequests.length === 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500 flex flex-col items-center gap-2">
+              <span className="material-symbols-outlined text-4xl text-gray-300">search_off</span>
+              <p>No se encontraron registros que coincidan con los filtros.</p>
+              {(filterStatus || filterCategory || filterRequirement || searchTerm) && (
+                <button onClick={clearFilters} className="text-primary font-medium hover:underline text-sm">
+                  Limpiar todos los filtros
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
