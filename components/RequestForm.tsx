@@ -36,29 +36,38 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
 
   return (
     <div className="layout-container flex h-full grow flex-col">
-      <div className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12">
-        {/* Breadcrumbs */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
+      <div className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-12">
+        {/* Breadcrumbs - Hidden on mobile */}
+        <div className="mb-4 hidden sm:flex flex-wrap items-center gap-2">
           <a href="#" onClick={onBack} className="text-[#616f89] hover:text-primary text-sm font-medium transition-colors">Inicio</a>
           <span className="material-symbols-outlined text-[#616f89] text-base">chevron_right</span>
           <a href="#" onClick={onBack} className="text-[#616f89] hover:text-primary text-sm font-medium transition-colors">Solicitudes</a>
           <span className="material-symbols-outlined text-[#616f89] text-base">chevron_right</span>
-          <span className="text-[#111318] text-sm font-medium">{isEditing ? 'Editar Solicitud' : 'Crear Nuevo Registro'}</span>
+          <span className="text-[#111318] text-sm font-medium">{isEditing ? 'Editar' : 'Crear Nuevo'}</span>
         </div>
 
+        {/* Back Button Mobile */}
+        <button 
+          onClick={onBack}
+          className="sm:hidden flex items-center gap-2 text-[#616f89] hover:text-primary mb-4 font-medium transition-colors"
+        >
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          Volver
+        </button>
+
         {/* Header */}
-        <div className="mb-8 flex flex-wrap justify-between items-end gap-4 border-b border-[#e5e7eb] pb-6">
+        <div className="mb-6 lg:mb-8 flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 border-b border-[#e5e7eb] pb-4 lg:pb-6">
           <div className="flex flex-col gap-2">
-            <h1 className="text-[#111318] text-3xl font-bold tracking-tight">
-              {isEditing ? 'Editar Solicitud' : 'Crear Nuevo Registro de Solicitud'}
+            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">
+              {isEditing ? 'Editar Solicitud' : 'Crear Nuevo Registro'}
             </h1>
-            <p className="text-[#616f89] text-base font-normal">
+            <p className="text-[#616f89] text-sm lg:text-base font-normal">
               {isEditing 
-                ? 'Modifique los datos de la solicitud existente.' 
-                : 'Complete el formulario para registrar una nueva solicitud de colaborador.'}
+                ? 'Modifique los datos de la solicitud.' 
+                : 'Complete el formulario para registrar una nueva solicitud.'}
             </p>
           </div>
-          <div>
+          <div className="hidden lg:block">
             <button 
               onClick={onBack}
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-[#616f89] border border-gray-200 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all"
@@ -70,17 +79,19 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
         </div>
 
         {/* Form Container */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 md:p-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 lg:p-8">
           <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
             {/* Section 1 */}
             <div>
-              <h2 className="text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
+              <h2 className="text-base lg:text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">person</span>
                 Datos del Colaborador
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="col-span-1 md:col-span-2 space-y-2">
-                  <label htmlFor="name" className="block text-sm font-medium text-[#111318]">Nombre Completo</label>
+              <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                <div className="space-y-2">
+                  <label htmlFor="name" className="block text-sm font-medium text-[#111318]">
+                    Nombre Completo <span className="text-red-500">*</span>
+                  </label>
                   <input 
                     type="text" 
                     id="name" 
@@ -89,6 +100,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
                     className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5"
                     value={formData.name}
                     onChange={handleChange}
+                    required
                   />
                 </div>
               </div>
@@ -98,19 +110,22 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
 
             {/* Section 2 */}
             <div>
-              <h2 className="text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
+              <h2 className="text-base lg:text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">assignment</span>
                 Detalles de la Solicitud
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label htmlFor="requirement" className="block text-sm font-medium text-[#111318]">Requerimiento</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div className="space-y-2 sm:col-span-2">
+                  <label htmlFor="requirement" className="block text-sm font-medium text-[#111318]">
+                    Requerimiento <span className="text-red-500">*</span>
+                  </label>
                   <select 
                     id="requirement" 
                     name="requirement" 
                     className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5"
                     value={formData.requirement}
                     onChange={handleChange}
+                    required
                   >
                     <option value="" disabled>Seleccione un tipo...</option>
                     <option value={RequirementType.AUD}>AUD - Auditoría</option>
@@ -169,20 +184,20 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
               <button 
                 type="button" 
                 onClick={onBack}
-                className="px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
               >
                 Cancelar
               </button>
               <button 
                 type="submit" 
-                className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center gap-2 text-sm"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm"
               >
                 <span className="material-symbols-outlined text-[20px]">save</span>
-                {isEditing ? 'Actualizar Registro' : 'Guardar Registro'}
+                {isEditing ? 'Actualizar' : 'Guardar'}
               </button>
             </div>
           </form>
