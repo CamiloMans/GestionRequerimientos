@@ -68,8 +68,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         {/* Header */}
         <div className="mb-8 flex flex-wrap justify-between gap-4 border-b border-[#e5e7eb] pb-6">
           <div className="flex flex-col gap-2">
-            <h1 className="text-[#111318] text-3xl font-bold tracking-tight">Formulario de solicitud de Acreditación</h1>
-            <p className="text-[#616f89] text-base font-normal">
+            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Formulario de solicitud de Acreditación</h1>
+            <p className="text-[#616f89] text-sm lg:text-base font-normal">
               Ingrese los datos requeridos para la gestión de terreno y acreditación.
             </p>
           </div>
@@ -90,7 +90,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           {/* Section 1: Identificación de la Solicitud */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
-              <h3 className="text-[#111318] text-lg font-bold leading-tight flex items-center gap-2">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">description</span>
                 Identificación de la Solicitud
               </h3>
@@ -155,7 +155,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           {/* Section 2: Cliente y Contrato */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
-              <h3 className="text-[#111318] text-lg font-bold leading-tight flex items-center gap-2">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">business</span>
                 Cliente y Contrato
               </h3>
@@ -228,7 +228,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           {/* Section 3: Gestión Interna MYMA */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
-              <h3 className="text-[#111318] text-lg font-bold leading-tight flex items-center gap-2">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">work</span>
                 Gestión Interna MYMA
               </h3>
@@ -276,7 +276,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           {/* Section 4: Terreno, Seguridad y Acreditación */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
-              <h3 className="text-[#111318] text-lg font-bold leading-tight flex items-center gap-2">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">shield</span>
                 Terreno, Seguridad y Acreditación
               </h3>
@@ -379,7 +379,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           {/* Worker List Builder */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm opacity-90">
             <div className="border-b border-[#e5e7eb] px-6 py-4 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-[#111318] text-base font-bold leading-tight text-gray-700">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight text-gray-700">
                  Detalle de Personal (Opcional)
               </h3>
               <span className="text-xs text-gray-500">
@@ -396,18 +396,19 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-4 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
             <button 
               type="button" 
               onClick={onBack}
-              className="flex h-12 items-center justify-center rounded-lg border border-transparent px-6 text-base font-medium text-[#616f89] hover:bg-gray-100 hover:text-[#111318] transition-colors"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
             >
               Cancelar
             </button>
             <button 
               type="submit" 
-              className="flex h-12 min-w-[160px] items-center justify-center rounded-lg bg-primary px-6 text-base font-bold text-white shadow-md hover:bg-primary-hover hover:shadow-lg transition-all focus:ring-4 focus:ring-primary/30"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm"
             >
+              <span className="material-symbols-outlined text-[20px]">save</span>
               Guardar Solicitud
             </button>
           </div>
