@@ -81,7 +81,7 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
 
   return (
     <div className="layout-container flex h-full grow flex-col">
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8 md:px-10 lg:px-12">
         {/* Breadcrumbs */}
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <a href="#" className="text-[#616f89] hover:text-primary text-sm font-medium transition-colors">Inicio</a>
@@ -92,7 +92,7 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
         {/* Header */}
         <div className="mb-6 lg:mb-8 flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 border-b border-[#e5e7eb] pb-4 lg:pb-6">
           <div className="flex flex-col gap-2">
-            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Listado de Requerimientos</h1>
+            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Listado de requerimientos por persona</h1>
             <p className="text-[#616f89] text-sm lg:text-base font-normal">Visualice y gestione los requerimientos de los colaboradores.</p>
           </div>
           <div className="w-full lg:w-auto">
@@ -197,9 +197,9 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
         </div>
 
         {/* Desktop Table - Hidden on mobile */}
-        <div className="hidden lg:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+        <div className="hidden md:block w-full overflow-x-auto">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm inline-block min-w-full">
+            <table className="w-full text-sm text-left" style={{ minWidth: '1000px' }}>
               <thead className="text-xs text-[#616f89] uppercase bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th scope="col" className="px-6 py-4 font-semibold">Nombre</th>
@@ -271,7 +271,7 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
         </div>
 
         {/* Mobile Cards - Shown only on mobile */}
-        <div className="lg:hidden flex flex-col gap-4">
+        <div className="md:hidden flex flex-col gap-4">
           {filteredRequests.map((req) => (
             <div key={req.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 relative">
               {/* Status Badge - Top Right */}

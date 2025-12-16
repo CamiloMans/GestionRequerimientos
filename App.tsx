@@ -92,7 +92,7 @@ function App() {
   };
 
   return (
-    <div className="relative flex h-screen w-full flex-row overflow-hidden">
+    <div className="relative flex min-h-screen w-full flex-row">
       <Sidebar 
         isOpen={sidebarOpen} 
         onClose={() => setSidebarOpen(false)} 
@@ -113,7 +113,7 @@ function App() {
         <div className="w-10"></div> {/* Spacer for centering */}
       </div>
 
-      <main className="flex flex-1 flex-col h-full overflow-y-auto bg-[#f8fafc] pt-[60px] lg:pt-0">
+      <main className="flex flex-1 flex-col h-full min-h-screen bg-[#f8fafc] pt-[60px] lg:pt-0 lg:ml-[80px] overflow-x-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-screen">
             <div className="text-center">

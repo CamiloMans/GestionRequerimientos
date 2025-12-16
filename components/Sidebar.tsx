@@ -40,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
       {/* Sidebar */}
       <aside 
         className={`
-          fixed lg:sticky top-0 flex-col border-r border-[#e5e7eb] bg-white
+          fixed top-0 left-0 flex-col border-r border-[#e5e7eb] bg-white
           transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           flex
@@ -51,8 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           minWidth: '80px', 
           maxWidth: '80px',
           height: '100vh',
-          minHeight: '100vh',
-          maxHeight: '100vh'
+          position: 'fixed'
         }}
       >
         <div className="flex h-full flex-col justify-between py-6 w-full items-center">
