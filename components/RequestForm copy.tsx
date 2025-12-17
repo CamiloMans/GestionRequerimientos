@@ -14,11 +14,6 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
   const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentStatus, setCurrentStatus] = useState<RequestStatus | null>(null);
-  
-  // Estados para el buscador de colaboradores
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [filteredPersonas, setFilteredPersonas] = useState<Persona[]>([]);
 
   // Funciones helper para estilos de estado
   const getStatusBadge = (status: RequestStatus) => {
@@ -79,47 +74,6 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
     loadData();
   }, []);
 
-  // Filtrar personas cuando cambia el término de búsqueda
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredPersonas(personas);
-    } else {
-      const filtered = personas.filter(persona => 
-        persona.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        persona.rut.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredPersonas(filtered);
-    }
-  }, [searchTerm, personas]);
-
-  // Actualizar el texto de búsqueda cuando se carga una persona en modo edición
-  useEffect(() => {
-    if (formData.persona_id && personas.length > 0) {
-      const persona = personas.find(p => p.id === formData.persona_id);
-      if (persona) {
-        setSearchTerm(`${persona.nombre_completo} - ${persona.rut}`);
-      }
-    }
-  }, [formData.persona_id, personas]);
-
-  // Cerrar dropdown al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('#persona_search') && !target.closest('.absolute.z-50')) {
-        setShowDropdown(false);
-      }
-    };
-
-    if (showDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showDropdown]);
-
   const loadData = async () => {
     try {
       setLoading(true);
@@ -135,23 +89,6 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
     } finally {
       setLoading(false);
     }
-  };
-
-  // Manejar la búsqueda de colaboradores
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setShowDropdown(true);
-    // Si se borra el texto, resetear la selección
-    if (e.target.value === '') {
-      setFormData({...formData, persona_id: 0});
-    }
-  };
-
-  // Seleccionar una persona del dropdown
-  const handleSelectPersona = (persona: Persona) => {
-    setFormData({...formData, persona_id: persona.id});
-    setSearchTerm(`${persona.nombre_completo} - ${persona.rut}`);
-    setShowDropdown(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -290,69 +227,25 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
                     Seleccionar Colaborador y Requerimiento
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                    <div className="space-y-2 relative">
-                      <label htmlFor="persona_search" className="block text-sm font-medium text-[#111318]">
+                    <div className="space-y-2">
+                      <label htmlFor="persona_id" className="block text-sm font-medium text-[#111318]">
                         Colaborador <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-[20px]">search</span>
-                        <input
-                          id="persona_search"
-                          type="text"
-                          className="w-full pl-10 pr-10 rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5"
-                          placeholder="Buscar por nombre o RUT..."
-                          value={searchTerm}
-                          onChange={handleSearchChange}
-                          onFocus={() => setShowDropdown(true)}
-                          autoComplete="off"
-                        />
-                        {searchTerm && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSearchTerm('');
-                              setFormData({...formData, persona_id: 0});
-                              setShowDropdown(true);
-                            }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">close</span>
-                          </button>
-                        )}
-                      </div>
-                      
-                      {/* Dropdown de resultados */}
-                      {showDropdown && (
-                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                          {filteredPersonas.length > 0 ? (
-                            filteredPersonas.map(persona => (
-                              <button
-                                key={persona.id}
-                                type="button"
-                                onClick={() => handleSelectPersona(persona)}
-                                className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
-                                  formData.persona_id === persona.id ? 'bg-blue-50' : ''
-                                }`}
-                              >
-                                <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
-                                <div className="text-xs text-gray-500">{persona.rut}</div>
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                              No se encontraron colaboradores
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* Campo oculto para validación requerida */}
-                      <input 
-                        type="hidden" 
+                      <select 
+                        id="persona_id" 
                         name="persona_id" 
-                        value={formData.persona_id || ''} 
-                        required 
-                      />
+                        className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5"
+                        value={formData.persona_id}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">Seleccione un colaborador...</option>
+                        {personas.map(persona => (
+                          <option key={persona.id} value={persona.id}>
+                            {persona.nombre_completo} - {persona.rut}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="space-y-2">
