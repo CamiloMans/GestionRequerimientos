@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { WorkerList } from './WorkerList';
 import { Worker, RequestFormData, PROJECT_MANAGERS } from '../types';
 
+interface Horario {
+  dias: string;
+  horario: string;
+}
+
 interface FieldRequestFormProps {
   onBack: () => void;
 }
@@ -21,17 +26,42 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     fieldStartDate: '',
     riskPreventionNotice: '',
     companyAccreditationRequired: '',
-    contractName: '',
-    contractNumber: '',
     contractAdmin: '',
-    workersToAccreditCount: '',
+    // Información del Contrato
+    nombreContrato: '',
+    numeroContrato: '',
+    administradorContrato: '',
+    // Condiciones Laborales
+    jornadaTrabajo: '',
+    horarioTrabajo: '',
+    // Información de Vehículos
+    cantidadVehiculos: '',
+    placaPatente: '',
   });
 
   const [workers, setWorkers] = useState<Worker[]>([]);
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [placasPatente, setPlacasPatente] = useState<string[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Si se cambia la cantidad de vehículos, actualizar el array de placas
+    if (name === 'cantidadVehiculos') {
+      const cantidad = parseInt(value) || 0;
+      setPlacasPatente(prev => {
+        const newPlacas = [...prev];
+        // Agregar o quitar elementos según la cantidad
+        if (cantidad > newPlacas.length) {
+          // Agregar elementos vacíos
+          return [...newPlacas, ...Array(cantidad - newPlacas.length).fill('')];
+        } else {
+          // Recortar el array
+          return newPlacas.slice(0, cantidad);
+        }
+      });
+    }
   };
 
   const handleAddWorker = (worker: Worker) => {
@@ -40,6 +70,24 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   const handleRemoveWorker = (id: string) => {
     setWorkers(prev => prev.filter(w => w.id !== id));
+  };
+
+  const handleAgregarHorario = () => {
+    setHorarios(prev => [...prev, { dias: '', horario: '' }]);
+  };
+
+  const handleEliminarHorario = (index: number) => {
+    setHorarios(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleHorarioChange = (index: number, field: 'dias' | 'horario', value: string) => {
+    setHorarios(prev => prev.map((horario, i) => 
+      i === index ? { ...horario, [field]: value } : horario
+    ));
+  };
+
+  const handlePlacaChange = (index: number, value: string) => {
+    setPlacasPatente(prev => prev.map((placa, i) => i === index ? value : placa));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -138,15 +186,28 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>
-              <label className="flex flex-col gap-2 md:col-span-2 lg:col-span-3">
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Fecha de Inicio de Terreno</span>
+                <div className="relative">
+                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">calendar_today</span>
+                   <input 
+                    type="date" 
+                    name="fieldStartDate"
+                    value={formData.fieldStartDate}
+                    onChange={handleInputChange}
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none pl-10" 
+                  />
+                </div>
+              </label>
+              <label className="flex flex-col gap-2 md:col-span-2 lg:col-span-4">
                 <span className="text-[#111318] text-sm font-medium">Requisito</span>
-                <input 
-                  type="text" 
+                <textarea 
                   name="requirement"
                   value={formData.requirement}
                   onChange={handleInputChange}
+                  rows={2}
                   placeholder="Descripción breve del requisito"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" 
                 />
               </label>
             </div>
@@ -161,7 +222,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <label className="flex flex-col gap-2">
+              <label className="flex flex-col gap-2 md:col-span-2">
                 <span className="text-[#111318] text-sm font-medium">Nombre de Cliente</span>
                 <input 
                   type="text" 
@@ -169,28 +230,6 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   value={formData.clientName}
                   onChange={handleInputChange}
                   placeholder="Razón Social o Nombre"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Nombre de Contrato</span>
-                <input 
-                  type="text" 
-                  name="contractName"
-                  value={formData.contractName}
-                  onChange={handleInputChange}
-                  placeholder="Nombre del contrato marco o específico"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
-              </label>
-              <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-[#111318] text-sm font-medium">Número de Contrato</span>
-                <input 
-                  type="text" 
-                  name="contractNumber"
-                  value={formData.contractNumber}
-                  onChange={handleInputChange}
-                  placeholder="N° de identificación"
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>
@@ -278,39 +317,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">shield</span>
-                Terreno, Seguridad y Acreditación
+                Seguridad y Acreditación
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Fecha de Inicio de Terreno</span>
-                <div className="relative">
-                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">calendar_today</span>
-                   <input 
-                    type="date" 
-                    name="fieldStartDate"
-                    value={formData.fieldStartDate}
-                    onChange={handleInputChange}
-                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none pl-10" 
-                  />
-                </div>
-              </label>
-
-              <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Cantidad de Trabajadores a Acreditar</span>
-                 <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">group</span>
-                  <input 
-                    type="number" 
-                    name="workersToAccreditCount"
-                    value={formData.workersToAccreditCount}
-                    onChange={handleInputChange}
-                    placeholder="0"
-                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none pl-10" 
-                  />
-                </div>
-              </label>
-
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-orange-500 text-base">warning</span>
@@ -375,6 +385,191 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
             </div>
           </div>
+
+          {/* Section 5: Información del Contrato */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">description</span>
+                Información del Contrato
+              </h3>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Nombre del contrato</span>
+                <input 
+                  type="text" 
+                  name="nombreContrato"
+                  value={formData.nombreContrato}
+                  onChange={handleInputChange}
+                  placeholder="Ingrese el nombre del contrato"
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Número de contrato</span>
+                <input 
+                  type="text" 
+                  name="numeroContrato"
+                  value={formData.numeroContrato}
+                  onChange={handleInputChange}
+                  placeholder="Ej: CON-2025-001"
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+
+              <label className="flex flex-col gap-2 md:col-span-2">
+                <span className="text-[#111318] text-sm font-medium">Nombre del administrador de contrato (MYMA)</span>
+                <input 
+                  type="text" 
+                  name="administradorContrato"
+                  value={formData.administradorContrato}
+                  onChange={handleInputChange}
+                  placeholder="Ingrese el nombre del administrador"
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Section 6: Información de Trabajadores MYMA */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">engineering</span>
+                Información de Trabajadores MYMA
+              </h3>
+            </div>
+            <div className="p-6">
+              <WorkerList 
+                workers={workers} 
+                onAddWorker={handleAddWorker} 
+                onRemoveWorker={handleRemoveWorker} 
+              />
+            </div>
+          </div>
+
+          {/* Section 7: Condiciones Laborales */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">schedule</span>
+                Condiciones Laborales
+              </h3>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-[#111318]">Horarios de trabajo</h4>
+                  <button
+                    type="button"
+                    onClick={handleAgregarHorario}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-all shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    Agregar Horario
+                  </button>
+                </div>
+
+                {horarios.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                    <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400">schedule</span>
+                    <p className="text-sm">No hay horarios agregados. Haz clic en "Agregar Horario" para comenzar.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {horarios.map((horario, index) => (
+                      <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="text-sm font-semibold text-[#111318]">Horario {index + 1}</h5>
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarHorario(index)}
+                            className="text-red-500 hover:text-red-700 transition-colors"
+                            title="Eliminar horario"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">delete</span>
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[#111318] text-sm font-medium">Días</span>
+                            <input 
+                              type="text" 
+                              placeholder="Ej: Lunes a Jueves"
+                              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                              value={horario.dias}
+                              onChange={(e) => handleHorarioChange(index, 'dias', e.target.value)}
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[#111318] text-sm font-medium">Horario</span>
+                            <input 
+                              type="text" 
+                              placeholder="Ej: 08:00 - 18:00"
+                              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                              value={horario.horario}
+                              onChange={(e) => handleHorarioChange(index, 'horario', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 8: Información de Vehículos */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">directions_car</span>
+                Información de Vehículos
+              </h3>
+            </div>
+            <div className="p-6 space-y-6">
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Cantidad de vehículos a acreditar</span>
+                <input 
+                  type="number" 
+                  name="cantidadVehiculos"
+                  value={formData.cantidadVehiculos}
+                  onChange={handleInputChange}
+                  placeholder="Ej: 3"
+                  min="0"
+                  className="form-input w-full md:w-64 rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+
+              {placasPatente.length > 0 && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {placasPatente.map((placa, index) => (
+                      <div key={index} className="flex flex-col gap-2">
+                        <span className="text-[#111318] text-xs font-medium">Vehículo {index + 1}</span>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">directions_car</span>
+                          <input 
+                            type="text" 
+                            placeholder="Ej: ABCD12"
+                            className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            value={placa}
+                            onChange={(e) => handlePlacaChange(index, e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           
           {/* Worker List Builder */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm opacity-90">
@@ -383,7 +578,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                  Detalle de Personal (Opcional)
               </h3>
               <span className="text-xs text-gray-500">
-                Use esta lista para llevar control detallado de los {formData.workersToAccreditCount || 0} trabajadores.
+                Use esta lista para llevar control detallado de los trabajadores.
               </span>
             </div>
             <div className="p-6">

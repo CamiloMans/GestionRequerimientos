@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Worker, WorkerType, MOCK_WORKERS_DB, MOCK_COMPANIES } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Worker, WorkerType, MOCK_WORKERS_DB, MOCK_COMPANIES, Persona } from '../types';
+import { fetchPersonas } from '../services/supabaseService';
 
 interface WorkerListProps {
   workers: Worker[];
@@ -9,6 +10,8 @@ interface WorkerListProps {
 
 export const WorkerList: React.FC<WorkerListProps> = ({ workers, onAddWorker, onRemoveWorker }) => {
   const [selectedType, setSelectedType] = useState<WorkerType>(WorkerType.INTERNAL);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Internal State
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,15 +21,44 @@ export const WorkerList: React.FC<WorkerListProps> = ({ workers, onAddWorker, on
   const [extName, setExtName] = useState('');
   const [extPhone, setExtPhone] = useState('');
 
+  // Cargar personas de Supabase
+  useEffect(() => {
+    loadPersonas();
+  }, []);
+
+  const loadPersonas = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchPersonas();
+      setPersonas(data);
+    } catch (error) {
+      console.error('Error loading personas:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAdd = () => {
     if (selectedType === WorkerType.INTERNAL) {
       if (!searchQuery.trim()) return;
-      const existingWorker = MOCK_WORKERS_DB.find(w => w.name.toLowerCase() === searchQuery.toLowerCase());
+      
+      // Extraer el nombre y RUT del searchQuery (formato: "Nombre - RUT")
+      const searchParts = searchQuery.split(' - ');
+      const nombreBuscado = searchParts[0].trim();
+      const rutBuscado = searchParts.length > 1 ? searchParts[1].trim() : '';
+      
+      // Buscar la persona en la base de datos de Supabase
+      const existingPersona = personas.find(p => 
+        p.nombre_completo.toLowerCase() === nombreBuscado.toLowerCase() ||
+        p.rut === rutBuscado ||
+        searchQuery.toLowerCase().includes(p.nombre_completo.toLowerCase())
+      );
+      
       const newWorker: Worker = {
         id: Date.now().toString(),
-        name: searchQuery,
+        name: existingPersona ? existingPersona.nombre_completo : nombreBuscado,
         type: WorkerType.INTERNAL,
-        phone: existingWorker?.phone || '+56 9 XXXX XXXX'
+        phone: existingPersona?.telefono || '+56 9 XXXX XXXX'
       };
       onAddWorker(newWorker);
       setSearchQuery('');
@@ -52,97 +84,44 @@ export const WorkerList: React.FC<WorkerListProps> = ({ workers, onAddWorker, on
 
   return (
     <div className="flex flex-col gap-4 md:col-span-2 border-2 border-dashed border-primary/40 rounded-xl p-5 bg-blue-50/20">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
-        <div className="flex flex-col gap-1">
-          <h4 className="text-[#111318] text-sm font-bold">Agregar Trabajadores</h4>
-          <p className="text-xs text-[#616f89]">
-            Agregue colaboradores a la lista. Puede buscar trabajadores internos existentes o registrar externos manualmente.
-          </p>
-        </div>
-        <button 
-          type="button"
-          onClick={handleAdd}
-          className="shrink-0 h-[42px] bg-white border-2 border-primary text-primary hover:bg-primary hover:text-white font-semibold rounded-lg text-sm px-4 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
-        >
-          <span className="material-symbols-outlined text-lg">person_add</span>
-          <span>Agregar a lista</span>
-        </button>
+      <div className="flex flex-col gap-1 mb-2">
+        <h4 className="text-[#111318] text-sm font-bold">Agregar Trabajadores</h4>
+        <p className="text-xs text-[#616f89]">
+          Agregue colaboradores a la lista. Puede buscar trabajadores internos existentes o registrar externos manualmente.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-        {/* Type Select */}
-        <div className="md:col-span-4 lg:col-span-3 flex flex-col gap-2">
-          <span className="text-[#111318] text-xs font-semibold">Tipo</span>
-          <select 
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value as WorkerType)}
-            className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-          >
-            <option value={WorkerType.INTERNAL}>Interno (MYMA)</option>
-            <option value={WorkerType.EXTERNAL}>Externo</option>
-          </select>
-        </div>
-
-        {isExternal ? (
-          <>
-            <div className="md:col-span-3 flex flex-col gap-2">
-              <span className="text-[#111318] text-xs font-semibold">Empresa</span>
-              <input
-                type="text"
-                list="companies-list"
-                value={extCompany}
-                onChange={(e) => setExtCompany(e.target.value)}
-                placeholder="Empresa"
-                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-gray-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              />
-              <datalist id="companies-list">
-                {MOCK_COMPANIES.map(company => (
-                  <option key={company.id} value={company.name} />
-                ))}
-              </datalist>
-            </div>
-            <div className="md:col-span-3 flex flex-col gap-2">
-              <span className="text-[#111318] text-xs font-semibold">Colaborador</span>
-              <input
-                type="text"
-                value={extName}
-                onChange={(e) => setExtName(e.target.value)}
-                placeholder="Nombre completo..."
-                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-gray-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              />
-            </div>
-             <div className="md:col-span-3 lg:col-span-3 flex flex-col gap-2">
-              <span className="text-[#111318] text-xs font-semibold">Teléfono</span>
-              <input
-                type="text"
-                value={extPhone}
-                onChange={(e) => setExtPhone(e.target.value)}
-                placeholder="+56 9..."
-                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-gray-400 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              />
-            </div>
-          </>
-        ) : (
-          <div className="md:col-span-12 flex flex-col gap-2">
-            <span className="text-[#111318] text-xs font-semibold">Buscar / Nombre</span>
-            <div className="relative">
-              <input 
-                type="text"
-                list="staff-list"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Nombre del colaborador..."
-                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all pl-9"
-              />
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
-              <datalist id="staff-list">
-                {MOCK_WORKERS_DB.map(w => (
-                  <option key={w.name} value={w.name} />
-                ))}
-              </datalist>
-            </div>
+        <div className="md:col-span-9 flex flex-col gap-2">
+          <span className="text-[#111318] text-xs font-semibold">Buscar / Nombre</span>
+          <div className="relative">
+            <input 
+              type="text"
+              list="staff-list"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Nombre del colaborador..."
+              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all pl-9"
+            />
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
+            <datalist id="staff-list">
+              {personas.map(persona => (
+                <option key={persona.id} value={`${persona.nombre_completo} - ${persona.rut}`} />
+              ))}
+            </datalist>
           </div>
-        )}
+        </div>
+        
+        <div className="md:col-span-3 flex items-end">
+          <button 
+            type="button"
+            onClick={handleAdd}
+            className="w-full h-[42px] bg-white border-2 border-primary text-primary hover:bg-primary hover:text-white font-semibold rounded-lg text-sm px-4 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+          >
+            <span className="material-symbols-outlined text-lg">person_add</span>
+            <span>Agregar a lista</span>
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-col gap-2">

@@ -118,10 +118,17 @@ export interface RequestFormData {
   fieldStartDate: string;
   riskPreventionNotice: string;
   companyAccreditationRequired: string;
-  contractName: string;
-  contractNumber: string;
   contractAdmin: string;
-  workersToAccreditCount: number | '';
+  // Información del Contrato
+  nombreContrato: string;
+  numeroContrato: string;
+  administradorContrato: string;
+  // Condiciones Laborales
+  jornadaTrabajo: string;
+  horarioTrabajo: string;
+  // Información de Vehículos
+  cantidadVehiculos: string;
+  placaPatente: string;
 }
 
 export const REGIONS = [
