@@ -386,8 +386,11 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Section 5: Información del Contrato */}
-          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+          {/* Mostrar secciones solo si se requiere acreditar empresa */}
+          {formData.companyAccreditationRequired === 'yes' && (
+            <>
+              {/* Section 5: Información del Contrato */}
+              <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">description</span>
@@ -570,26 +573,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               )}
             </div>
           </div>
-          
-          {/* Worker List Builder */}
-          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm opacity-90">
-            <div className="border-b border-[#e5e7eb] px-6 py-4 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight text-gray-700">
-                 Detalle de Personal (Opcional)
-              </h3>
-              <span className="text-xs text-gray-500">
-                Use esta lista para llevar control detallado de los trabajadores.
-              </span>
-            </div>
-            <div className="p-6">
-              <WorkerList 
-                workers={workers} 
-                onAddWorker={handleAddWorker} 
-                onRemoveWorker={handleRemoveWorker} 
-              />
-            </div>
-          </div>
-
+            </>
+          )}
           {/* Footer Actions */}
           <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
             <button 

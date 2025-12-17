@@ -11,10 +11,13 @@ interface WorkerListProps {
 export const WorkerList: React.FC<WorkerListProps> = ({ workers, onAddWorker, onRemoveWorker }) => {
   const [selectedType, setSelectedType] = useState<WorkerType>(WorkerType.INTERNAL);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [filteredPersonas, setFilteredPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDropdown, setShowDropdown] = useState(false);
   
   // Internal State
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   
   // External State (Manual Entry)
   const [extCompany, setExtCompany] = useState('');
@@ -31,6 +34,7 @@ export const WorkerList: React.FC<WorkerListProps> = ({ workers, onAddWorker, on
       setLoading(true);
       const data = await fetchPersonas();
       setPersonas(data);
+      setFilteredPersonas(data);
     } catch (error) {
       console.error('Error loading personas:', error);
     } finally {
@@ -38,30 +42,65 @@ export const WorkerList: React.FC<WorkerListProps> = ({ workers, onAddWorker, on
     }
   };
 
+  // Filtrar personas cuando cambia el término de búsqueda
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredPersonas(personas);
+    } else {
+      const filtered = personas.filter(persona =>
+        persona.nombre_completo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        persona.rut.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredPersonas(filtered);
+    }
+  }, [searchQuery, personas]);
+
+  // Cerrar dropdown al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('#worker_search') && !target.closest('.dropdown-results')) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
+
+  const handleSelectPersona = (persona: Persona) => {
+    setSelectedPersona(persona);
+    setSearchQuery(`${persona.nombre_completo} - ${persona.rut}`);
+    setShowDropdown(false);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setSelectedPersona(null);
+    setShowDropdown(true);
+  };
+
   const handleAdd = () => {
     if (selectedType === WorkerType.INTERNAL) {
-      if (!searchQuery.trim()) return;
-      
-      // Extraer el nombre y RUT del searchQuery (formato: "Nombre - RUT")
-      const searchParts = searchQuery.split(' - ');
-      const nombreBuscado = searchParts[0].trim();
-      const rutBuscado = searchParts.length > 1 ? searchParts[1].trim() : '';
-      
-      // Buscar la persona en la base de datos de Supabase
-      const existingPersona = personas.find(p => 
-        p.nombre_completo.toLowerCase() === nombreBuscado.toLowerCase() ||
-        p.rut === rutBuscado ||
-        searchQuery.toLowerCase().includes(p.nombre_completo.toLowerCase())
-      );
+      if (!selectedPersona) {
+        alert("Por favor seleccione un colaborador de la lista");
+        return;
+      }
       
       const newWorker: Worker = {
         id: Date.now().toString(),
-        name: existingPersona ? existingPersona.nombre_completo : nombreBuscado,
+        name: selectedPersona.nombre_completo,
         type: WorkerType.INTERNAL,
-        phone: existingPersona?.telefono || '+56 9 XXXX XXXX'
+        phone: selectedPersona.telefono || '+56 9 XXXX XXXX'
       };
       onAddWorker(newWorker);
       setSearchQuery('');
+      setSelectedPersona(null);
     } else {
       if (!extName.trim()) return; // Minimal validation
       
@@ -92,24 +131,59 @@ export const WorkerList: React.FC<WorkerListProps> = ({ workers, onAddWorker, on
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-        <div className="md:col-span-9 flex flex-col gap-2">
+        <div className="md:col-span-9 flex flex-col gap-2 relative">
           <span className="text-[#111318] text-xs font-semibold">Buscar / Nombre</span>
           <div className="relative">
-            <input 
-              type="text"
-              list="staff-list"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Nombre del colaborador..."
-              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all pl-9"
-            />
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
-            <datalist id="staff-list">
-              {personas.map(persona => (
-                <option key={persona.id} value={`${persona.nombre_completo} - ${persona.rut}`} />
-              ))}
-            </datalist>
+            <input 
+              id="worker_search"
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onFocus={() => setShowDropdown(true)}
+              placeholder="Buscar por nombre o RUT..."
+              autoComplete="off"
+              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedPersona(null);
+                  setShowDropdown(true);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            )}
           </div>
+
+          {/* Dropdown de resultados */}
+          {showDropdown && (
+            <div className="dropdown-results absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
+              {filteredPersonas.length > 0 ? (
+                filteredPersonas.map(persona => (
+                  <button
+                    key={persona.id}
+                    type="button"
+                    onClick={() => handleSelectPersona(persona)}
+                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                      selectedPersona?.id === persona.id ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
+                    <div className="text-xs text-gray-500">{persona.rut}</div>
+                  </button>
+                ))
+              ) : (
+                <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                  No se encontraron colaboradores
+                </div>
+              )}
+            </div>
+          )}
         </div>
         
         <div className="md:col-span-3 flex items-end">
