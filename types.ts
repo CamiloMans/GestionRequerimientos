@@ -129,6 +129,19 @@ export interface RequestFormData {
   // Información de Vehículos
   cantidadVehiculos: string;
   placaPatente: string;
+  // Pregunta sobre Contratista
+  requiereAcreditarContratista: string;
+  // Información del Contrato (Contratista)
+  modalidadContrato: string;
+  razonSocialContratista: string;
+  nombreResponsableContratista: string;
+  telefonoResponsableContratista: string;
+  emailResponsableContratista: string;
+  // Vehículos Contratista
+  cantidadVehiculosContratista: string;
+  placasVehiculosContratista: string;
+  // SST
+  registroSstTerreo: string;
 }
 
 export const REGIONS = [
@@ -157,7 +170,14 @@ export const MOCK_WORKERS_DB = [
 export const MOCK_COMPANIES = [
   { id: 'tech_mining', name: 'Tech Mining SpA' },
   { id: 'servicios_log', name: 'Servicios Logísticos del Norte' },
-  { id: 'geo_consult', name: 'GeoConsulting Ltda.' }
+  { id: 'geo_consult', name: 'GeoConsulting Ltda.' },
+  { id: 'construcciones_sur', name: 'Construcciones del Sur Limitada' },
+  { id: 'ingenieria_total', name: 'Ingeniería Total S.A.' },
+  { id: 'transportes_norte', name: 'Transportes y Logística Norte Chile' },
+  { id: 'mantenciones_ind', name: 'Mantenciones Industriales ProService' },
+  { id: 'energia_renovable', name: 'Energía Renovable del Pacífico' },
+  { id: 'seguridad_integral', name: 'Seguridad Integral Profesional' },
+  { id: 'equipos_pesados', name: 'Equipos Pesados y Maquinaria Ltda.' }
 ];
 
 export const MOCK_EXTERNAL_WORKERS_BY_COMPANY: Record<string, {name: string, phone: string}[]> = {

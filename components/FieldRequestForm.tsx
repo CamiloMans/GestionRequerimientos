@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { WorkerList } from './WorkerList';
-import { Worker, RequestFormData, PROJECT_MANAGERS } from '../types';
+import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES } from '../types';
 
 interface Horario {
   dias: string;
@@ -37,11 +37,26 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     // Información de Vehículos
     cantidadVehiculos: '',
     placaPatente: '',
+    // Pregunta sobre Contratista
+    requiereAcreditarContratista: '',
+    // Información del Contrato (Contratista)
+    modalidadContrato: '',
+    razonSocialContratista: '',
+    nombreResponsableContratista: '',
+    telefonoResponsableContratista: '',
+    emailResponsableContratista: '',
+    // Vehículos Contratista
+    cantidadVehiculosContratista: '',
+    placasVehiculosContratista: '',
+    // SST
+    registroSstTerreo: '',
   });
 
   const [workers, setWorkers] = useState<Worker[]>([]);
+  const [workersContratista, setWorkersContratista] = useState<Worker[]>([]);
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [placasPatente, setPlacasPatente] = useState<string[]>([]);
+  const [placasPatenteContratista, setPlacasPatenteContratista] = useState<string[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -51,6 +66,22 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     if (name === 'cantidadVehiculos') {
       const cantidad = parseInt(value) || 0;
       setPlacasPatente(prev => {
+        const newPlacas = [...prev];
+        // Agregar o quitar elementos según la cantidad
+        if (cantidad > newPlacas.length) {
+          // Agregar elementos vacíos
+          return [...newPlacas, ...Array(cantidad - newPlacas.length).fill('')];
+        } else {
+          // Recortar el array
+          return newPlacas.slice(0, cantidad);
+        }
+      });
+    }
+
+    // Si se cambia la cantidad de vehículos del contratista, actualizar el array de placas
+    if (name === 'cantidadVehiculosContratista') {
+      const cantidad = parseInt(value) || 0;
+      setPlacasPatenteContratista(prev => {
         const newPlacas = [...prev];
         // Agregar o quitar elementos según la cantidad
         if (cantidad > newPlacas.length) {
@@ -88,6 +119,18 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   const handlePlacaChange = (index: number, value: string) => {
     setPlacasPatente(prev => prev.map((placa, i) => i === index ? value : placa));
+  };
+
+  const handlePlacaContratistaChange = (index: number, value: string) => {
+    setPlacasPatenteContratista(prev => prev.map((placa, i) => i === index ? value : placa));
+  };
+
+  const handleAddWorkerContratista = (worker: Worker) => {
+    setWorkersContratista(prev => [...prev, worker]);
+  };
+
+  const handleRemoveWorkerContratista = (id: string) => {
+    setWorkersContratista(prev => prev.filter(w => w.id !== id));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -573,8 +616,256 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               )}
             </div>
           </div>
+
+          {/* Pregunta sobre Acreditación de Contratista */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="p-6">
+              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
+                  <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
+                  ¿Se requiere acreditar a contratista?
+                </span>
+                <div className="flex gap-6 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="requiereAcreditarContratista" 
+                      value="yes"
+                      checked={formData.requiereAcreditarContratista === 'yes'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="requiereAcreditarContratista" 
+                      value="no"
+                      checked={formData.requiereAcreditarContratista === 'no'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">No</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mostrar secciones de contratista solo si se requiere acreditar */}
+          {formData.requiereAcreditarContratista === 'yes' && (
+            <>
+          {/* Section 9: Información del Contrato */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">description</span>
+                Información del Contrato
+              </h3>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Modalidad de contrato</span>
+                <select 
+                  name="modalidadContrato"
+                  value={formData.modalidadContrato}
+                  onChange={handleInputChange}
+                  className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                >
+                  <option value="">Seleccione...</option>
+                  <option value="honorarios">Honorarios</option>
+                  <option value="contratista">Contratista</option>
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Razón social de contratista</span>
+                <input 
+                  type="text" 
+                  name="razonSocialContratista"
+                  value={formData.razonSocialContratista}
+                  onChange={handleInputChange}
+                  placeholder="Ingrese la razón social"
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Section 10: Responsable de la Solicitud */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">person</span>
+                Responsable de la Solicitud
+              </h3>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Nombre de contacto</span>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">person</span>
+                  <input 
+                    type="text" 
+                    name="nombreResponsableContratista"
+                    value={formData.nombreResponsableContratista}
+                    onChange={handleInputChange}
+                    placeholder="Nombre completo"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                  />
+                </div>
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Teléfono</span>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">phone</span>
+                  <input 
+                    type="tel" 
+                    name="telefonoResponsableContratista"
+                    value={formData.telefonoResponsableContratista}
+                    onChange={handleInputChange}
+                    placeholder="+569 1234 5678"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                  />
+                </div>
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Email</span>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">mail</span>
+                  <input 
+                    type="email" 
+                    name="emailResponsableContratista"
+                    value={formData.emailResponsableContratista}
+                    onChange={handleInputChange}
+                    placeholder="correo@ejemplo.com"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                  />
+                </div>
+              </label>
+            </div>
+            <div className="px-6 pb-6">
+              <p className="text-xs text-gray-500">
+                Persona responsable para la solicitud de documentación de trabajadores contratista
+              </p>
+            </div>
+          </div>
+
+          {/* Section 11: Información de Trabajadores Contratista */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">group</span>
+                Información de Trabajadores Contratista
+              </h3>
+            </div>
+            <div className="p-6">
+              <WorkerList 
+                workers={workersContratista} 
+                onAddWorker={handleAddWorkerContratista} 
+                onRemoveWorker={handleRemoveWorkerContratista}
+                requireCompanySelection={true}
+                companies={MOCK_COMPANIES.map(c => c.name)}
+              />
+            </div>
+          </div>
+
+          {/* Section 12: Información de Vehículos Contratista */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">local_shipping</span>
+                Información de Vehículos Contratista
+              </h3>
+            </div>
+            <div className="p-6 space-y-6">
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Cantidad de vehículos a acreditar del contratista</span>
+                <input 
+                  type="number" 
+                  name="cantidadVehiculosContratista"
+                  value={formData.cantidadVehiculosContratista}
+                  onChange={handleInputChange}
+                  placeholder="Ej: 3"
+                  min="0"
+                  className="form-input w-full md:w-64 rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+
+              {placasPatenteContratista.length > 0 && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {placasPatenteContratista.map((placa, index) => (
+                      <div key={index} className="flex flex-col gap-2">
+                        <span className="text-[#111318] text-xs font-medium">Vehículo {index + 1}</span>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">directions_car</span>
+                          <input 
+                            type="text" 
+                            placeholder="Ej: ABCD12"
+                            className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            value={placa}
+                            onChange={(e) => handlePlacaContratistaChange(index, e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 13: Seguridad y Salud en el Trabajo (SST) */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">health_and_safety</span>
+                Seguridad y Salud en el Trabajo (SST)
+              </h3>
+            </div>
+            <div className="p-6">
+              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
+                  <span className="material-symbols-outlined text-orange-500 text-base">assignment</span>
+                  ¿Se registró actividad en la planilla SST terreno?
+                </span>
+                <div className="flex gap-6 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="registroSstTerreo" 
+                      value="yes"
+                      checked={formData.registroSstTerreo === 'yes'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="registroSstTerreo" 
+                      value="no"
+                      checked={formData.registroSstTerreo === 'no'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">No</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
             </>
           )}
+            </>
+          )}
+
           {/* Footer Actions */}
           <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
             <button 
