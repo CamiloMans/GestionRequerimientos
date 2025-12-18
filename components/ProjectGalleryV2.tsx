@@ -67,8 +67,8 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     if (statusLower.includes('pendiente')) return 'bg-amber-100 text-amber-700 border-amber-200';
     // En proceso - Azul (trabajo en progreso)
     if (statusLower.includes('proceso')) return 'bg-blue-100 text-blue-700 border-blue-200';
-    // Finalizada - Verde (completado exitosamente)
-    if (statusLower.includes('finalizada')) return 'bg-green-100 text-green-700 border-green-200';
+    // Finalizada/Finalizado - Verde (completado exitosamente)
+    if (statusLower.includes('finalizada') || statusLower.includes('finalizado')) return 'bg-green-100 text-green-700 border-green-200';
     // Cancelada - Rojo (detenido/cancelado)
     if (statusLower.includes('cancelada')) return 'bg-red-100 text-red-700 border-red-200';
     return 'bg-gray-100 text-gray-700 border-gray-200';
@@ -80,8 +80,8 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     if (statusLower.includes('pendiente')) return 'border-amber-500 bg-amber-50';
     // En proceso - Azul
     if (statusLower.includes('proceso')) return 'border-blue-500 bg-blue-50';
-    // Finalizada - Verde
-    if (statusLower.includes('finalizada')) return 'border-green-500 bg-green-50';
+    // Finalizada/Finalizado - Verde
+    if (statusLower.includes('finalizada') || statusLower.includes('finalizado')) return 'border-green-500 bg-green-50';
     // Cancelada - Rojo
     if (statusLower.includes('cancelada')) return 'border-red-500 bg-red-50';
     return 'border-gray-500 bg-gray-50';
@@ -501,21 +501,52 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                     
                     {/* Estado */}
                     <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                      <span className={`px-4 py-2 rounded-lg text-sm font-bold border-2 whitespace-nowrap shadow-sm group-hover:shadow transition-all duration-300 ${getStatusColor(project.status)}`}>
-                        {project.status}
-                      </span>
+                      {(() => {
+                        // Si tiene 100% de progreso, mostrar "Finalizado"
+                        const progressPercentage = project.totalTasks && project.totalTasks > 0 
+                          ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
+                          : 0;
+                        const displayStatus = (progressPercentage === 100 && project.status.toLowerCase().includes('proceso')) 
+                          ? 'Finalizado' 
+                          : project.status;
+                        const statusColor = getStatusColor(displayStatus);
+                        
+                        return (
+                          <span className={`px-4 py-2 rounded-lg text-sm font-bold border-2 whitespace-nowrap shadow-sm group-hover:shadow transition-all duration-300 ${statusColor}`}>
+                            {displayStatus}
+                          </span>
+                        );
+                      })()}
                       {/* Indicador de acción */}
-                      {project.status.toLowerCase().includes('pendiente') ? (
-                        <span className="text-xs text-gray-500 flex items-center gap-1 font-medium group-hover:text-gray-700 transition-colors duration-300">
-                          <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">assignment_ind</span>
-                          <span>Asignar responsables</span>
-                        </span>
-                      ) : (
-                        <span className="text-xs text-blue-600 flex items-center gap-1 font-semibold group-hover:text-blue-700 transition-colors duration-300">
-                          <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">visibility</span>
-                          <span>Ver detalle</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const progressPercentage = project.totalTasks && project.totalTasks > 0 
+                          ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
+                          : 0;
+                        const isCompleted = progressPercentage === 100 && project.status.toLowerCase().includes('proceso');
+                        
+                        if (project.status.toLowerCase().includes('pendiente')) {
+                          return (
+                            <span className="text-xs text-gray-500 flex items-center gap-1 font-medium group-hover:text-gray-700 transition-colors duration-300">
+                              <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">assignment_ind</span>
+                              <span>Asignar responsables</span>
+                            </span>
+                          );
+                        } else if (isCompleted) {
+                          return (
+                            <span className="text-xs text-green-600 flex items-center gap-1 font-semibold group-hover:text-green-700 transition-colors duration-300">
+                              <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">visibility</span>
+                              <span>Ver detalle</span>
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className="text-xs text-blue-600 flex items-center gap-1 font-semibold group-hover:text-blue-700 transition-colors duration-300">
+                              <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">visibility</span>
+                              <span>Ver detalle</span>
+                            </span>
+                          );
+                        }
+                      })()}
                     </div>
                   </div>
 
