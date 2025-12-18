@@ -66,13 +66,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
       >
         <div className="flex h-full flex-col justify-between py-6 w-full items-center">
           <div className="flex flex-col gap-6 w-full items-center">
-            {/* Avatar */}
+            {/* Logo MyMA */}
             <div className="flex flex-col items-center justify-center">
               <div 
-                className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border border-gray-200 shadow-sm"
-                style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBXVx6GxCSkS5BfutVlYARGWCwjweC4lytns7aqFA037MEqgU4t3yMIkGTVlGl9xLqeVPNoSydmdH5h64phcOSitbjwQhsdl5osCNYLTEk5wEH06dCOQ81_urNL-khLmhrShhz1grpX8S2ALrd7wqZ5v1om2QvUff89ecmVDHpAakAwvyznN8fXx5TjtUhzYfeovO0rWvb5UVdIDqDZwYrIKHg0CqobW26lRgYLnNRXv3TQwcEfCzc8T5sOQFEzvpxro2i6MzhKfq8")' }}
-                title="Admin User"
-              />
+                className="size-12 rounded-full bg-gradient-to-br from-teal-700 to-teal-900 flex items-center justify-center shadow-lg border-2 border-teal-600"
+                title="MyMA - Sistema de Gestión"
+              >
+                <span className="text-white font-bold text-sm tracking-tight">MyMA</span>
+              </div>
             </div>
             
             {/* Navigation */}

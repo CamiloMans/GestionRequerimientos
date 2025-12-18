@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase';
 import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem } from '../types';
+import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 
 // Función para calcular el estado basado en la fecha de vencimiento
 export const calculateStatus = (fechaVencimiento: string | null | undefined): RequestStatus => {
@@ -222,6 +223,20 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
     // Calcular total de vehículos
     const totalVehicles = (solicitud.vehiculos_cantidad || 0) + (solicitud.vehiculos_contratista_cantidad || 0);
     
+    // Generar tareas basadas en los responsables asignados
+    const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente';
+    const projectTasks = generateProjectTasks(
+      solicitud.id,
+      !!solicitud.jpro_id,    // Tiene JPRO asignado
+      !!solicitud.epr_id,     // Tiene EPR asignado
+      !!solicitud.rrhh_id,    // Tiene RRHH asignado
+      !!solicitud.legal_id,   // Tiene Legal asignado
+      projectStatus
+    );
+    
+    // Calcular tareas completadas
+    const { completed: completedTasks, total: totalTasks } = calculateCompletedTasks(projectTasks);
+    
     return {
       id: solicitud.id,
       projectCode: solicitud.codigo_proyecto || 'Sin código',
@@ -234,6 +249,10 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
       status: solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente',
       workers: allWorkers,
       createdAt: solicitud.created_at,
+      // Progreso de tareas
+      completedTasks: completedTasks,
+      totalTasks: totalTasks,
+      tasks: projectTasks, // Tareas completas del proyecto
       // Responsables del proyecto
       empresa_id: solicitud.empresa_id,
       empresa_nombre: solicitud.empresa_nombre,

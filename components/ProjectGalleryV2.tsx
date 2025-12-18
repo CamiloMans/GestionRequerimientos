@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ProjectGalleryItem } from '../types';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
+import ProjectDetailView from './ProjectDetailView';
 import { updateResponsablesSolicitud } from '../services/supabaseService';
 
 interface ProjectGalleryV2Props {
@@ -13,6 +14,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedProject, setSelectedProject] = useState<ProjectGalleryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showDetailView, setShowDetailView] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Filtrar proyectos
@@ -64,13 +66,42 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     return 'border-gray-500 bg-gray-50';
   };
 
+  const getProjectDuration = (createdAt: string) => {
+    if (!createdAt) return { value: '-', unit: '' };
+    
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffInMs = now.getTime() - created.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) {
+      return { value: '0', unit: 'días' };
+    } else if (diffInDays === 1) {
+      return { value: '1', unit: 'día' };
+    } else {
+      return { value: diffInDays.toString(), unit: 'días' };
+    }
+  };
+
   const handleProjectClick = (project: ProjectGalleryItem) => {
     setSelectedProject(project);
-    setIsModalOpen(true);
+    
+    // Si el proyecto está en estado "Pendiente", abre el modal de asignación
+    // Si NO está en "Pendiente", abre la vista de detalle
+    if (project.status.toLowerCase().includes('pendiente')) {
+      setIsModalOpen(true);
+    } else {
+      setShowDetailView(true);
+    }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setSelectedProject(null);
+  };
+
+  const handleBackFromDetail = () => {
+    setShowDetailView(false);
     setSelectedProject(null);
   };
 
@@ -102,7 +133,31 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const totalProjects = projects.length;
   const totalWorkers = projects.reduce((sum, p) => sum + p.totalWorkers, 0);
   const totalVehicles = projects.reduce((sum, p) => sum + p.totalVehicles, 0);
-  const activeProjects = projects.filter(p => p.status.toLowerCase().includes('activo') || p.status.toLowerCase().includes('vigente')).length;
+  const totalTasksCompleted = projects.reduce((sum, p) => sum + (p.completedTasks || 0), 0);
+  const totalTasksAll = projects.reduce((sum, p) => sum + (p.totalTasks || 0), 0);
+  // Proyectos activos = todos los que NO estén cancelados ni finalizados
+  const activeProjects = projects.filter(p => {
+    const statusLower = p.status.toLowerCase();
+    return !statusLower.includes('cancelada') && !statusLower.includes('finalizada');
+  }).length;
+  
+  // Calcular tiempo promedio de proyectos finalizados (en días)
+  const finishedProjects = projects.filter(p => p.status.toLowerCase().includes('finalizada'));
+  const averageDuration = finishedProjects.length > 0
+    ? Math.round(
+        finishedProjects.reduce((sum, p) => {
+          const created = new Date(p.createdAt);
+          const now = new Date();
+          const diffInDays = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+          return sum + diffInDays;
+        }, 0) / finishedProjects.length
+      )
+    : 0;
+
+  // Si se está mostrando la vista de detalle, renderizar ese componente
+  if (showDetailView && selectedProject) {
+    return <ProjectDetailView project={selectedProject} onBack={handleBackFromDetail} />;
+  }
 
   return (
     <div className="layout-container flex h-full grow flex-col">
@@ -138,11 +193,16 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Trabajadores</p>
-                <p className="text-2xl font-bold text-[#111318] mt-1">{totalWorkers}</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Tareas Completadas</p>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <p className="text-2xl font-bold text-green-600">{totalTasksCompleted}</p>
+                  <span className="text-sm font-semibold text-gray-400">/</span>
+                  <p className="text-xl font-bold text-gray-500">{totalTasksAll}</p>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5">Todas las tareas</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <span className="material-symbols-outlined text-green-600 text-2xl">group</span>
+                <span className="material-symbols-outlined text-green-600 text-2xl">task_alt</span>
               </div>
             </div>
           </div>
@@ -150,11 +210,15 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Vehículos</p>
-                <p className="text-2xl font-bold text-amber-600 mt-1">{totalVehicles}</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Tiempo Promedio</p>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <p className="text-2xl font-bold text-amber-600">{averageDuration}</p>
+                  <p className="text-sm font-semibold text-amber-600">{averageDuration === 1 ? 'día' : 'días'}</p>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5">Proyectos finalizados</p>
               </div>
               <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-                <span className="material-symbols-outlined text-amber-600 text-2xl">directions_car</span>
+                <span className="material-symbols-outlined text-amber-600 text-2xl">schedule</span>
               </div>
             </div>
           </div>
@@ -254,18 +318,89 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-4 flex-shrink-0">
-                      <div className="text-center px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Trabajadores</p>
-                        <p className="text-xl font-bold text-primary">{project.totalWorkers}</p>
+                    <div className="flex items-stretch gap-3 flex-shrink-0">
+                      {/* Badge Tareas con Anillo de Progreso */}
+                      <div className="flex items-center gap-3 px-4 py-2.5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 min-w-[160px]">
+                        {/* Anillo circular de progreso */}
+                        <div className="relative flex items-center justify-center flex-shrink-0">
+                          <svg className="w-14 h-14 transform -rotate-90">
+                            {/* Círculo de fondo */}
+                            <circle
+                              cx="28"
+                              cy="28"
+                              r="24"
+                              stroke="#E0E7FF"
+                              strokeWidth="4"
+                              fill="none"
+                            />
+                            {/* Círculo de progreso */}
+                            <circle
+                              cx="28"
+                              cy="28"
+                              r="24"
+                              stroke={
+                                ((project.completedTasks || 0) / (project.totalTasks || 1)) >= 0.8 ? '#10B981' :
+                                ((project.completedTasks || 0) / (project.totalTasks || 1)) >= 0.5 ? '#3B82F6' :
+                                '#F59E0B'
+                              }
+                              strokeWidth="4"
+                              fill="none"
+                              strokeDasharray={`${2 * Math.PI * 24}`}
+                              strokeDashoffset={`${2 * Math.PI * 24 * (1 - ((project.completedTasks || 0) / (project.totalTasks || 1)))}`}
+                              strokeLinecap="round"
+                              className="transition-all duration-500"
+                            />
+                          </svg>
+                          {/* Texto en el centro del anillo */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xs font-bold text-gray-700">
+                              {project.totalTasks ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100) : 0}%
+                            </span>
+                          </div>
+                        </div>
+                        {/* Información de tareas */}
+                        <div className="flex flex-col justify-center">
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Tareas</p>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <p className="text-lg font-bold text-primary">{project.completedTasks || 0}</p>
+                            <span className="text-xs font-semibold text-gray-400">/</span>
+                            <p className="text-lg font-bold text-gray-600">{project.totalTasks || 0}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-center px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Vehículos</p>
-                        <p className="text-xl font-bold text-amber-600">{project.totalVehicles}</p>
+
+                      {/* Badge Duración */}
+                      <div className="text-center px-4 py-2.5 bg-amber-50 rounded-lg border border-amber-100 min-w-[110px]">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Duración</p>
+                        <div className="flex items-baseline justify-center gap-1 mt-1">
+                          <p className="text-xl font-bold text-amber-600">{getProjectDuration(project.createdAt).value}</p>
+                          {getProjectDuration(project.createdAt).unit && (
+                            <p className="text-xs font-semibold text-amber-600">{getProjectDuration(project.createdAt).unit}</p>
+                          )}
+                        </div>
                       </div>
-                      <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusColor(project.status)}`}>
-                        {project.status}
-                      </span>
+
+                      {/* Separador vertical */}
+                      <div className="w-px bg-gray-200 self-stretch"></div>
+
+                      {/* Estado y Acción */}
+                      <div className="flex flex-col justify-center items-center gap-2 px-2 min-w-[160px]">
+                        <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap ${getStatusColor(project.status)}`}>
+                          {project.status}
+                        </span>
+                        {/* Indicador de acción al hacer clic */}
+                        {project.status.toLowerCase().includes('pendiente') ? (
+                          <span className="text-xs text-gray-500 flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[16px]">assignment_ind</span>
+                            <span>Clic para asignar</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-blue-600 flex items-center gap-1.5 font-medium whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[16px]">visibility</span>
+                            <span>Ver detalle</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

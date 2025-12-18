@@ -208,6 +208,10 @@ export interface ProjectGalleryItem {
   status: string;
   workers: Worker[];
   createdAt: string;
+  // Progreso de tareas
+  completedTasks?: number;
+  totalTasks?: number;
+  tasks?: any[]; // Array de tareas del proyecto (ProjectTask[])
   // Responsables del proyecto
   empresa_id?: string;
   empresa_nombre?: string;
