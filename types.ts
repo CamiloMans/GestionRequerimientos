@@ -63,12 +63,22 @@ export interface Cliente {
   updated_at?: string;
 }
 
+export interface ResponsableRequerimiento {
+  id: number;
+  nombre_responsable: string;
+  rut_responsable: string;
+  cargo_responsable: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EmpresaRequerimiento {
   id: number;
   empresa: string;
   requerimiento: string;
   categoria_requerimiento: string;
   responsable: 'JPRO' | 'EPR' | 'RRHH' | 'Legal';
+  observaciones?: string;
   orden?: number;
   obligatorio?: boolean;
   created_at?: string;

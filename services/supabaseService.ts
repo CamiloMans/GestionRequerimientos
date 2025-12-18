@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase';
-import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion } from '../types';
+import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 
 // Función para calcular el estado basado en la fecha de vencimiento
@@ -49,6 +49,21 @@ export const fetchClientes = async (): Promise<Cliente[]> => {
   
   if (error) {
     console.error('Error fetching clientes:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Función para obtener todos los responsables de requerimiento
+export const fetchResponsablesRequerimiento = async (): Promise<ResponsableRequerimiento[]> => {
+  const { data, error } = await supabase
+    .from('responsable_requerimiento')
+    .select('*')
+    .order('nombre_responsable', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching responsables de requerimiento:', error);
     throw error;
   }
   
@@ -434,20 +449,60 @@ export const updateResponsablesSolicitud = async (
 
 // Función para obtener requerimientos estándar de una empresa
 export const fetchEmpresaRequerimientos = async (empresa: string): Promise<EmpresaRequerimiento[]> => {
-  console.log('🔍 Buscando requerimientos para empresa:', empresa);
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🔍 fetchEmpresaRequerimientos');
+  console.log('═══════════════════════════════════════════════════');
+  console.log('Empresa buscada:', empresa);
+  console.log('Longitud:', empresa.length);
+  console.log('Con marcadores:', `|${empresa}|`);
+  console.log('Primer carácter (código):', empresa.charCodeAt(0));
   
   const { data, error } = await supabase
     .from('empresa_requerimiento')
     .select('*')
     .eq('empresa', empresa)
-    .order('orden', { ascending: true });
+    .order('created_at', { ascending: true });
   
   if (error) {
-    console.error('❌ Error fetching empresa requerimientos:', error);
+    console.error('═══════════════════════════════════════════════════');
+    console.error('❌ ERROR EN LA CONSULTA');
+    console.error('═══════════════════════════════════════════════════');
+    console.error('Error completo:', error);
+    console.error('Mensaje:', error.message);
+    console.error('Detalles:', error.details);
+    console.error('Código:', error.code);
+    console.error('═══════════════════════════════════════════════════');
     throw error;
   }
   
-  console.log(`✅ Encontrados ${data?.length || 0} requerimientos para ${empresa}`);
+  console.log('═══════════════════════════════════════════════════');
+  console.log('✅ CONSULTA EXITOSA');
+  console.log('═══════════════════════════════════════════════════');
+  console.log(`Total registros: ${data?.length || 0}`);
+  
+  if (data && data.length > 0) {
+    console.log('\n📋 Primeros registros:');
+    data.slice(0, 3).forEach((req, i) => {
+      console.log(`\n  ${i + 1}. ID: ${req.id}`);
+      console.log(`     Empresa: "${req.empresa}"`);
+      console.log(`     Requerimiento: ${req.requerimiento}`);
+      console.log(`     Responsable: ${req.responsable}`);
+    });
+    if (data.length > 3) {
+      console.log(`\n  ... y ${data.length - 3} más`);
+    }
+  } else {
+    console.log('\n⚠️ NO SE ENCONTRARON REGISTROS');
+    console.log('\n💡 Sugerencias:');
+    console.log('   1. Verifica que existan datos en Supabase con este SQL:');
+    console.log(`      SELECT * FROM empresa_requerimiento WHERE empresa = '${empresa}';`);
+    console.log('   2. Verifica todas las empresas disponibles:');
+    console.log('      SELECT DISTINCT empresa FROM empresa_requerimiento;');
+    console.log('   3. Busca con coincidencia parcial:');
+    console.log(`      SELECT * FROM empresa_requerimiento WHERE empresa ILIKE '%${empresa}%';`);
+  }
+  console.log('═══════════════════════════════════════════════════\n');
+  
   return data || [];
 };
 
@@ -506,7 +561,7 @@ export const createProyectoRequerimientos = async (
       estado: 'Pendiente',
       cliente: cliente,
       categoria_requerimiento: req.categoria_requerimiento,
-      observaciones: null,
+      observaciones: req.observaciones || null,
       nombre_responsable: nombreResponsable
     };
   });

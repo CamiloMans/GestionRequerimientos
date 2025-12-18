@@ -136,46 +136,74 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     try {
       setSaving(true);
       
-      // 1. Guardar responsables en la base de datos (esto es lo PRINCIPAL)
-      console.log('💾 Guardando responsables...');
-      await updateResponsablesSolicitud(selectedProject.id, responsables);
-      console.log('✅ Responsables guardados exitosamente en la base de datos');
+      console.log('═══════════════════════════════════════════════════');
+      console.log('💾 GUARDANDO RESPONSABLES Y REQUERIMIENTOS');
+      console.log('═══════════════════════════════════════════════════');
+      console.log('Proyecto:', selectedProject.projectCode);
+      console.log('Empresa:', responsables.empresa_nombre);
+      console.log('Responsables seleccionados:', {
+        JPRO: responsables.jpro_nombre || 'Sin asignar',
+        EPR: responsables.epr_nombre || 'Sin asignar',
+        RRHH: responsables.rrhh_nombre || 'Sin asignar',
+        Legal: responsables.legal_nombre || 'Sin asignar'
+      });
+      console.log('Requerimientos recibidos:', responsables.empresaRequerimientos?.length || 0);
       
-      // 2. Intentar crear requerimientos del proyecto (OPCIONAL - no debe fallar el guardado principal)
-      if (responsables.empresa_nombre) {
+      // 1. Guardar responsables en la base de datos (esto es lo PRINCIPAL)
+      console.log('\n📝 Paso 1: Guardando responsables en solicitud_acreditacion...');
+      await updateResponsablesSolicitud(selectedProject.id, responsables);
+      console.log('✅ Responsables guardados exitosamente');
+      
+      // 2. Guardar requerimientos del proyecto si hay empresa y requerimientos
+      if (responsables.empresa_nombre && responsables.empresaRequerimientos && responsables.empresaRequerimientos.length > 0) {
         try {
-          console.log('🏢 Intentando crear requerimientos para empresa:', responsables.empresa_nombre);
+          console.log('\n📋 Paso 2: Guardando requerimientos en proyecto_requerimientos_acreditacion...');
+          console.log(`Total de requerimientos a guardar: ${responsables.empresaRequerimientos.length}`);
+          console.log('\nVista previa de los primeros 3 requerimientos:');
           
-          // Obtener requerimientos estándar de la empresa
-          const empresaReqs = await fetchEmpresaRequerimientos(responsables.empresa_nombre);
+          responsables.empresaRequerimientos.slice(0, 3).forEach((req, i) => {
+            const nombreResp = req.responsable === 'JPRO' ? responsables.jpro_nombre :
+                              req.responsable === 'EPR' ? responsables.epr_nombre :
+                              req.responsable === 'RRHH' ? responsables.rrhh_nombre :
+                              req.responsable === 'Legal' ? responsables.legal_nombre : 'Sin asignar';
+            
+            console.log(`\n  ${i + 1}. ${req.requerimiento}`);
+            console.log(`     Cargo: ${req.responsable}`);
+            console.log(`     Nombre Responsable: ${nombreResp || 'Sin asignar'}`);
+            console.log(`     Categoría: ${req.categoria_requerimiento}`);
+          });
           
-          if (empresaReqs.length > 0) {
-            console.log(`📋 Encontrados ${empresaReqs.length} requerimientos estándar`);
-            
-            // Crear requerimientos del proyecto con los nombres de responsables
-            await createProyectoRequerimientos(
-              selectedProject.projectCode,
-              responsables.empresa_nombre,
-              empresaReqs,
-              {
-                jpro_nombre: responsables.jpro_nombre,
-                epr_nombre: responsables.epr_nombre,
-                rrhh_nombre: responsables.rrhh_nombre,
-                legal_nombre: responsables.legal_nombre
-              }
-            );
-            
-            console.log('✅ Requerimientos del proyecto creados automáticamente');
-          } else {
-            console.log('⚠️ No se encontraron requerimientos estándar para esta empresa');
+          if (responsables.empresaRequerimientos.length > 3) {
+            console.log(`\n  ... y ${responsables.empresaRequerimientos.length - 3} más`);
           }
+          
+          // Crear requerimientos del proyecto con los nombres de responsables seleccionados
+          await createProyectoRequerimientos(
+            selectedProject.projectCode,
+            responsables.empresa_nombre,
+            responsables.empresaRequerimientos,
+            {
+              jpro_nombre: responsables.jpro_nombre,
+              epr_nombre: responsables.epr_nombre,
+              rrhh_nombre: responsables.rrhh_nombre,
+              legal_nombre: responsables.legal_nombre
+            }
+          );
+          
+          console.log('\n✅ Requerimientos del proyecto guardados exitosamente en la BD');
+          console.log('═══════════════════════════════════════════════════\n');
         } catch (reqError) {
           // Si falla la creación de requerimientos, NO afecta el guardado principal
-          console.warn('⚠️ No se pudieron crear los requerimientos automáticos:', reqError);
-          console.log('💡 Posible causa: Las tablas empresa_requerimiento o proyecto_requerimientos_acreditacion no existen');
-          console.log('💡 Solución: Ejecutar script sql/create_project_requirements_tables.sql en Supabase');
+          console.error('\n❌ Error al guardar requerimientos:', reqError);
+          console.warn('⚠️ Los responsables se guardaron, pero hubo un problema con los requerimientos');
+          console.log('💡 Posible causa: La tabla proyecto_requerimientos_acreditacion no existe o faltan columnas');
           // No lanzamos el error, continuamos normalmente
         }
+      } else {
+        console.log('\n⚠️ No hay requerimientos para guardar');
+        console.log('Razones posibles:');
+        console.log('  - No se seleccionó empresa:', !responsables.empresa_nombre);
+        console.log('  - No hay requerimientos:', !responsables.empresaRequerimientos || responsables.empresaRequerimientos.length === 0);
       }
       
       // 3. Notificar al componente padre para que recargue los datos
@@ -184,14 +212,24 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       }
       
       // 4. Mostrar mensaje de éxito
-      alert('✅ Responsables guardados exitosamente\n\n' + 
-            `Proyecto: ${selectedProject.projectCode}\n` +
-            (responsables.empresa_nombre ? `Empresa: ${responsables.empresa_nombre}\n` : '') +
-            (responsables.jpro_nombre ? `JPRO: ${responsables.jpro_nombre}\n` : '') +
-            (responsables.epr_nombre ? `EPR: ${responsables.epr_nombre}\n` : '') +
-            (responsables.rrhh_nombre ? `RRHH: ${responsables.rrhh_nombre}\n` : '') +
-            (responsables.legal_nombre ? `Legal: ${responsables.legal_nombre}` : '')
-      );
+      let successMsg = '✅ Guardado Exitoso\n\n';
+      successMsg += `Proyecto: ${selectedProject.projectCode}\n`;
+      
+      if (responsables.empresa_nombre) {
+        successMsg += `Empresa: ${responsables.empresa_nombre}\n\n`;
+      }
+      
+      successMsg += '👥 Responsables Asignados:\n';
+      successMsg += (responsables.jpro_nombre ? `  • JPRO: ${responsables.jpro_nombre}\n` : '  • JPRO: Sin asignar\n');
+      successMsg += (responsables.epr_nombre ? `  • EPR: ${responsables.epr_nombre}\n` : '  • EPR: Sin asignar\n');
+      successMsg += (responsables.rrhh_nombre ? `  • RRHH: ${responsables.rrhh_nombre}\n` : '  • RRHH: Sin asignar\n');
+      successMsg += (responsables.legal_nombre ? `  • Legal: ${responsables.legal_nombre}\n` : '  • Legal: Sin asignar\n');
+      
+      if (responsables.empresaRequerimientos && responsables.empresaRequerimientos.length > 0) {
+        successMsg += `\n📋 Requerimientos Creados: ${responsables.empresaRequerimientos.length}`;
+      }
+      
+      alert(successMsg);
       
       handleCloseModal();
     } catch (error) {
