@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { WorkerList } from './WorkerList';
 import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES } from '../types';
-import { createSolicitudAcreditacion } from '../services/supabaseService';
+import { createSolicitudAcreditacion, createProyectoTrabajadores } from '../services/supabaseService';
 
 interface Horario {
   dias: string;
@@ -55,6 +55,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [workersContratista, setWorkersContratista] = useState<Worker[]>([]);
+  const [targetWorkerCountMyma, setTargetWorkerCountMyma] = useState(0);
+  const [targetWorkerCountContratista, setTargetWorkerCountContratista] = useState(0);
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [placasPatente, setPlacasPatente] = useState<string[]>([]);
   const [placasPatenteContratista, setPlacasPatenteContratista] = useState<string[]>([]);
@@ -162,6 +164,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         solicitudData.email_contacto_cliente = formData.clientContactEmail; // ← Nombre corregido
       }
 
+      // Cantidad de trabajadores
+      solicitudData.cantidad_trabajadores_myma = targetWorkerCountMyma || 0;
+      solicitudData.cantidad_trabajadores_contratista = targetWorkerCountContratista || 0;
+
       // Información del Contrato (solo si se requiere acreditar empresa)
       if (formData.companyAccreditationRequired === 'yes') {
         if (formData.nombreContrato) solicitudData.nombre_contrato = formData.nombreContrato;
@@ -202,6 +208,24 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       const result = await createSolicitudAcreditacion(solicitudData);
       
       console.log('✅ Solicitud guardada exitosamente:', result);
+      
+      // Guardar trabajadores en proyecto_trabajadores
+      if (result.id && result.codigo_proyecto) {
+        try {
+          console.log('👷 Guardando trabajadores del proyecto...');
+          await createProyectoTrabajadores(
+            result.id,
+            result.codigo_proyecto,
+            workers,
+            workersContratista
+          );
+          console.log('✅ Trabajadores guardados exitosamente');
+        } catch (trabajadorError) {
+          console.error('❌ Error al guardar trabajadores:', trabajadorError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los trabajadores.');
+        }
+      }
+      
       alert('¡Solicitud guardada exitosamente! ID: ' + result.id);
       
       // Opcional: Resetear el formulario o redirigir
@@ -565,7 +589,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               <WorkerList 
                 workers={workers} 
                 onAddWorker={handleAddWorker} 
-                onRemoveWorker={handleRemoveWorker} 
+                onRemoveWorker={handleRemoveWorker}
+                targetWorkerCount={targetWorkerCountMyma}
+                onTargetWorkerCountChange={setTargetWorkerCountMyma}
               />
             </div>
           </div>
@@ -594,7 +620,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
                 {horarios.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                    <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400">schedule</span>
+                    <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400 mx-auto">schedule</span>
                     <p className="text-sm">No hay horarios agregados. Haz clic en "Agregar Horario" para comenzar.</p>
                   </div>
                 ) : (
@@ -843,6 +869,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 onRemoveWorker={handleRemoveWorkerContratista}
                 requireCompanySelection={true}
                 companies={MOCK_COMPANIES.map(c => c.name)}
+                targetWorkerCount={targetWorkerCountContratista}
+                onTargetWorkerCountChange={setTargetWorkerCountContratista}
               />
             </div>
           </div>

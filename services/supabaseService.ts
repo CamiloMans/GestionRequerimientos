@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase';
-import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento } from '../types';
+import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento, ProyectoTrabajador } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 
 // Función para calcular el estado basado en la fecha de vencimiento
@@ -267,6 +267,8 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
         projectTasks = requerimientos.map(req => ({
           id: req.id,
           responsable: req.responsable,
+          nombre_responsable: req.nombre_responsable,
+          nombre_trabajador: req.nombre_trabajador,
           requerimiento: req.requerimiento,
           categoria: req.categoria_requerimiento,
           realizado: req.estado === 'Completado',
@@ -532,9 +534,28 @@ export const createProyectoRequerimientos = async (
     console.log('⚠️ Ya existen requerimientos para este proyecto, no se crearán duplicados');
     return;
   }
+
+  // Obtener la solicitud de acreditación para conocer las cantidades de trabajadores
+  const { data: solicitud, error: solicitudError } = await supabase
+    .from('solicitud_acreditacion')
+    .select('cantidad_trabajadores_myma, cantidad_trabajadores_contratista')
+    .eq('codigo_proyecto', codigoProyecto)
+    .single();
+
+  if (solicitudError) {
+    console.warn('⚠️ No se pudo obtener la información de trabajadores:', solicitudError);
+  }
+
+  const cantidadTrabajadoresMyma = solicitud?.cantidad_trabajadores_myma || 0;
+  const cantidadTrabajadoresContratista = solicitud?.cantidad_trabajadores_contratista || 0;
+  const totalTrabajadores = cantidadTrabajadoresMyma + cantidadTrabajadoresContratista;
+
+  console.log(`👥 Total de trabajadores: ${totalTrabajadores} (MYMA: ${cantidadTrabajadoresMyma} + Contratista: ${cantidadTrabajadoresContratista})`);
   
-  // Mapear cada requerimiento de empresa a un requerimiento de proyecto
-  const proyectoRequerimientos = empresaRequerimientos.map(req => {
+  // Mapear cada requerimiento de empresa a uno o más requerimientos de proyecto
+  const proyectoRequerimientos: any[] = [];
+
+  empresaRequerimientos.forEach((req, index) => {
     // Asignar el nombre del responsable según el rol
     let nombreResponsable = '';
     switch (req.responsable) {
@@ -554,19 +575,38 @@ export const createProyectoRequerimientos = async (
         nombreResponsable = 'Sin asignar';
     }
 
-    return {
-      codigo_proyecto: codigoProyecto,
-      requerimiento: req.requerimiento,
-      responsable: req.responsable,
-      estado: 'Pendiente',
-      cliente: cliente,
-      categoria_requerimiento: req.categoria_requerimiento,
-      observaciones: req.observaciones || null,
-      nombre_responsable: nombreResponsable
-    };
+    // Si la categoría es "Trabajadores", crear un registro por cada trabajador
+    if (req.categoria_requerimiento?.toLowerCase() === 'trabajadores' && totalTrabajadores > 0) {
+      console.log(`👷 Creando ${totalTrabajadores} registros para requerimiento: ${req.requerimiento}`);
+      
+      for (let i = 1; i <= totalTrabajadores; i++) {
+        proyectoRequerimientos.push({
+          codigo_proyecto: codigoProyecto,
+          requerimiento: `${req.requerimiento} - Trabajador ${i}`,
+          responsable: req.responsable,
+          estado: 'Pendiente',
+          cliente: cliente,
+          categoria_requerimiento: req.categoria_requerimiento,
+          observaciones: req.observaciones || null,
+          nombre_responsable: nombreResponsable
+        });
+      }
+    } else {
+      // Para otras categorías, crear solo un registro
+      proyectoRequerimientos.push({
+        codigo_proyecto: codigoProyecto,
+        requerimiento: req.requerimiento,
+        responsable: req.responsable,
+        estado: 'Pendiente',
+        cliente: cliente,
+        categoria_requerimiento: req.categoria_requerimiento,
+        observaciones: req.observaciones || null,
+        nombre_responsable: nombreResponsable
+      });
+    }
   });
 
-  console.log(`📦 Insertando ${proyectoRequerimientos.length} requerimientos`);
+  console.log(`📦 Insertando ${proyectoRequerimientos.length} requerimientos en total`);
 
   // Insertar todos los requerimientos
   const { data, error } = await supabase
@@ -627,5 +667,58 @@ export const updateRequerimientoEstado = async (
   }
   
   console.log(`✅ Requerimiento ${id} actualizado a ${estado}`);
+};
+
+// Función para guardar trabajadores del proyecto
+export const createProyectoTrabajadores = async (
+  idProyecto: number,
+  codigoProyecto: string,
+  trabajadoresMyma: { name: string }[],
+  trabajadoresContratista: { name: string }[]
+): Promise<void> => {
+  console.log('👷 Guardando trabajadores del proyecto:', codigoProyecto);
+  console.log(`  - MyMA: ${trabajadoresMyma.length} trabajadores`);
+  console.log(`  - Contratista: ${trabajadoresContratista.length} trabajadores`);
+
+  const trabajadores: Omit<ProyectoTrabajador, 'id' | 'created_at' | 'updated_at'>[] = [];
+
+  // Agregar trabajadores MyMA
+  trabajadoresMyma.forEach(trabajador => {
+    trabajadores.push({
+      id_proyecto: idProyecto,
+      codigo_proyecto: codigoProyecto,
+      nombre_trabajador: trabajador.name,
+      categoria_empresa: 'MyMA'
+    });
+  });
+
+  // Agregar trabajadores Contratista
+  trabajadoresContratista.forEach(trabajador => {
+    trabajadores.push({
+      id_proyecto: idProyecto,
+      codigo_proyecto: codigoProyecto,
+      nombre_trabajador: trabajador.name,
+      categoria_empresa: 'Contratista'
+    });
+  });
+
+  if (trabajadores.length === 0) {
+    console.log('⚠️ No hay trabajadores para guardar');
+    return;
+  }
+
+  console.log(`📦 Insertando ${trabajadores.length} trabajadores en total`);
+
+  const { data, error } = await supabase
+    .from('proyecto_trabajadores')
+    .insert(trabajadores)
+    .select();
+
+  if (error) {
+    console.error('❌ Error guardando trabajadores del proyecto:', error);
+    throw error;
+  }
+
+  console.log(`✅ ${data?.length || 0} trabajadores guardados exitosamente`);
 };
 

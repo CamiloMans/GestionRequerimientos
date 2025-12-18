@@ -5,6 +5,8 @@ import { updateRequerimientoEstado } from '../services/supabaseService';
 interface ProjectRequirement {
   id: number;
   responsable: string;
+  nombre_responsable?: string;
+  nombre_trabajador?: string;
   requerimiento: string;
   categoria: string;
   realizado: boolean;
@@ -27,6 +29,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     (project.tasks || []).map(task => ({
       id: task.id,
       responsable: task.responsable,
+      nombre_responsable: task.nombre_responsable,
+      nombre_trabajador: task.nombre_trabajador,
       requerimiento: task.requerimiento,
       categoria: task.categoria,
       realizado: task.realizado,
@@ -49,8 +53,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const categorias = Array.from(new Set(requirements.map(r => r.categoria)));
 
   const handleToggleRealizado = async (e: React.MouseEvent, id: number) => {
-    // Prevenir comportamiento por defecto y propagación
-    e.preventDefault();
+    // Detener la propagación para evitar que se active el click del contenedor
     e.stopPropagation();
     
     const requirement = requirements.find(r => r.id === id);
@@ -77,8 +80,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       
       console.log(`✅ Requerimiento ${id} actualizado a ${newEstado}`);
       
-      // NO llamar a onUpdate aquí para evitar recargar toda la vista
-      // El estado local ya se actualizó correctamente
+      // Notificar al componente padre para que recargue los datos
+      if (onUpdate) {
+        onUpdate();
+      }
     } catch (error) {
       console.error('❌ Error actualizando requerimiento:', error);
       alert('Error al actualizar el requerimiento. Por favor, intente nuevamente.');
@@ -252,7 +257,13 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Cargo
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Responsable
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Nombre Trabajador
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Requerimiento
@@ -270,58 +281,97 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredRequirements.length > 0 ? (
-                  filteredRequirements.map((req) => (
-                    <tr key={req.id} className="hover:bg-blue-50/50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-blue-600 text-[20px]">account_circle</span>
-                          <span className="text-sm font-medium text-gray-900">{req.responsable}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-900">{req.requerimiento}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
-                          {req.categoria}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => handleToggleRealizado(e, req.id)}
-                          className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-all ${
-                            req.realizado 
-                              ? 'bg-green-100 hover:bg-green-200 border-2 border-green-500' 
-                              : 'bg-gray-100 hover:bg-gray-200 border-2 border-gray-300'
-                          }`}
-                        >
-                          {req.realizado ? (
-                            <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
-                          ) : (
-                            <span className="material-symbols-outlined text-gray-400 text-2xl">radio_button_unchecked</span>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {req.fechaFinalizada ? (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span className="material-symbols-outlined text-[18px]">event</span>
-                            <span>{new Date(req.fechaFinalizada).toLocaleDateString('es-ES', { 
-                              day: '2-digit', 
-                              month: '2-digit', 
-                              year: 'numeric' 
-                            })}</span>
+                  filteredRequirements.map((req) => {
+                    // Colores según el cargo
+                    const cargoColors = {
+                      'JPRO': 'bg-blue-100 text-blue-700 border-blue-300',
+                      'EPR': 'bg-orange-100 text-orange-700 border-orange-300',
+                      'RRHH': 'bg-green-100 text-green-700 border-green-300',
+                      'Legal': 'bg-purple-100 text-purple-700 border-purple-300',
+                    };
+                    const colorClass = cargoColors[req.responsable as keyof typeof cargoColors] || 'bg-gray-100 text-gray-700 border-gray-300';
+
+                    return (
+                      <tr key={req.id} className="hover:bg-blue-50/50 transition-colors">
+                        {/* Cargo */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1.5 rounded-md text-xs font-bold border ${colorClass}`}>
+                            {req.responsable}
+                          </span>
+                        </td>
+                        
+                        {/* Responsable */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-gray-600 text-[20px]">account_circle</span>
+                            <span className="text-sm font-semibold text-gray-900">
+                              {req.nombre_responsable || <span className="text-gray-400 italic font-normal">Sin asignar</span>}
+                            </span>
                           </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+
+                        {/* Nombre Trabajador */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-gray-600 text-[20px]">person</span>
+                            <span className="text-sm text-gray-900">
+                              {req.nombre_trabajador || <span className="text-gray-400 italic text-xs">N/A</span>}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Requerimiento */}
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-900">{req.requerimiento}</span>
+                        </td>
+
+                        {/* Categoría */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+                            {req.categoria}
+                          </span>
+                        </td>
+
+                        {/* Realizado */}
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleRealizado(e, req.id)}
+                            className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-all ${
+                              req.realizado 
+                                ? 'bg-green-100 hover:bg-green-200 border-2 border-green-500' 
+                                : 'bg-gray-100 hover:bg-gray-200 border-2 border-gray-300'
+                            }`}
+                          >
+                            {req.realizado ? (
+                              <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+                            ) : (
+                              <span className="material-symbols-outlined text-gray-400 text-2xl">radio_button_unchecked</span>
+                            )}
+                          </button>
+                        </td>
+
+                        {/* Fecha Finalizada */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {req.fechaFinalizada ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <span className="material-symbols-outlined text-[18px]">event</span>
+                              <span>{new Date(req.fechaFinalizada).toLocaleDateString('es-ES', { 
+                                day: '2-digit', 
+                                month: '2-digit', 
+                                year: 'numeric' 
+                              })}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <span className="material-symbols-outlined text-gray-300 text-5xl">search_off</span>
                         <p className="text-gray-500 text-lg">No se encontraron requerimientos</p>

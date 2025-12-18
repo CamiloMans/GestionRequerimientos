@@ -8,6 +8,8 @@ interface WorkerListProps {
   onRemoveWorker: (id: string) => void;
   requireCompanySelection?: boolean; // Para mostrar selector de empresa contratista
   companies?: string[]; // Lista de empresas contratistas
+  targetWorkerCount?: number; // Cantidad objetivo de trabajadores
+  onTargetWorkerCountChange?: (count: number) => void; // Callback para cambiar la cantidad objetivo
 }
 
 export const WorkerList: React.FC<WorkerListProps> = ({ 
@@ -15,7 +17,9 @@ export const WorkerList: React.FC<WorkerListProps> = ({
   onAddWorker, 
   onRemoveWorker,
   requireCompanySelection = false,
-  companies = []
+  companies = [],
+  targetWorkerCount = 0,
+  onTargetWorkerCountChange
 }) => {
   const [selectedType, setSelectedType] = useState<WorkerType>(WorkerType.INTERNAL);
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -103,6 +107,12 @@ export const WorkerList: React.FC<WorkerListProps> = ({
       return;
     }
 
+    // Validar cantidad objetivo si está definida
+    if (targetWorkerCount > 0 && workers.length >= targetWorkerCount) {
+      alert(`Ya se alcanzó la cantidad objetivo de ${targetWorkerCount} trabajadores`);
+      return;
+    }
+
     if (selectedType === WorkerType.INTERNAL) {
       if (!selectedPersona) {
         alert("Por favor seleccione un colaborador de la lista");
@@ -139,6 +149,11 @@ export const WorkerList: React.FC<WorkerListProps> = ({
 
   const isExternal = selectedType === WorkerType.EXTERNAL;
 
+  // Calcular estado del contador
+  const isTargetMet = targetWorkerCount > 0 && workers.length === targetWorkerCount;
+  const isOverTarget = targetWorkerCount > 0 && workers.length > targetWorkerCount;
+  const isUnderTarget = targetWorkerCount > 0 && workers.length < targetWorkerCount;
+
   return (
     <div className="flex flex-col gap-4 md:col-span-2 border-2 border-dashed border-primary/40 rounded-xl p-5 bg-blue-50/20">
       <div className="flex flex-col gap-1 mb-2">
@@ -147,6 +162,66 @@ export const WorkerList: React.FC<WorkerListProps> = ({
           Agregue colaboradores a la lista. Puede buscar trabajadores internos existentes o registrar externos manualmente.
         </p>
       </div>
+
+      {/* Campo de Cantidad Objetivo */}
+      {onTargetWorkerCountChange && (
+        <div className="bg-white border-2 border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <label className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1 block">
+                Cantidad Total de Trabajadores
+              </label>
+              <p className="text-xs text-gray-500">Establezca cuántos trabajadores necesita en total</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="0"
+                value={targetWorkerCount}
+                onChange={(e) => onTargetWorkerCountChange(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-24 px-4 py-2 text-center text-lg font-bold border-2 border-gray-300 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              />
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm ${
+                isTargetMet 
+                  ? 'bg-green-100 text-green-700 border-2 border-green-300' 
+                  : isOverTarget
+                  ? 'bg-red-100 text-red-700 border-2 border-red-300'
+                  : isUnderTarget
+                  ? 'bg-amber-100 text-amber-700 border-2 border-amber-300'
+                  : 'bg-gray-100 text-gray-600 border-2 border-gray-300'
+              }`}>
+                <span className="material-symbols-outlined text-xl">
+                  {isTargetMet ? 'check_circle' : isOverTarget ? 'error' : isUnderTarget ? 'warning' : 'info'}
+                </span>
+                <span>{workers.length} / {targetWorkerCount || '∞'}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Mensaje de estado */}
+          {targetWorkerCount > 0 && (
+            <div className={`mt-3 pt-3 border-t flex items-center gap-2 text-xs font-medium ${
+              isTargetMet 
+                ? 'border-green-200 text-green-700' 
+                : isOverTarget
+                ? 'border-red-200 text-red-700'
+                : 'border-amber-200 text-amber-700'
+            }`}>
+              <span className="material-symbols-outlined text-sm">
+                {isTargetMet ? 'check_circle' : isOverTarget ? 'error' : 'warning'}
+              </span>
+              <span>
+                {isTargetMet 
+                  ? '¡Cantidad exacta alcanzada!' 
+                  : isOverTarget
+                  ? `Excede por ${workers.length - targetWorkerCount} trabajador${workers.length - targetWorkerCount !== 1 ? 'es' : ''}`
+                  : `Faltan ${targetWorkerCount - workers.length} trabajador${targetWorkerCount - workers.length !== 1 ? 'es' : ''}`
+                }
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
         {requireCompanySelection && (
@@ -233,7 +308,20 @@ export const WorkerList: React.FC<WorkerListProps> = ({
       </div>
 
       <div className="mt-4 flex flex-col gap-2">
-        <span className="text-[#111318] text-[10px] font-bold uppercase tracking-wider text-gray-500">Lista de Asistentes</span>
+        <div className="flex items-center justify-between">
+          <span className="text-[#111318] text-[10px] font-bold uppercase tracking-wider text-gray-500">Lista de Asistentes</span>
+          {targetWorkerCount > 0 && (
+            <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+              isTargetMet 
+                ? 'bg-green-100 text-green-700' 
+                : isOverTarget
+                ? 'bg-red-100 text-red-700'
+                : 'bg-amber-100 text-amber-700'
+            }`}>
+              {workers.length} / {targetWorkerCount}
+            </span>
+          )}
+        </div>
         <div className="bg-white border border-[#dbdfe6] rounded-lg overflow-hidden shadow-sm">
           {workers.length === 0 ? (
             <div className="p-6 flex flex-col items-center justify-center text-center gap-2">
