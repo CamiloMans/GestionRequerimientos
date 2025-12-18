@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem } from '../types';
 import { updateRequerimientoEstado } from '../services/supabaseService';
 
@@ -22,6 +22,23 @@ interface ProjectDetailViewProps {
 }
 
 const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate }) => {
+  // Estado del sidebar de filtros
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
+
+  // Bloquear scroll del body cuando el sidebar está abierto
+  useEffect(() => {
+    if (isFilterSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup: restaurar el scroll cuando el componente se desmonte
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isFilterSidebarOpen]);
+  
   // Estados de filtros
   const [filterCargo, setFilterCargo] = useState('');
   const [filterNombreResponsable, setFilterNombreResponsable] = useState('');
@@ -124,198 +141,403 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   return (
     <div className="layout-container flex h-full grow flex-col bg-gradient-to-br from-gray-50 to-blue-50/30">
-      {/* Header */}
+      {/* Header Compacto */}
       <div className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="px-6 py-5">
-          {/* Back Button y Título */}
-          <div className="flex items-center gap-4 mb-4">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors group"
-            >
-              <span className="material-symbols-outlined">arrow_back</span>
-              <span className="font-medium">Volver a Proyectos</span>
-            </button>
-          </div>
+        <div className="px-6 py-4">
+          {/* Back Button */}
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-gray-600 hover:text-primary transition-colors group mb-3"
+          >
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+            <span className="font-medium text-sm">Volver a Proyectos</span>
+          </button>
 
-          {/* Información del Proyecto */}
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="flex-1 min-w-[300px]">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-14 h-14 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="material-symbols-outlined text-white text-3xl">folder_open</span>
-                </div>
+          {/* Información del Proyecto - Layout Horizontal */}
+          <div className="flex items-center justify-between gap-6 flex-wrap">
+            {/* Columna Izquierda: Info Principal */}
+            <div className="flex items-center gap-4">
+              {/* Icono */}
+              <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-600 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
+                <span className="material-symbols-outlined text-white text-2xl">folder_open</span>
+              </div>
+              
+              {/* Info del Proyecto */}
+              <div>
+                <h1 className="text-xl font-bold text-[#111318] mb-0.5">{project.projectCode}</h1>
+                <p className="text-xs text-gray-500">{project.projectName}</p>
+              </div>
+              
+              {/* Divisor */}
+              <div className="w-px h-10 bg-gray-300 mx-2"></div>
+              
+              {/* Empresa Contratista */}
+              <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg px-3 py-2">
+                <span className="material-symbols-outlined text-indigo-600 text-[20px]">business</span>
                 <div>
-                  <h1 className="text-2xl font-bold text-[#111318]">{project.projectCode}</h1>
-                  <p className="text-sm text-gray-600">{project.projectName}</p>
+                  <p className="text-[10px] text-gray-500 uppercase font-semibold leading-none">Empresa Contratista</p>
+                  <p className="text-sm font-bold text-indigo-900">{project.empresa_nombre || 'Sin asignar'}</p>
                 </div>
               </div>
               
-              {/* Empresa */}
-              <div className="mt-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-indigo-600 text-xl">business</span>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase font-semibold">Empresa Contratista</p>
-                    <p className="text-base font-bold text-indigo-900">
-                      {project.empresa_nombre || 'Sin asignar'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Info adicional */}
-              <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
+              {/* Divisor */}
+              <div className="w-px h-10 bg-gray-300 mx-2"></div>
+              
+              {/* Info adicional compacta */}
+              <div className="flex items-center gap-4 text-xs text-gray-600">
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[18px]">business</span>
+                  <span className="material-symbols-outlined text-[16px]">business</span>
                   <span>{project.clientName}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[18px]">person</span>
+                  <span className="material-symbols-outlined text-[16px]">person</span>
                   <span>{project.projectManager}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[18px]">groups</span>
+                  <span className="material-symbols-outlined text-[16px]">groups</span>
                   <span>{project.totalWorkers} trabajadores</span>
                 </div>
               </div>
             </div>
 
-            {/* Progreso */}
-            <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 min-w-[280px]">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Progreso General</h3>
-                <span className="text-2xl font-bold text-primary">{completedCount}/{totalCount}</span>
+            {/* Columna Derecha: Progreso y Estado */}
+            <div className="flex items-center gap-4">
+              {/* Barra de progreso compacta */}
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-end">
+                  <span className="text-lg font-bold text-primary">{completedCount}/{totalCount}</span>
+                  <span className="text-[10px] text-gray-500 uppercase font-semibold">Tareas</span>
+                </div>
+                <div className="w-32">
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-1 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${progressPercentage}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 text-center font-semibold">{progressPercentage.toFixed(0)}% completado</p>
+                </div>
               </div>
-              
-              {/* Barra de progreso */}
-              <div className="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
-                <div 
-                  className="bg-gradient-to-r from-green-500 to-emerald-500 h-3 rounded-full transition-all duration-500 shadow-sm"
-                  style={{ width: `${progressPercentage}%` }}
-                ></div>
-              </div>
-              <p className="text-xs text-gray-500 text-center">{progressPercentage.toFixed(0)}% completado</p>
               
               {/* Estado */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border inline-block w-full text-center ${
-                  project.status.toLowerCase().includes('pendiente') ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                  project.status.toLowerCase().includes('proceso') ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                  project.status.toLowerCase().includes('finalizada') ? 'bg-green-100 text-green-700 border-green-200' :
-                  'bg-red-100 text-red-700 border-red-200'
-                }`}>
-                  {project.status}
+              <span className={`px-4 py-2 rounded-lg text-xs font-bold border-2 ${
+                project.status.toLowerCase().includes('pendiente') ? 'bg-amber-100 text-amber-700 border-amber-300' :
+                project.status.toLowerCase().includes('proceso') ? 'bg-blue-100 text-blue-700 border-blue-300' :
+                project.status.toLowerCase().includes('finalizada') ? 'bg-green-100 text-green-700 border-green-300' :
+                'bg-red-100 text-red-700 border-red-300'
+              }`}>
+                {project.status}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Barra de Filtros y Estadísticas */}
+      <div className="bg-gradient-to-r from-white to-gray-50 border-b border-gray-200 px-6 py-3 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          {/* Izquierda: Filtros */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsFilterSidebarOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 hover:border-primary transition-all shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[18px]">filter_alt</span>
+              <span>Filtros</span>
+              {hasActiveFilters && (
+                <span className="px-2 py-0.5 text-xs font-bold text-white bg-primary rounded-full">
+                  {[filterCargo, filterNombreResponsable, filterNombreTrabajador, filterCategoriaEmpresa, filterRequerimiento, filterCategoria, filterRealizado].filter(Boolean).length}
                 </span>
+              )}
+            </button>
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+                <span>Limpiar</span>
+              </button>
+            )}
+
+            <div className="text-xs text-gray-500 ml-2">
+              Mostrando <span className="font-bold text-gray-900">{filteredRequirements.length}</span> de <span className="font-bold text-gray-900">{totalCount}</span>
+            </div>
+          </div>
+
+          {/* Derecha: Estadísticas en línea */}
+          <div className="flex items-center gap-6">
+            {/* Completados */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center border border-green-300">
+                <span className="material-symbols-outlined text-green-600 text-[18px]">check_circle</span>
+              </div>
+              <div>
+                <p className="text-base font-bold text-green-700 leading-none">{completedCount}</p>
+                <p className="text-[10px] text-gray-500 font-medium uppercase">Completados</p>
+              </div>
+            </div>
+            
+            <div className="w-px h-8 bg-gray-300"></div>
+            
+            {/* Pendientes */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-amber-100 rounded-md flex items-center justify-center border border-amber-300">
+                <span className="material-symbols-outlined text-amber-600 text-[18px]">pending</span>
+              </div>
+              <div>
+                <p className="text-base font-bold text-amber-700 leading-none">{totalCount - completedCount}</p>
+                <p className="text-[10px] text-gray-500 font-medium uppercase">Pendientes</p>
+              </div>
+            </div>
+            
+            <div className="w-px h-8 bg-gray-300"></div>
+            
+            {/* Progreso */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center border border-blue-300">
+                <span className="material-symbols-outlined text-blue-600 text-[18px]">analytics</span>
+              </div>
+              <div>
+                <p className="text-base font-bold text-blue-700 leading-none">{Math.round((completedCount / totalCount) * 100)}%</p>
+                <p className="text-[10px] text-gray-500 font-medium uppercase">Progreso</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="material-symbols-outlined text-gray-500 text-xl">filter_alt</span>
-            <span className="text-sm font-semibold text-gray-700">Filtros:</span>
+      {/* Sidebar de Filtros */}
+      {isFilterSidebarOpen && (
+        <>
+          {/* Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-all duration-300"
+            onClick={() => setIsFilterSidebarOpen(false)}
+          />
+          
+          {/* Sidebar */}
+          <div className="fixed top-0 right-0 h-full w-[420px] bg-gradient-to-b from-white to-gray-50 shadow-2xl z-50 flex flex-col animate-slide-in-right">
+            {/* Header del Sidebar */}
+            <div className="bg-gradient-to-br from-primary to-emerald-700 text-white px-6 py-4 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                    <span className="material-symbols-outlined text-white text-2xl">tune</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold">Filtros Avanzados</h3>
+                    <p className="text-xs text-emerald-100 mt-0.5">
+                      {filteredRequirements.length} resultado{filteredRequirements.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsFilterSidebarOpen(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-all"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido del Sidebar */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+              {/* Sección: Personal */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px]">group</span>
+                  Personal
+                </h4>
+                <div className="space-y-3">
+                  {/* Filtro por Cargo */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">badge</span>
+                      Cargo
+                    </label>
+                    <select
+                      value={filterCargo}
+                      onChange={(e) => setFilterCargo(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                    >
+                      <option value="">Todos los Cargos</option>
+                      {cargos.map(cargo => (
+                        <option key={cargo} value={cargo}>{cargo}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro por Nombre Responsable */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">account_circle</span>
+                      Responsable
+                    </label>
+                    <select
+                      value={filterNombreResponsable}
+                      onChange={(e) => setFilterNombreResponsable(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                    >
+                      <option value="">Todos los Responsables</option>
+                      {nombresResponsables.map(nombre => (
+                        <option key={nombre} value={nombre}>{nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro por Nombre Trabajador */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">person</span>
+                      Trabajador
+                    </label>
+                    <select
+                      value={filterNombreTrabajador}
+                      onChange={(e) => setFilterNombreTrabajador(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                    >
+                      <option value="">Todos los Trabajadores</option>
+                      {nombresTrabajadores.map(nombre => (
+                        <option key={nombre} value={nombre}>{nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección: Empresa */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px]">business</span>
+                  Empresa
+                </h4>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px]">business_center</span>
+                    Categoría Empresa
+                  </label>
+                  <select
+                    value={filterCategoriaEmpresa}
+                    onChange={(e) => setFilterCategoriaEmpresa(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                  >
+                    <option value="">Todas las Empresas</option>
+                    {categoriasEmpresa.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Sección: Requerimientos */}
+              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px]">checklist</span>
+                  Requerimientos
+                </h4>
+                <div className="space-y-3">
+                  {/* Filtro por Requerimiento (búsqueda) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">search</span>
+                      Buscar Requerimiento
+                    </label>
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
+                      <input
+                        type="text"
+                        value={filterRequerimiento}
+                        onChange={(e) => setFilterRequerimiento(e.target.value)}
+                        placeholder="Escribe para buscar..."
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filtro por Categoría */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">category</span>
+                      Categoría
+                    </label>
+                    <select
+                      value={filterCategoria}
+                      onChange={(e) => setFilterCategoria(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                    >
+                      <option value="">Todas las Categorías</option>
+                      {categorias.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro por Estado */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">task_alt</span>
+                      Estado
+                    </label>
+                    <select
+                      value={filterRealizado}
+                      onChange={(e) => setFilterRealizado(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                    >
+                      <option value="">Todos los Estados</option>
+                      <option value="realizado">✅ Realizados</option>
+                      <option value="pendiente">⏳ Pendientes</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Resumen de Filtros Activos */}
+              {hasActiveFilters && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 shadow-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-amber-600 text-[18px]">info</span>
+                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wide">Filtros Activos</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    {filterCargo && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Cargo:</span> {filterCargo}</span></div>}
+                    {filterNombreResponsable && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Responsable:</span> {filterNombreResponsable}</span></div>}
+                    {filterNombreTrabajador && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Trabajador:</span> {filterNombreTrabajador}</span></div>}
+                    {filterCategoriaEmpresa && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Empresa:</span> {filterCategoriaEmpresa}</span></div>}
+                    {filterRequerimiento && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Búsqueda:</span> "{filterRequerimiento}"</span></div>}
+                    {filterCategoria && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Categoría:</span> {filterCategoria}</span></div>}
+                    {filterRealizado && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Estado:</span> {filterRealizado === 'realizado' ? 'Realizados' : 'Pendientes'}</span></div>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer con Botones de Acción */}
+            <div className="bg-white border-t border-gray-200 px-6 py-4 shadow-lg">
+              <div className="space-y-2">
+                <button
+                  onClick={() => setIsFilterSidebarOpen(false)}
+                  className="w-full px-4 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-hover rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">done</span>
+                  Aplicar Filtros
+                </button>
+                
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="w-full px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all border border-gray-300 flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
+                    Limpiar Filtros
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-
-          {/* Filtro por Cargo */}
-          <select
-            value={filterCargo}
-            onChange={(e) => setFilterCargo(e.target.value)}
-            className="min-w-[160px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
-          >
-            <option value="">Todos los Cargos</option>
-            {cargos.map(cargo => (
-              <option key={cargo} value={cargo}>{cargo}</option>
-            ))}
-          </select>
-
-          {/* Filtro por Nombre Responsable */}
-          <select
-            value={filterNombreResponsable}
-            onChange={(e) => setFilterNombreResponsable(e.target.value)}
-            className="min-w-[200px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
-          >
-            <option value="">Todos los Responsables</option>
-            {nombresResponsables.map(nombre => (
-              <option key={nombre} value={nombre}>{nombre}</option>
-            ))}
-          </select>
-
-          {/* Filtro por Nombre Trabajador */}
-          <select
-            value={filterNombreTrabajador}
-            onChange={(e) => setFilterNombreTrabajador(e.target.value)}
-            className="min-w-[200px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
-          >
-            <option value="">Todos los Trabajadores</option>
-            {nombresTrabajadores.map(nombre => (
-              <option key={nombre} value={nombre}>{nombre}</option>
-            ))}
-          </select>
-
-          {/* Filtro por Categoría Empresa */}
-          <select
-            value={filterCategoriaEmpresa}
-            onChange={(e) => setFilterCategoriaEmpresa(e.target.value)}
-            className="min-w-[180px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
-          >
-            <option value="">Todas las Empresas</option>
-            {categoriasEmpresa.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-
-          {/* Filtro por Requerimiento (búsqueda) */}
-          <div className="relative min-w-[220px]">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
-            <input
-              type="text"
-              value={filterRequerimiento}
-              onChange={(e) => setFilterRequerimiento(e.target.value)}
-              placeholder="Buscar requerimiento..."
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors"
-            />
-          </div>
-
-          {/* Filtro por Categoría */}
-          <select
-            value={filterCategoria}
-            onChange={(e) => setFilterCategoria(e.target.value)}
-            className="min-w-[180px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
-          >
-            <option value="">Todas las Categorías</option>
-            {categorias.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-
-          {/* Filtro por Estado */}
-          <select
-            value={filterRealizado}
-            onChange={(e) => setFilterRealizado(e.target.value)}
-            className="min-w-[160px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
-          >
-            <option value="">Todos los Estados</option>
-            <option value="realizado">Realizados</option>
-            <option value="pendiente">Pendientes</option>
-          </select>
-
-          {/* Botón limpiar filtros */}
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="ml-auto flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-              Limpiar filtros
-            </button>
-          )}
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Tabla de Requerimientos */}
       <div className="flex-1 overflow-auto px-6 py-6">
@@ -468,26 +690,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* Resumen */}
-        <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span className="material-symbols-outlined text-blue-600">info</span>
-              <span>Mostrando {filteredRequirements.length} de {totalCount} requerimientos</span>
-            </div>
-            <div className="flex gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                <span className="text-gray-600">{completedCount} completados</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-gray-400"></span>
-                <span className="text-gray-600">{totalCount - completedCount} pendientes</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

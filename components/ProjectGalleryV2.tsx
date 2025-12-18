@@ -512,6 +512,30 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                             <span className="material-symbols-outlined text-[18px]">event</span>
                             <span>{formatDate(project.fieldStartDate)}</span>
                           </span>
+                          <span className="text-gray-300">•</span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[18px]">schedule</span>
+                            <span className="font-semibold">
+                              {(() => {
+                                const createdDate = new Date(project.createdAt);
+                                const now = new Date();
+                                const diffTime = Math.abs(now.getTime() - createdDate.getTime());
+                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                const progressPercentage = project.totalTasks && project.totalTasks > 0 
+                                  ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
+                                  : 0;
+                                const isFinalizado = progressPercentage === 100 || project.status.toLowerCase().includes('finalizada');
+                                
+                                if (diffDays === 0) {
+                                  return 'Hoy';
+                                } else if (diffDays === 1) {
+                                  return '1 día';
+                                } else {
+                                  return `${diffDays} días`;
+                                }
+                              })()}
+                            </span>
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -575,7 +599,52 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                           <span className="material-symbols-outlined text-primary text-[18px]">track_changes</span>
                           <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Progreso General</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
+                          {/* Tiempo Transcurrido */}
+                          {(() => {
+                            const createdDate = new Date(project.createdAt);
+                            const now = new Date();
+                            const diffTime = Math.abs(now.getTime() - createdDate.getTime());
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            const progressPercentage = project.totalTasks && project.totalTasks > 0 
+                              ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
+                              : 0;
+                            const isFinalizado = progressPercentage === 100 || project.status.toLowerCase().includes('finalizada');
+                            
+                            let badgeColor = 'bg-gray-100 text-gray-700 border-gray-300';
+                            let icon = 'schedule';
+                            
+                            if (isFinalizado) {
+                              badgeColor = 'bg-green-100 text-green-700 border-green-300';
+                              icon = 'check_circle';
+                            } else if (diffDays > 30) {
+                              badgeColor = 'bg-red-100 text-red-700 border-red-300';
+                              icon = 'warning';
+                            } else if (diffDays > 14) {
+                              badgeColor = 'bg-amber-100 text-amber-700 border-amber-300';
+                              icon = 'schedule';
+                            } else {
+                              badgeColor = 'bg-blue-100 text-blue-700 border-blue-300';
+                              icon = 'schedule';
+                            }
+                            
+                            let timeText = '';
+                            if (diffDays === 0) {
+                              timeText = 'Hoy';
+                            } else if (diffDays === 1) {
+                              timeText = '1 día';
+                            } else {
+                              timeText = `${diffDays} días`;
+                            }
+                            
+                            return (
+                              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${badgeColor} text-xs font-bold`}>
+                                <span className="material-symbols-outlined text-[16px]">{icon}</span>
+                                <span>{timeText}</span>
+                              </div>
+                            );
+                          })()}
+                          
                           <span className="text-xs text-gray-500 font-medium">
                             {project.completedTasks || 0} / {project.totalTasks} tareas
                           </span>
