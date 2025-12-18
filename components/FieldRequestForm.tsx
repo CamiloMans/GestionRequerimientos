@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { WorkerList } from './WorkerList';
 import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES } from '../types';
+import { createSolicitudAcreditacion } from '../services/supabaseService';
 
 interface Horario {
   dias: string;
@@ -133,10 +134,83 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     setWorkersContratista(prev => prev.filter(w => w.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form Submitted', { ...formData, workers });
-    alert('Solicitud guardada exitosamente');
+    
+    try {
+      // Preparar los datos para enviar a Supabase - Nombres corregidos según esquema real
+      const solicitudData: any = {
+        fecha_solicitud: formData.requestDate || null,
+        nombre_solicitante: formData.requesterName || null,
+        fecha_reunion_arranque: formData.kickoffDate || null,
+        codigo_proyecto: formData.projectCode,  // Requerido (NOT NULL)
+        requisito: formData.requirement || null,
+        nombre_cliente: formData.clientName || null,
+        jefe_proyectos_myma: formData.projectManager || null,
+        encargado_seguimiento_acreditacion: formData.accreditationFollowUp || null, // ← Nombre corregido
+        fecha_inicio_terreno: formData.fieldStartDate || null,
+        aviso_prevencion_riesgo: formData.riskPreventionNotice === 'yes', // ← Convertir a boolean
+        requiere_acreditar_empresa: formData.companyAccreditationRequired === 'yes', // ← Convertir a boolean
+        admin_contrato_myma: formData.contractAdmin || null,
+      };
+
+      // Agregar campos opcionales solo si tienen valor - Nombres corregidos
+      if (formData.clientContactName) {
+        solicitudData.nombre_contacto_cliente = formData.clientContactName; // ← Nombre corregido
+      }
+      if (formData.clientContactEmail) {
+        solicitudData.email_contacto_cliente = formData.clientContactEmail; // ← Nombre corregido
+      }
+
+      // Información del Contrato (solo si se requiere acreditar empresa)
+      if (formData.companyAccreditationRequired === 'yes') {
+        if (formData.nombreContrato) solicitudData.nombre_contrato = formData.nombreContrato;
+        if (formData.numeroContrato) solicitudData.numero_contrato = formData.numeroContrato;
+        if (formData.administradorContrato) solicitudData.administrador_contrato = formData.administradorContrato;
+        
+        // Horarios de trabajo (como JSONB)
+        solicitudData.horarios_trabajo = horarios.length > 0 ? horarios : null;
+        
+        // Vehículos - Nombres corregidos
+        solicitudData.cantidad_vehiculos = parseInt(formData.cantidadVehiculos) || 0; // ← Nombre corregido
+        solicitudData.placas_patente = placasPatente.length > 0 ? placasPatente : null; // ← Nombre corregido (text[])
+      }
+
+      // Información de Contratista
+      if (formData.requiereAcreditarContratista) {
+        solicitudData.requiere_acreditar_contratista = formData.requiereAcreditarContratista === 'yes'; // ← Convertir a boolean
+        
+        if (formData.requiereAcreditarContratista === 'yes') {
+          if (formData.modalidadContrato) solicitudData.modalidad_contrato_contratista = formData.modalidadContrato;
+          if (formData.razonSocialContratista) solicitudData.razon_social_contratista = formData.razonSocialContratista;
+          if (formData.nombreResponsableContratista) solicitudData.nombre_responsable_contratista = formData.nombreResponsableContratista; // ← Nombre corregido
+          if (formData.telefonoResponsableContratista) solicitudData.telefono_responsable_contratista = formData.telefonoResponsableContratista; // ← Nombre corregido
+          if (formData.emailResponsableContratista) solicitudData.email_responsable_contratista = formData.emailResponsableContratista; // ← Nombre corregido
+          
+          // Vehículos Contratista - Nombres corregidos
+          solicitudData.cantidad_vehiculos_contratista = parseInt(formData.cantidadVehiculosContratista) || 0; // ← Nombre corregido
+          solicitudData.placas_vehiculos_contratista = placasPatenteContratista.length > 0 ? placasPatenteContratista : null; // ← Nombre corregido (text[])
+          
+          // SST - Convertir a boolean
+          solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes'; // ← Convertir a boolean
+        }
+      }
+
+      console.log('📤 Enviando datos a Supabase:', solicitudData);
+      
+      // Guardar en Supabase
+      const result = await createSolicitudAcreditacion(solicitudData);
+      
+      console.log('✅ Solicitud guardada exitosamente:', result);
+      alert('¡Solicitud guardada exitosamente! ID: ' + result.id);
+      
+      // Opcional: Resetear el formulario o redirigir
+      // onBack(); // Descomentar si quieres volver atrás automáticamente
+      
+    } catch (error) {
+      console.error('❌ Error al guardar la solicitud:', error);
+      alert('Error al guardar la solicitud. Por favor, revisa la consola para más detalles.');
+    }
   };
 
   return (

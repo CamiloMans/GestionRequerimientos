@@ -5,12 +5,14 @@ interface SidebarProps {
   onClose: () => void;
   onNavigateToRequests?: () => void;
   onNavigateToFieldRequest?: () => void;
-  activeView?: 'list' | 'create' | 'fieldRequest';
+  onNavigateToReports?: () => void;
+  activeView?: 'list' | 'create' | 'fieldRequest' | 'reports';
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, activeView }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, onNavigateToReports, activeView }) => {
   const isRequestsActive = activeView === 'list' || activeView === 'create';
   const isFieldRequestActive = activeView === 'fieldRequest';
+  const isReportsActive = activeView === 'reports';
   const handleRequestsClick = () => {
     console.log('🖱️ Click en Solicitudes detectado!');
     if (onNavigateToRequests) {
@@ -23,6 +25,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
     console.log('🖱️ Click en Proyectos detectado!');
     if (onNavigateToFieldRequest) {
       onNavigateToFieldRequest();
+    }
+    onClose();
+  };
+
+  const handleReportsClick = () => {
+    console.log('🖱️ Click en Reportes detectado!');
+    if (onNavigateToReports) {
+      onNavigateToReports();
     }
     onClose();
   };
@@ -103,7 +113,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               
               {/* Reportes */}
               <button 
-                className="flex items-center justify-center p-3 rounded-lg text-[#616f89] hover:bg-gray-100 w-full aspect-square transition-colors" 
+                onClick={handleReportsClick}
+                className={`flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors ${
+                  isReportsActive 
+                    ? 'bg-primary text-white hover:bg-primary-hover' 
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
                 title="Reportes"
               >
                 <span className="material-symbols-outlined text-2xl pointer-events-none">bar_chart</span>

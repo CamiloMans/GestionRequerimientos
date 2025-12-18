@@ -144,6 +144,83 @@ export interface RequestFormData {
   registroSstTerreo: string;
 }
 
+// Tipo para la tabla solicitud_acreditacion
+export interface SolicitudAcreditacion {
+  id: number;
+  fecha_solicitud: string;
+  nombre_solicitante: string;
+  fecha_reunion_arranque: string;
+  codigo_proyecto: string;
+  requisito: string;
+  nombre_cliente: string;
+  contacto_cliente_nombre?: string;
+  contacto_cliente_email?: string;
+  jefe_proyectos_myma?: string;
+  encargado_seguimiento?: string;
+  fecha_inicio_terreno?: string;
+  aviso_prevencion_riesgo?: string;
+  requiere_acreditar_empresa?: string;
+  admin_contrato_myma?: string;
+  nombre_contrato?: string;
+  numero_contrato?: string;
+  administrador_contrato?: string;
+  trabajadores_myma?: any; // JSON con array de trabajadores
+  horarios_trabajo?: any; // JSON con array de horarios
+  vehiculos_cantidad?: number;
+  vehiculos_placas?: any; // JSON con array de placas
+  requiere_acreditar_contratista?: string;
+  modalidad_contrato_contratista?: string;
+  razon_social_contratista?: string;
+  responsable_contratista_nombre?: string;
+  responsable_contratista_telefono?: string;
+  responsable_contratista_email?: string;
+  trabajadores_contratista?: any; // JSON con array de trabajadores contratista
+  vehiculos_contratista_cantidad?: number;
+  vehiculos_contratista_placas?: any; // JSON con array de placas
+  registro_sst_terreno?: string;
+  estado?: string;
+  estado_solicitud_acreditacion?: string; // Estado específico de la solicitud
+  // Responsables del proyecto
+  empresa_id?: string; // ID de la Empresa Contratista
+  empresa_nombre?: string; // Nombre de la Empresa Contratista
+  jpro_id?: number; // ID del Jefe de Proyecto
+  jpro_nombre?: string; // Nombre del Jefe de Proyecto
+  epr_id?: number; // ID del Especialista en Prevención de Riesgo
+  epr_nombre?: string; // Nombre del Especialista en Prevención de Riesgo
+  rrhh_id?: number; // ID del Responsable de RRHH
+  rrhh_nombre?: string; // Nombre del Responsable de RRHH
+  legal_id?: number; // ID del Responsable Legal
+  legal_nombre?: string; // Nombre del Responsable Legal
+  created_at: string;
+  updated_at?: string;
+}
+
+// Tipo para la vista de galería de proyectos
+export interface ProjectGalleryItem {
+  id: number;
+  projectCode: string;
+  projectName: string;
+  clientName: string;
+  projectManager: string;
+  fieldStartDate: string;
+  totalWorkers: number;
+  totalVehicles: number;
+  status: string;
+  workers: Worker[];
+  createdAt: string;
+  // Responsables del proyecto
+  empresa_id?: string;
+  empresa_nombre?: string;
+  jpro_id?: number;
+  jpro_nombre?: string;
+  epr_id?: number;
+  epr_nombre?: string;
+  rrhh_id?: number;
+  rrhh_nombre?: string;
+  legal_id?: number;
+  legal_nombre?: string;
+}
+
 export const REGIONS = [
   "Metropolitana",
   "Valparaíso",

@@ -175,6 +175,29 @@ button,
   -webkit-user-select: none;
 }
 
+/* Configuración para iconos más cuadrados */
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  aspect-ratio: 1 / 1;
+  width: 1em;
+  height: 1em;
+}
+
 /* Estilo para el header fijo en móvil */
 @media (max-width: 1023px) {
   .lg\:pt-0 {
