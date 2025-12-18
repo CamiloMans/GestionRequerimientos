@@ -3,21 +3,26 @@ import Sidebar from './components/Sidebar';
 import RequestList from './components/RequestList';
 import RequestForm from './components/RequestForm';
 import FieldRequestForm from './components/FieldRequestForm';
-import { RequestItem, NewRequestPayload } from './types';
+import ProjectGalleryV2 from './components/ProjectGalleryV2';
+import { RequestItem, NewRequestPayload, ProjectGalleryItem } from './types';
 import { 
   fetchPersonaRequerimientos, 
   createPersonaRequerimiento, 
-  updatePersonaRequerimiento 
+  updatePersonaRequerimiento,
+  fetchProjectGalleryItems
 } from './services/supabaseService';
+import './utils/testSupabase'; // Script de diagnóstico disponible en consola
 
-type ViewState = 'list' | 'create' | 'fieldRequest';
+type ViewState = 'list' | 'create' | 'fieldRequest' | 'reports';
 
 function App() {
   const [view, setView] = useState<ViewState>('list');
   const [editingItem, setEditingItem] = useState<RequestItem | null>(null);
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [projects, setProjects] = useState<ProjectGalleryItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -34,6 +39,19 @@ function App() {
       alert('Error al cargar las solicitudes. Por favor, intente nuevamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProjects = async () => {
+    try {
+      setLoadingProjects(true);
+      const data = await fetchProjectGalleryItems();
+      setProjects(data);
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      alert('Error al cargar los proyectos. Por favor, intente nuevamente.');
+    } finally {
+      setLoadingProjects(false);
     }
   };
 
@@ -55,6 +73,13 @@ function App() {
   const handleNavigateToFieldRequest = () => {
     setEditingItem(null);
     setView('fieldRequest');
+  };
+
+  const handleNavigateToReports = () => {
+    setEditingItem(null);
+    setView('reports');
+    // Cargar proyectos cuando se navega a reportes
+    loadProjects();
   };
 
   const handleSave = async (data: NewRequestPayload) => {
@@ -98,6 +123,7 @@ function App() {
         onClose={() => setSidebarOpen(false)} 
         onNavigateToRequests={handleNavigateToList}
         onNavigateToFieldRequest={handleNavigateToFieldRequest}
+        onNavigateToReports={handleNavigateToReports}
         activeView={view}
       />
       
@@ -131,6 +157,20 @@ function App() {
           <FieldRequestForm 
             onBack={() => setView('list')} 
           />
+        ) : view === 'reports' ? (
+          loadingProjects ? (
+            <div className="flex items-center justify-center h-full min-h-screen">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-gray-600">Cargando proyectos...</p>
+              </div>
+            </div>
+          ) : (
+            <ProjectGalleryV2 
+              projects={projects}
+              onProjectUpdate={loadProjects}
+            />
+          )
         ) : (
           <RequestForm 
             onBack={() => setView('list')} 

@@ -5,12 +5,14 @@ interface SidebarProps {
   onClose: () => void;
   onNavigateToRequests?: () => void;
   onNavigateToFieldRequest?: () => void;
-  activeView?: 'list' | 'create' | 'fieldRequest';
+  onNavigateToReports?: () => void;
+  activeView?: 'list' | 'create' | 'fieldRequest' | 'reports';
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, activeView }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, onNavigateToReports, activeView }) => {
   const isRequestsActive = activeView === 'list' || activeView === 'create';
   const isFieldRequestActive = activeView === 'fieldRequest';
+  const isReportsActive = activeView === 'reports';
   const handleRequestsClick = () => {
     console.log('🖱️ Click en Solicitudes detectado!');
     if (onNavigateToRequests) {
@@ -23,6 +25,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
     console.log('🖱️ Click en Proyectos detectado!');
     if (onNavigateToFieldRequest) {
       onNavigateToFieldRequest();
+    }
+    onClose();
+  };
+
+  const handleReportsClick = () => {
+    console.log('🖱️ Click en Reportes detectado!');
+    if (onNavigateToReports) {
+      onNavigateToReports();
     }
     onClose();
   };
@@ -56,13 +66,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
       >
         <div className="flex h-full flex-col justify-between py-6 w-full items-center">
           <div className="flex flex-col gap-6 w-full items-center">
-            {/* Avatar */}
+            {/* Logo MyMA */}
             <div className="flex flex-col items-center justify-center">
               <div 
-                className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border border-gray-200 shadow-sm"
-                style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBXVx6GxCSkS5BfutVlYARGWCwjweC4lytns7aqFA037MEqgU4t3yMIkGTVlGl9xLqeVPNoSydmdH5h64phcOSitbjwQhsdl5osCNYLTEk5wEH06dCOQ81_urNL-khLmhrShhz1grpX8S2ALrd7wqZ5v1om2QvUff89ecmVDHpAakAwvyznN8fXx5TjtUhzYfeovO0rWvb5UVdIDqDZwYrIKHg0CqobW26lRgYLnNRXv3TQwcEfCzc8T5sOQFEzvpxro2i6MzhKfq8")' }}
-                title="Admin User"
-              />
+                className="size-12 rounded-full bg-gradient-to-br from-teal-700 to-teal-900 flex items-center justify-center shadow-lg border-2 border-teal-600"
+                title="MyMA - Sistema de Gestión"
+              >
+                <span className="text-white font-bold text-sm tracking-tight">MyMA</span>
+              </div>
             </div>
             
             {/* Navigation */}
@@ -103,7 +114,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               
               {/* Reportes */}
               <button 
-                className="flex items-center justify-center p-3 rounded-lg text-[#616f89] hover:bg-gray-100 w-full aspect-square transition-colors" 
+                onClick={handleReportsClick}
+                className={`flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors ${
+                  isReportsActive 
+                    ? 'bg-primary text-white hover:bg-primary-hover' 
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
                 title="Reportes"
               >
                 <span className="material-symbols-outlined text-2xl pointer-events-none">bar_chart</span>
