@@ -11,6 +11,7 @@ import {
   updatePersonaRequerimiento,
   fetchProjectGalleryItems
 } from './services/supabaseService';
+import './utils/testSupabase'; // Script de diagnóstico disponible en consola
 
 type ViewState = 'list' | 'create' | 'fieldRequest' | 'reports';
 

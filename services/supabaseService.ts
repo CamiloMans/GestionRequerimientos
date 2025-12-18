@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase';
-import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem } from '../types';
+import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 
 // Función para calcular el estado basado en la fecha de vencimiento
@@ -34,6 +34,21 @@ export const fetchPersonas = async (): Promise<Persona[]> => {
   
   if (error) {
     console.error('Error fetching personas:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Función para obtener todos los clientes
+export const fetchClientes = async (): Promise<Cliente[]> => {
+  const { data, error } = await supabase
+    .from('cliente')
+    .select('*')
+    .order('nombre', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching clientes:', error);
     throw error;
   }
   
@@ -214,7 +229,7 @@ export const fetchSolicitudesAcreditacion = async (): Promise<SolicitudAcreditac
 export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> => {
   const solicitudes = await fetchSolicitudesAcreditacion();
   
-  return solicitudes.map((solicitud: SolicitudAcreditacion) => {
+  return Promise.all(solicitudes.map(async (solicitud: SolicitudAcreditacion) => {
     // Parsear trabajadores de los campos JSON
     const trabajadoresMyma = solicitud.trabajadores_myma || [];
     const trabajadoresContratista = solicitud.trabajadores_contratista || [];
@@ -223,19 +238,61 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
     // Calcular total de vehículos
     const totalVehicles = (solicitud.vehiculos_cantidad || 0) + (solicitud.vehiculos_contratista_cantidad || 0);
     
-    // Generar tareas basadas en los responsables asignados
-    const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente';
-    const projectTasks = generateProjectTasks(
-      solicitud.id,
-      !!solicitud.jpro_id,    // Tiene JPRO asignado
-      !!solicitud.epr_id,     // Tiene EPR asignado
-      !!solicitud.rrhh_id,    // Tiene RRHH asignado
-      !!solicitud.legal_id,   // Tiene Legal asignado
-      projectStatus
-    );
+    // Obtener tareas reales del proyecto desde la base de datos
+    let projectTasks: any[] = [];
+    let completedTasks = 0;
+    let totalTasks = 0;
     
-    // Calcular tareas completadas
-    const { completed: completedTasks, total: totalTasks } = calculateCompletedTasks(projectTasks);
+    try {
+      const codigoProyecto = solicitud.codigo_proyecto;
+      if (codigoProyecto) {
+        const requerimientos = await fetchProyectoRequerimientos(codigoProyecto);
+        
+        // Transformar requerimientos a formato de tareas
+        projectTasks = requerimientos.map(req => ({
+          id: req.id,
+          responsable: req.responsable,
+          requerimiento: req.requerimiento,
+          categoria: req.categoria_requerimiento,
+          realizado: req.estado === 'Completado',
+          fechaFinalizada: req.estado === 'Completado' ? req.updated_at?.split('T')[0] : undefined
+        }));
+        
+        completedTasks = projectTasks.filter(t => t.realizado).length;
+        totalTasks = projectTasks.length;
+      }
+      
+      // Si no hay tareas en la BD, usar las generadas por defecto
+      if (totalTasks === 0) {
+        const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente';
+        projectTasks = generateProjectTasks(
+          solicitud.id,
+          !!solicitud.jpro_id,
+          !!solicitud.epr_id,
+          !!solicitud.rrhh_id,
+          !!solicitud.legal_id,
+          projectStatus
+        );
+        const taskStats = calculateCompletedTasks(projectTasks);
+        completedTasks = taskStats.completed;
+        totalTasks = taskStats.total;
+      }
+    } catch (error) {
+      console.error('Error cargando requerimientos del proyecto:', error);
+      // Si hay error, usar tareas generadas por defecto
+      const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente';
+      projectTasks = generateProjectTasks(
+        solicitud.id,
+        !!solicitud.jpro_id,
+        !!solicitud.epr_id,
+        !!solicitud.rrhh_id,
+        !!solicitud.legal_id,
+        projectStatus
+      );
+      const taskStats = calculateCompletedTasks(projectTasks);
+      completedTasks = taskStats.completed;
+      totalTasks = taskStats.total;
+    }
     
     return {
       id: solicitud.id,
@@ -265,7 +322,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
       legal_id: solicitud.legal_id,
       legal_nombre: solicitud.legal_nombre,
     };
-  });
+  }));
 };
 
 // Función para crear una nueva solicitud de acreditación
@@ -334,23 +391,24 @@ export const updateResponsablesSolicitud = async (
   }
 ): Promise<SolicitudAcreditacion> => {
   console.log('🔄 Actualizando responsables para solicitud ID:', id);
+  console.log('📝 Responsables recibidos:', responsables);
 
   const updateData = { 
-    empresa_id: responsables.empresa_id,
-    empresa_nombre: responsables.empresa_nombre,
-    jpro_id: responsables.jpro_id,
-    jpro_nombre: responsables.jpro_nombre,
-    epr_id: responsables.epr_id,
-    epr_nombre: responsables.epr_nombre,
-    rrhh_id: responsables.rrhh_id,
-    rrhh_nombre: responsables.rrhh_nombre,
-    legal_id: responsables.legal_id,
-    legal_nombre: responsables.legal_nombre,
+    empresa_id: responsables.empresa_id || null,
+    empresa_nombre: responsables.empresa_nombre || null,
+    jpro_id: responsables.jpro_id || null,
+    jpro_nombre: responsables.jpro_nombre || null,
+    epr_id: responsables.epr_id || null,
+    epr_nombre: responsables.epr_nombre || null,
+    rrhh_id: responsables.rrhh_id || null,
+    rrhh_nombre: responsables.rrhh_nombre || null,
+    legal_id: responsables.legal_id || null,
+    legal_nombre: responsables.legal_nombre || null,
     estado_solicitud_acreditacion: 'En proceso',
     updated_at: new Date().toISOString() 
   };
 
-  console.log('📦 Payload:', updateData);
+  console.log('📦 Datos a guardar:', updateData);
 
   const { data, error } = await supabase
     .from('solicitud_acreditacion')
@@ -372,5 +430,147 @@ export const updateResponsablesSolicitud = async (
   
   console.log('✅ Responsables actualizados exitosamente');
   return data;
+};
+
+// Función para obtener requerimientos estándar de una empresa
+export const fetchEmpresaRequerimientos = async (empresa: string): Promise<EmpresaRequerimiento[]> => {
+  console.log('🔍 Buscando requerimientos para empresa:', empresa);
+  
+  const { data, error } = await supabase
+    .from('empresa_requerimiento')
+    .select('*')
+    .eq('empresa', empresa)
+    .order('orden', { ascending: true });
+  
+  if (error) {
+    console.error('❌ Error fetching empresa requerimientos:', error);
+    throw error;
+  }
+  
+  console.log(`✅ Encontrados ${data?.length || 0} requerimientos para ${empresa}`);
+  return data || [];
+};
+
+// Función para crear requerimientos de acreditación de un proyecto
+export const createProyectoRequerimientos = async (
+  codigoProyecto: string,
+  cliente: string,
+  empresaRequerimientos: EmpresaRequerimiento[],
+  responsables: {
+    jpro_nombre?: string;
+    epr_nombre?: string;
+    rrhh_nombre?: string;
+    legal_nombre?: string;
+  }
+): Promise<void> => {
+  console.log('📝 Creando requerimientos para proyecto:', codigoProyecto);
+  console.log('👥 Responsables:', responsables);
+  
+  // Primero, verificar si ya existen requerimientos para este proyecto
+  const { data: existingReqs } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .select('id')
+    .eq('codigo_proyecto', codigoProyecto)
+    .limit(1);
+  
+  if (existingReqs && existingReqs.length > 0) {
+    console.log('⚠️ Ya existen requerimientos para este proyecto, no se crearán duplicados');
+    return;
+  }
+  
+  // Mapear cada requerimiento de empresa a un requerimiento de proyecto
+  const proyectoRequerimientos = empresaRequerimientos.map(req => {
+    // Asignar el nombre del responsable según el rol
+    let nombreResponsable = '';
+    switch (req.responsable) {
+      case 'JPRO':
+        nombreResponsable = responsables.jpro_nombre || 'Sin asignar';
+        break;
+      case 'EPR':
+        nombreResponsable = responsables.epr_nombre || 'Sin asignar';
+        break;
+      case 'RRHH':
+        nombreResponsable = responsables.rrhh_nombre || 'Sin asignar';
+        break;
+      case 'Legal':
+        nombreResponsable = responsables.legal_nombre || 'Sin asignar';
+        break;
+      default:
+        nombreResponsable = 'Sin asignar';
+    }
+
+    return {
+      codigo_proyecto: codigoProyecto,
+      requerimiento: req.requerimiento,
+      responsable: req.responsable,
+      estado: 'Pendiente',
+      cliente: cliente,
+      categoria_requerimiento: req.categoria_requerimiento,
+      observaciones: null,
+      nombre_responsable: nombreResponsable
+    };
+  });
+
+  console.log(`📦 Insertando ${proyectoRequerimientos.length} requerimientos`);
+
+  // Insertar todos los requerimientos
+  const { data, error } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .insert(proyectoRequerimientos)
+    .select();
+  
+  if (error) {
+    console.error('❌ Error creando requerimientos del proyecto:', error);
+    // Si es error de duplicado, no es crítico
+    if (error.message.includes('duplicate') || error.message.includes('unique')) {
+      console.log('⚠️ Algunos requerimientos ya existen (UNIQUE constraint)');
+      return; // No lanzamos error
+    }
+    throw error;
+  }
+  
+  console.log(`✅ ${data?.length || 0} requerimientos creados exitosamente`);
+};
+
+// Función para obtener requerimientos de un proyecto
+export const fetchProyectoRequerimientos = async (codigoProyecto: string): Promise<ProyectoRequerimientoAcreditacion[]> => {
+  console.log('🔍 Buscando requerimientos del proyecto:', codigoProyecto);
+  
+  const { data, error } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .select('*')
+    .eq('codigo_proyecto', codigoProyecto)
+    .order('created_at', { ascending: true });
+  
+  if (error) {
+    console.error('❌ Error fetching proyecto requerimientos:', error);
+    throw error;
+  }
+  
+  console.log(`✅ Encontrados ${data?.length || 0} requerimientos para proyecto ${codigoProyecto}`);
+  return data || [];
+};
+
+// Función para actualizar el estado de un requerimiento
+export const updateRequerimientoEstado = async (
+  id: number,
+  estado: string
+): Promise<void> => {
+  const updateData = {
+    estado: estado,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .update(updateData)
+    .eq('id', id);
+  
+  if (error) {
+    console.error('❌ Error actualizando estado del requerimiento:', error);
+    throw error;
+  }
+  
+  console.log(`✅ Requerimiento ${id} actualizado a ${estado}`);
 };
 

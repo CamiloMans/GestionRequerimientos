@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPersonas } from '../services/supabaseService';
-import { Persona, MOCK_COMPANIES } from '../types';
+import { fetchPersonas, fetchClientes } from '../services/supabaseService';
+import { Persona, Cliente } from '../types';
 
 interface AssignResponsiblesModalProps {
   isOpen: boolean;
@@ -31,6 +31,7 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
   currentResponsables,
 }) => {
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<ResponsablesData>({
     empresa_id: currentResponsables?.empresa_id,
@@ -43,7 +44,7 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      loadPersonas();
+      loadData();
     }
   }, [isOpen]);
 
@@ -60,24 +61,28 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
     }
   }, [currentResponsables]);
 
-  const loadPersonas = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await fetchPersonas();
-      setPersonas(data);
+      const [personasData, clientesData] = await Promise.all([
+        fetchPersonas(),
+        fetchClientes()
+      ]);
+      setPersonas(personasData);
+      setClientes(clientesData);
     } catch (error) {
-      console.error('Error cargando personas:', error);
+      console.error('Error cargando datos:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleEmpresaChange = (empresaId: string) => {
-    const selectedEmpresa = MOCK_COMPANIES.find(c => c.id === empresaId);
+    const selectedCliente = clientes.find(c => c.id.toString() === empresaId);
     setFormData(prev => ({
       ...prev,
       empresa_id: empresaId || undefined,
-      empresa_nombre: selectedEmpresa ? selectedEmpresa.name : undefined,
+      empresa_nombre: selectedCliente ? selectedCliente.nombre : undefined,
     }));
   };
 
@@ -146,7 +151,7 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-                <p className="text-gray-600">Cargando personas...</p>
+                <p className="text-gray-600">Cargando datos...</p>
               </div>
             </div>
           ) : (
@@ -170,9 +175,9 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                   className="w-full px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white text-[#111318] font-medium"
                 >
                   <option value="">Seleccionar empresa...</option>
-                  {MOCK_COMPANIES.map((empresa) => (
-                    <option key={empresa.id} value={empresa.id}>
-                      {empresa.name}
+                  {clientes.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id}>
+                      {cliente.nombre}
                     </option>
                   ))}
                 </select>

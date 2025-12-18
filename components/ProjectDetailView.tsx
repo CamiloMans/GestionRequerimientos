@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ProjectGalleryItem } from '../types';
+import { updateRequerimientoEstado } from '../services/supabaseService';
 
 interface ProjectRequirement {
   id: number;
@@ -13,9 +14,10 @@ interface ProjectRequirement {
 interface ProjectDetailViewProps {
   project: ProjectGalleryItem;
   onBack: () => void;
+  onUpdate?: () => void;
 }
 
-const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack }) => {
+const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate }) => {
   const [filterResponsable, setFilterResponsable] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [filterRealizado, setFilterRealizado] = useState('');
@@ -46,18 +48,42 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack }
   const responsables = Array.from(new Set(requirements.map(r => r.responsable)));
   const categorias = Array.from(new Set(requirements.map(r => r.categoria)));
 
-  const handleToggleRealizado = (id: number) => {
-    setRequirements(prev => prev.map(req => {
-      if (req.id === id) {
-        const newRealizado = !req.realizado;
-        return {
-          ...req,
-          realizado: newRealizado,
-          fechaFinalizada: newRealizado ? new Date().toISOString().split('T')[0] : undefined
-        };
+  const handleToggleRealizado = async (e: React.MouseEvent, id: number) => {
+    // Detener la propagación para evitar que se active el click del contenedor
+    e.stopPropagation();
+    
+    const requirement = requirements.find(r => r.id === id);
+    if (!requirement) return;
+
+    const newRealizado = !requirement.realizado;
+    const newEstado = newRealizado ? 'Completado' : 'Pendiente';
+
+    try {
+      // Actualizar en la base de datos
+      await updateRequerimientoEstado(id, newEstado);
+      
+      // Actualizar estado local
+      setRequirements(prev => prev.map(req => {
+        if (req.id === id) {
+          return {
+            ...req,
+            realizado: newRealizado,
+            fechaFinalizada: newRealizado ? new Date().toISOString().split('T')[0] : undefined
+          };
+        }
+        return req;
+      }));
+      
+      console.log(`✅ Requerimiento ${id} actualizado a ${newEstado}`);
+      
+      // Notificar al componente padre para que recargue los datos
+      if (onUpdate) {
+        onUpdate();
       }
-      return req;
-    }));
+    } catch (error) {
+      console.error('❌ Error actualizando requerimiento:', error);
+      alert('Error al actualizar el requerimiento. Por favor, intente nuevamente.');
+    }
   };
 
   const clearFilters = () => {
@@ -263,7 +289,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack }
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button
-                          onClick={() => handleToggleRealizado(req.id)}
+                          onClick={(e) => handleToggleRealizado(e, req.id)}
                           className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-all ${
                             req.realizado 
                               ? 'bg-green-100 hover:bg-green-200 border-2 border-green-500' 

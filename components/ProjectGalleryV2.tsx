@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ProjectGalleryItem } from '../types';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
 import ProjectDetailView from './ProjectDetailView';
-import { updateResponsablesSolicitud } from '../services/supabaseService';
+import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos } from '../services/supabaseService';
 
 interface ProjectGalleryV2Props {
   projects: ProjectGalleryItem[];
@@ -12,10 +12,15 @@ interface ProjectGalleryV2Props {
 const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProjectUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterClient, setFilterClient] = useState('');
+  const [filterProgress, setFilterProgress] = useState('');
   const [selectedProject, setSelectedProject] = useState<ProjectGalleryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showDetailView, setShowDetailView] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Obtener lista única de clientes
+  const uniqueClients = Array.from(new Set(projects.map(p => p.clientName))).sort();
 
   // Filtrar proyectos
   const filteredProjects = projects.filter(project => {
@@ -25,13 +30,29 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       project.clientName.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = filterStatus ? project.status === filterStatus : true;
+    const matchesClient = filterClient ? project.clientName === filterClient : true;
     
-    return matchesSearch && matchesStatus;
+    // Filtro por progreso
+    let matchesProgress = true;
+    if (filterProgress && project.totalTasks && project.totalTasks > 0) {
+      const progressPercentage = ((project.completedTasks || 0) / project.totalTasks) * 100;
+      if (filterProgress === 'low') {
+        matchesProgress = progressPercentage < 25;
+      } else if (filterProgress === 'medium') {
+        matchesProgress = progressPercentage >= 25 && progressPercentage < 75;
+      } else if (filterProgress === 'high') {
+        matchesProgress = progressPercentage >= 75;
+      }
+    }
+    
+    return matchesSearch && matchesStatus && matchesClient && matchesProgress;
   });
 
   const clearFilters = () => {
     setSearchTerm('');
     setFilterStatus('');
+    setFilterClient('');
+    setFilterProgress('');
   };
 
   const formatDate = (dateString: string) => {
@@ -103,6 +124,10 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const handleBackFromDetail = () => {
     setShowDetailView(false);
     setSelectedProject(null);
+    // Recargar datos después de ver el detalle (por si hubo cambios)
+    if (onProjectUpdate) {
+      onProjectUpdate();
+    }
   };
 
   const handleSaveResponsables = async (responsables: ResponsablesData) => {
@@ -110,20 +135,92 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
 
     try {
       setSaving(true);
-      await updateResponsablesSolicitud(selectedProject.id, responsables);
       
-      // Notificar al componente padre para que recargue los datos
+      // 1. Guardar responsables en la base de datos (esto es lo PRINCIPAL)
+      console.log('💾 Guardando responsables...');
+      await updateResponsablesSolicitud(selectedProject.id, responsables);
+      console.log('✅ Responsables guardados exitosamente en la base de datos');
+      
+      // 2. Intentar crear requerimientos del proyecto (OPCIONAL - no debe fallar el guardado principal)
+      if (responsables.empresa_nombre) {
+        try {
+          console.log('🏢 Intentando crear requerimientos para empresa:', responsables.empresa_nombre);
+          
+          // Obtener requerimientos estándar de la empresa
+          const empresaReqs = await fetchEmpresaRequerimientos(responsables.empresa_nombre);
+          
+          if (empresaReqs.length > 0) {
+            console.log(`📋 Encontrados ${empresaReqs.length} requerimientos estándar`);
+            
+            // Crear requerimientos del proyecto con los nombres de responsables
+            await createProyectoRequerimientos(
+              selectedProject.projectCode,
+              responsables.empresa_nombre,
+              empresaReqs,
+              {
+                jpro_nombre: responsables.jpro_nombre,
+                epr_nombre: responsables.epr_nombre,
+                rrhh_nombre: responsables.rrhh_nombre,
+                legal_nombre: responsables.legal_nombre
+              }
+            );
+            
+            console.log('✅ Requerimientos del proyecto creados automáticamente');
+          } else {
+            console.log('⚠️ No se encontraron requerimientos estándar para esta empresa');
+          }
+        } catch (reqError) {
+          // Si falla la creación de requerimientos, NO afecta el guardado principal
+          console.warn('⚠️ No se pudieron crear los requerimientos automáticos:', reqError);
+          console.log('💡 Posible causa: Las tablas empresa_requerimiento o proyecto_requerimientos_acreditacion no existen');
+          console.log('💡 Solución: Ejecutar script sql/create_project_requirements_tables.sql en Supabase');
+          // No lanzamos el error, continuamos normalmente
+        }
+      }
+      
+      // 3. Notificar al componente padre para que recargue los datos
       if (onProjectUpdate) {
         onProjectUpdate();
       }
       
-      // Mostrar mensaje de éxito (opcional)
-      console.log('Responsables actualizados exitosamente');
+      // 4. Mostrar mensaje de éxito
+      alert('✅ Responsables guardados exitosamente\n\n' + 
+            `Proyecto: ${selectedProject.projectCode}\n` +
+            (responsables.empresa_nombre ? `Empresa: ${responsables.empresa_nombre}\n` : '') +
+            (responsables.jpro_nombre ? `JPRO: ${responsables.jpro_nombre}\n` : '') +
+            (responsables.epr_nombre ? `EPR: ${responsables.epr_nombre}\n` : '') +
+            (responsables.rrhh_nombre ? `RRHH: ${responsables.rrhh_nombre}\n` : '') +
+            (responsables.legal_nombre ? `Legal: ${responsables.legal_nombre}` : '')
+      );
       
       handleCloseModal();
     } catch (error) {
-      console.error('Error guardando responsables:', error);
-      alert('Error al guardar los responsables. Por favor, intente nuevamente.');
+      console.error('❌ Error guardando responsables:', error);
+      
+      // Mostrar error detallado
+      let errorMsg = '❌ Error al guardar los responsables\n\n';
+      
+      if (error instanceof Error) {
+        errorMsg += `Detalle: ${error.message}\n\n`;
+        
+        // Ayuda específica según el error
+        if (error.message.includes('column') || error.message.includes('does not exist')) {
+          errorMsg += '💡 Solución: Las columnas de responsables no existen en la base de datos.\n';
+          errorMsg += 'Ejecuta el script: sql/add_responsables_columns.sql en Supabase SQL Editor';
+        } else if (error.message.includes('table') || error.message.includes('relation')) {
+          errorMsg += '💡 Solución: La tabla solicitud_acreditacion no existe.\n';
+          errorMsg += 'Verifica tu configuración de Supabase';
+        } else {
+          errorMsg += 'Por favor, verifica:\n';
+          errorMsg += '1. Que ejecutaste sql/add_responsables_columns.sql\n';
+          errorMsg += '2. Que la conexión a Supabase está activa\n';
+          errorMsg += '3. Los logs en la consola del navegador (F12)';
+        }
+      } else {
+        errorMsg += 'Error desconocido. Revisa la consola del navegador (F12)';
+      }
+      
+      alert(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -156,7 +253,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
 
   // Si se está mostrando la vista de detalle, renderizar ese componente
   if (showDetailView && selectedProject) {
-    return <ProjectDetailView project={selectedProject} onBack={handleBackFromDetail} />;
+    return <ProjectDetailView project={selectedProject} onBack={handleBackFromDetail} onUpdate={onProjectUpdate} />;
   }
 
   return (
@@ -167,8 +264,8 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         <div className="mb-8 flex flex-wrap justify-between gap-4 border-b border-[#e5e7eb] pb-6">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-4xl">bar_chart</span>
-              <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Reportes de Proyectos</h1>
+              <span className="material-symbols-outlined text-primary text-4xl">assignment</span>
+              <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Gestión de Solicitudes de Acreditación</h1>
             </div>
             <p className="text-[#616f89] text-sm lg:text-base font-normal">
               Vista general de todas las solicitudes de acreditación y proyectos
@@ -181,11 +278,16 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Proyectos</p>
-                <p className="text-2xl font-bold text-[#111318] mt-1">{totalProjects}</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">ACREDITACIONES OK</p>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <p className="text-2xl font-bold text-blue-600">{finishedProjects.length}</p>
+                  <span className="text-sm font-semibold text-gray-400">/</span>
+                  <p className="text-xl font-bold text-gray-500">{totalProjects}</p>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5">Total de proyectos</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <span className="material-symbols-outlined text-blue-600 text-2xl">work</span>
+                <span className="material-symbols-outlined text-blue-600 text-2xl">done_all</span>
               </div>
             </div>
           </div>
@@ -227,10 +329,11 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Proyectos Activos</p>
-                <p className="text-2xl font-bold text-green-600 mt-1">{activeProjects}</p>
+                <p className="text-2xl font-bold text-orange-600 mt-1">{activeProjects}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Sin finalizar</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                <span className="material-symbols-outlined text-orange-600 text-2xl">pending_actions</span>
               </div>
             </div>
           </div>
@@ -239,11 +342,11 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         {/* Search and Filters */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            <div className="md:col-span-6 relative">
+            <div className="md:col-span-3 relative">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
               <input
                 type="text"
-                placeholder="Buscar proyectos por nombre, código o cliente..."
+                placeholder="Buscar proyectos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
@@ -252,19 +355,45 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
             
             <div className="md:col-span-3">
               <select
+                value={filterClient}
+                onChange={(e) => setFilterClient(e.target.value)}
+                className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              >
+                <option value="">Todos los clientes</option>
+                {uniqueClients.map(client => (
+                  <option key={client} value={client}>{client}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
               >
                 <option value="">Todos los estados</option>
-                <option value="Activo">Activo</option>
-                <option value="En Proceso">En Proceso</option>
-                <option value="Completado">Completado</option>
                 <option value="Pendiente">Pendiente</option>
+                <option value="En proceso">En proceso</option>
+                <option value="Finalizada">Finalizada</option>
+                <option value="Cancelada">Cancelada</option>
               </select>
             </div>
 
-            <div className="md:col-span-3 flex gap-2">
+            <div className="md:col-span-2">
+              <select
+                value={filterProgress}
+                onChange={(e) => setFilterProgress(e.target.value)}
+                className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              >
+                <option value="">Todo progreso</option>
+                <option value="low">Menos de 25%</option>
+                <option value="medium">Entre 25% y 75%</option>
+                <option value="high">75% o más</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2 flex gap-2">
               <button
                 onClick={clearFilters}
                 className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm flex items-center justify-center gap-2"
@@ -279,130 +408,199 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         {/* Projects Gallery */}
         <div className="space-y-4">
           {filteredProjects.length > 0 ? (
-            filteredProjects.map((project) => (
-              <div
-                key={project.id}
-                onClick={() => handleProjectClick(project)}
-                className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden hover:shadow-lg transition-all cursor-pointer ${getProjectBorderColor(project.status)}`}
-              >
-                {/* Project Header */}
-                <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-200 px-6 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
+            filteredProjects.map((project) => {
+              // Determinar color de hover según el estado
+              const getHoverColor = () => {
+                const statusLower = project.status.toLowerCase();
+                if (statusLower.includes('pendiente')) return 'group-hover:to-amber-50';
+                if (statusLower.includes('proceso')) return 'group-hover:to-blue-50';
+                if (statusLower.includes('finalizada')) return 'group-hover:to-green-50';
+                if (statusLower.includes('cancelada')) return 'group-hover:to-red-50';
+                return 'group-hover:to-gray-50';
+              };
+
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => handleProjectClick(project)}
+                  className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden hover:shadow-lg hover:scale-[1.005] transition-all duration-300 cursor-pointer group ${getProjectBorderColor(project.status)}`}
+                >
+                  {/* Project Header */}
+                  <div className={`bg-gradient-to-r from-gray-50 to-white px-6 py-5 group-hover:from-gray-100 ${getHoverColor()} transition-all duration-300`}>
+                  {/* Título y Estado */}
+                  <div className="flex items-center justify-between gap-4 mb-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="material-symbols-outlined text-primary text-2xl">folder_open</span>
+                      <div className="w-14 h-14 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                        <span className="material-symbols-outlined text-white text-2xl group-hover:scale-105 transition-transform duration-300">folder_open</span>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-lg font-bold text-[#111318] truncate">{project.projectCode}</h3>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="text-xl font-bold text-[#111318] truncate">{project.projectCode}</h3>
                           {project.projectName && (
-                            <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600 border border-gray-200 flex-shrink-0">
+                            <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 flex-shrink-0">
                               {project.projectName}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[16px]">business</span>
-                            {project.clientName}
+                        <div className="flex items-center gap-3 text-sm text-gray-600 flex-wrap">
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[18px]">business</span>
+                            <span className="font-medium">{project.clientName}</span>
                           </span>
-                          <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[16px]">person</span>
-                            {project.projectManager}
+                          <span className="text-gray-300">•</span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[18px]">person</span>
+                            <span>{project.projectManager}</span>
                           </span>
-                          <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[16px]">event</span>
-                            {formatDate(project.fieldStartDate)}
+                          <span className="text-gray-300">•</span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[18px]">event</span>
+                            <span>{formatDate(project.fieldStartDate)}</span>
                           </span>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-stretch gap-3 flex-shrink-0">
-                      {/* Badge Tareas con Anillo de Progreso */}
-                      <div className="flex items-center gap-3 px-4 py-2.5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 min-w-[160px]">
-                        {/* Anillo circular de progreso */}
-                        <div className="relative flex items-center justify-center flex-shrink-0">
-                          <svg className="w-14 h-14 transform -rotate-90">
-                            {/* Círculo de fondo */}
-                            <circle
-                              cx="28"
-                              cy="28"
-                              r="24"
-                              stroke="#E0E7FF"
-                              strokeWidth="4"
-                              fill="none"
-                            />
-                            {/* Círculo de progreso */}
-                            <circle
-                              cx="28"
-                              cy="28"
-                              r="24"
-                              stroke={
-                                ((project.completedTasks || 0) / (project.totalTasks || 1)) >= 0.8 ? '#10B981' :
-                                ((project.completedTasks || 0) / (project.totalTasks || 1)) >= 0.5 ? '#3B82F6' :
-                                '#F59E0B'
-                              }
-                              strokeWidth="4"
-                              fill="none"
-                              strokeDasharray={`${2 * Math.PI * 24}`}
-                              strokeDashoffset={`${2 * Math.PI * 24 * (1 - ((project.completedTasks || 0) / (project.totalTasks || 1)))}`}
-                              strokeLinecap="round"
-                              className="transition-all duration-500"
-                            />
-                          </svg>
-                          {/* Texto en el centro del anillo */}
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-xs font-bold text-gray-700">
-                              {project.totalTasks ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100) : 0}%
-                            </span>
-                          </div>
-                        </div>
-                        {/* Información de tareas */}
-                        <div className="flex flex-col justify-center">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Tareas</p>
-                          <div className="flex items-baseline gap-1 mt-0.5">
-                            <p className="text-lg font-bold text-primary">{project.completedTasks || 0}</p>
-                            <span className="text-xs font-semibold text-gray-400">/</span>
-                            <p className="text-lg font-bold text-gray-600">{project.totalTasks || 0}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge Duración */}
-                      <div className="text-center px-4 py-2.5 bg-amber-50 rounded-lg border border-amber-100 min-w-[110px]">
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Duración</p>
-                        <div className="flex items-baseline justify-center gap-1 mt-1">
-                          <p className="text-xl font-bold text-amber-600">{getProjectDuration(project.createdAt).value}</p>
-                          {getProjectDuration(project.createdAt).unit && (
-                            <p className="text-xs font-semibold text-amber-600">{getProjectDuration(project.createdAt).unit}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Separador vertical */}
-                      <div className="w-px bg-gray-200 self-stretch"></div>
-
-                      {/* Estado y Acción */}
-                      <div className="flex flex-col justify-center items-center gap-2 px-2 min-w-[160px]">
-                        <span className={`px-4 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap ${getStatusColor(project.status)}`}>
-                          {project.status}
+                    {/* Estado */}
+                    <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                      <span className={`px-4 py-2 rounded-lg text-sm font-bold border-2 whitespace-nowrap shadow-sm group-hover:shadow transition-all duration-300 ${getStatusColor(project.status)}`}>
+                        {project.status}
+                      </span>
+                      {/* Indicador de acción */}
+                      {project.status.toLowerCase().includes('pendiente') ? (
+                        <span className="text-xs text-gray-500 flex items-center gap-1 font-medium group-hover:text-gray-700 transition-colors duration-300">
+                          <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">assignment_ind</span>
+                          <span>Asignar responsables</span>
                         </span>
-                        {/* Indicador de acción al hacer clic */}
-                        {project.status.toLowerCase().includes('pendiente') ? (
-                          <span className="text-xs text-gray-500 flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="material-symbols-outlined text-[16px]">assignment_ind</span>
-                            <span>Clic para asignar</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-blue-600 flex items-center gap-1.5 font-medium whitespace-nowrap">
-                            <span className="material-symbols-outlined text-[16px]">visibility</span>
-                            <span>Ver detalle</span>
-                          </span>
-                        )}
-                      </div>
+                      ) : (
+                        <span className="text-xs text-blue-600 flex items-center gap-1 font-semibold group-hover:text-blue-700 transition-colors duration-300">
+                          <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">visibility</span>
+                          <span>Ver detalle</span>
+                        </span>
+                      )}
                     </div>
                   </div>
+
+                  {/* Progreso General del Proyecto */}
+                  {project.totalTasks && project.totalTasks > 0 && (
+                    <div className="mb-4 pb-4 border-b border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-primary text-[18px]">track_changes</span>
+                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Progreso General</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500 font-medium">
+                            {project.completedTasks || 0} / {project.totalTasks} tareas
+                          </span>
+                          <span className={`text-sm font-extrabold ${
+                            ((project.completedTasks || 0) / project.totalTasks) >= 0.8 ? 'text-green-600' :
+                            ((project.completedTasks || 0) / project.totalTasks) >= 0.5 ? 'text-blue-600' :
+                            'text-orange-600'
+                          }`}>
+                            {Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                      {/* Barra de progreso */}
+                      <div className="relative w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${
+                            ((project.completedTasks || 0) / project.totalTasks) >= 0.8 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                            ((project.completedTasks || 0) / project.totalTasks) >= 0.5 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
+                            'bg-gradient-to-r from-orange-500 to-orange-600'
+                          }`}
+                          style={{ width: `${Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Progreso por Responsable - Vista compacta */}
+                  {(() => {
+                    const responsables = [
+                      { id: project.jpro_id, nombre: project.jpro_nombre, rol: 'JPRO', color: 'blue' },
+                      { id: project.epr_id, nombre: project.epr_nombre, rol: 'EPR', color: 'orange' },
+                      { id: project.rrhh_id, nombre: project.rrhh_nombre, rol: 'RRHH', color: 'green' },
+                      { id: project.legal_id, nombre: project.legal_nombre, rol: 'Legal', color: 'purple' }
+                    ].filter(r => r.id);
+
+                    if (responsables.length === 0) {
+                      return (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2 group-hover:bg-gray-100 transition-all duration-300">
+                            <span className="material-symbols-outlined text-[18px]">info</span>
+                            <span>Sin responsables asignados</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {responsables.map((resp) => {
+                            const tareas = (project.tasks || []).filter((t: any) => t.responsable === resp.rol);
+                            const completadas = tareas.filter((t: any) => t.realizado).length;
+                            const total = tareas.length;
+                            const porcentaje = total > 0 ? (completadas / total) : 0;
+
+                            const colorMap = {
+                              blue: { bg: 'bg-blue-50/80', border: 'border-blue-200/50', ring: '#DBEAFE', stroke: '#3B82F6', text: 'text-blue-600', dot: 'bg-blue-500' },
+                              orange: { bg: 'bg-orange-50/80', border: 'border-orange-200/50', ring: '#FED7AA', stroke: '#F97316', text: 'text-orange-600', dot: 'bg-orange-500' },
+                              green: { bg: 'bg-green-50/80', border: 'border-green-200/50', ring: '#D1FAE5', stroke: '#10B981', text: 'text-green-600', dot: 'bg-green-500' },
+                              purple: { bg: 'bg-purple-50/80', border: 'border-purple-200/50', ring: '#E9D5FF', stroke: '#A855F7', text: 'text-purple-600', dot: 'bg-purple-500' }
+                            };
+                            const colors = colorMap[resp.color as keyof typeof colorMap] || colorMap.blue;
+
+                            return (
+                              <div key={resp.rol} className={`flex items-center gap-2.5 ${colors.bg} rounded-lg border ${colors.border} px-3 py-2.5 transition-all duration-300`}>
+                                {/* Anillo de progreso */}
+                                <div className="relative flex items-center justify-center flex-shrink-0">
+                                  <svg className="w-14 h-14 transform -rotate-90">
+                                    <circle cx="28" cy="28" r="23" stroke={colors.ring} strokeWidth="3.5" fill="none" />
+                                    <circle
+                                      cx="28"
+                                      cy="28"
+                                      r="23"
+                                      stroke={colors.stroke}
+                                      strokeWidth="3.5"
+                                      fill="none"
+                                      strokeDasharray={`${2 * Math.PI * 23}`}
+                                      strokeDashoffset={`${2 * Math.PI * 23 * (1 - porcentaje)}`}
+                                      strokeLinecap="round"
+                                      className="transition-all duration-500"
+                                    />
+                                  </svg>
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-sm font-extrabold text-gray-800">
+                                      {Math.round(porcentaje * 100)}%
+                                    </span>
+                                  </div>
+                                </div>
+                                {/* Info horizontal */}
+                                <div className="flex flex-col justify-center min-w-0 flex-1">
+                                  <div className="flex items-baseline gap-1.5 mb-0.5">
+                                    <p className={`text-sm font-extrabold uppercase tracking-wide ${colors.text}`}>{resp.rol}</p>
+                                    <div className="flex items-baseline gap-0.5">
+                                      <p className={`text-lg font-bold ${colors.text}`}>{completadas}</p>
+                                      <span className="text-xs font-semibold text-gray-400">/</span>
+                                      <p className="text-base font-semibold text-gray-500">{total}</p>
+                                    </div>
+                                  </div>
+                                  {resp.nombre && (
+                                    <p className="text-sm text-gray-600 font-medium truncate leading-tight">
+                                      {resp.nombre}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Workers List */}
@@ -446,7 +644,8 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                   </div>
                 )}
               </div>
-            ))
+            );
+            })
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
               <span className="material-symbols-outlined text-gray-300 text-6xl mb-4 block">search_off</span>

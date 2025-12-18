@@ -52,6 +52,43 @@ export interface Requerimiento {
   updated_at: string;
 }
 
+export interface Cliente {
+  id: number;
+  nombre: string;
+  rut?: string;
+  direccion?: string;
+  telefono?: string;
+  email?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EmpresaRequerimiento {
+  id: number;
+  empresa: string;
+  requerimiento: string;
+  categoria_requerimiento: string;
+  responsable: 'JPRO' | 'EPR' | 'RRHH' | 'Legal';
+  orden?: number;
+  obligatorio?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProyectoRequerimientoAcreditacion {
+  id?: number;
+  codigo_proyecto: string;
+  requerimiento: string;
+  responsable: string; // JPRO, EPR, RRHH, Legal
+  estado?: string; // Pendiente, En Proceso, Completado, Cancelado
+  created_at?: string;
+  updated_at?: string;
+  cliente: string;
+  categoria_requerimiento?: string;
+  observaciones?: string;
+  nombre_responsable?: string;
+}
+
 export interface PersonaRequerimientoSST {
   id: number;
   persona_id: number;
