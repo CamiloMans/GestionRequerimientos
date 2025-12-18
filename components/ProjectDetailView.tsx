@@ -19,11 +19,28 @@ interface ProjectDetailViewProps {
   project: ProjectGalleryItem;
   onBack: () => void;
   onUpdate?: () => void;
+  onFilterSidebarChange?: (isOpen: boolean) => void;
 }
 
-const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate }) => {
+const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate, onFilterSidebarChange }) => {
   // Estado del sidebar de filtros
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
+
+  // Notificar al componente padre cuando el sidebar de filtros cambie
+  useEffect(() => {
+    if (onFilterSidebarChange) {
+      onFilterSidebarChange(isFilterSidebarOpen);
+    }
+  }, [isFilterSidebarOpen, onFilterSidebarChange]);
+
+  // Limpiar notificación cuando el componente se desmonte
+  useEffect(() => {
+    return () => {
+      if (onFilterSidebarChange) {
+        onFilterSidebarChange(false);
+      }
+    };
+  }, [onFilterSidebarChange]);
 
   // Bloquear scroll del body cuando el sidebar está abierto
   useEffect(() => {
@@ -318,9 +335,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
           />
           
           {/* Sidebar */}
-          <div className="fixed top-0 right-0 h-full w-[420px] bg-gradient-to-b from-white to-gray-50 shadow-2xl z-50 flex flex-col animate-slide-in-right">
+          <div className="fixed top-0 left-0 h-full w-[260px] bg-gradient-to-b from-white to-gray-50 shadow-2xl z-50 flex flex-col animate-slide-in-left">
             {/* Header del Sidebar */}
-            <div className="bg-gradient-to-br from-primary to-emerald-700 text-white px-6 py-4 shadow-lg">
+            <div className="bg-gradient-to-br from-primary to-emerald-700 text-white px-4 py-3 shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
@@ -343,24 +360,24 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
             </div>
 
             {/* Contenido del Sidebar */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {/* Sección: Personal */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[16px]">group</span>
                   Personal
                 </h4>
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {/* Filtro por Cargo */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px]">badge</span>
                       Cargo
                     </label>
                     <select
                       value={filterCargo}
                       onChange={(e) => setFilterCargo(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
                     >
                       <option value="">Todos los Cargos</option>
                       {cargos.map(cargo => (
@@ -371,14 +388,14 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
                   {/* Filtro por Nombre Responsable */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px]">account_circle</span>
                       Responsable
                     </label>
                     <select
                       value={filterNombreResponsable}
                       onChange={(e) => setFilterNombreResponsable(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
                     >
                       <option value="">Todos los Responsables</option>
                       {nombresResponsables.map(nombre => (
@@ -389,14 +406,14 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
                   {/* Filtro por Nombre Trabajador */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px]">person</span>
                       Trabajador
                     </label>
                     <select
                       value={filterNombreTrabajador}
                       onChange={(e) => setFilterNombreTrabajador(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
                     >
                       <option value="">Todos los Trabajadores</option>
                       {nombresTrabajadores.map(nombre => (
@@ -408,20 +425,20 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               </div>
 
               {/* Sección: Empresa */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[16px]">business</span>
                   Empresa
                 </h4>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                  <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[14px]">business_center</span>
                     Categoría Empresa
                   </label>
                   <select
                     value={filterCategoriaEmpresa}
                     onChange={(e) => setFilterCategoriaEmpresa(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                    className="w-full px-2 py-1 border border-gray-300 rounded-md text-[10px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
                   >
                     <option value="">Todas las Empresas</option>
                     {categoriasEmpresa.map(cat => (
@@ -432,40 +449,40 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               </div>
 
               {/* Sección: Requerimientos */}
-              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[16px]">checklist</span>
                   Requerimientos
                 </h4>
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {/* Filtro por Requerimiento (búsqueda) */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px]">search</span>
                       Buscar Requerimiento
                     </label>
                     <div className="relative">
-                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
+                      <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[14px]">search</span>
                       <input
                         type="text"
                         value={filterRequerimiento}
                         onChange={(e) => setFilterRequerimiento(e.target.value)}
                         placeholder="Escribe para buscar..."
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors"
+                        className="w-full pl-7 pr-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors"
                       />
                     </div>
                   </div>
 
                   {/* Filtro por Categoría */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px]">category</span>
                       Categoría
                     </label>
                     <select
                       value={filterCategoria}
                       onChange={(e) => setFilterCategoria(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
                     >
                       <option value="">Todas las Categorías</option>
                       {categorias.map(cat => (
@@ -476,14 +493,14 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
                   {/* Filtro por Estado */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
+                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px]">task_alt</span>
                       Estado
                     </label>
                     <select
                       value={filterRealizado}
                       onChange={(e) => setFilterRealizado(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
+                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
                     >
                       <option value="">Todos los Estados</option>
                       <option value="realizado">✅ Realizados</option>

@@ -7,9 +7,10 @@ import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyecto
 interface ProjectGalleryV2Props {
   projects: ProjectGalleryItem[];
   onProjectUpdate?: () => void;
+  onFilterSidebarChange?: (isOpen: boolean) => void;
 }
 
-const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProjectUpdate }) => {
+const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProjectUpdate, onFilterSidebarChange }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClient, setFilterClient] = useState('');
@@ -85,6 +86,19 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     // Cancelada - Rojo
     if (statusLower.includes('cancelada')) return 'border-red-500 bg-red-50';
     return 'border-gray-500 bg-gray-50';
+  };
+
+  const getLeftBorderColor = (status: string) => {
+    const statusLower = status.toLowerCase();
+    // Pendiente - Amarillo/Ámbar
+    if (statusLower.includes('pendiente')) return 'border-l-4 border-l-amber-500';
+    // En proceso - Azul
+    if (statusLower.includes('proceso')) return 'border-l-4 border-l-blue-500';
+    // Finalizada/Finalizado - Verde
+    if (statusLower.includes('finalizada') || statusLower.includes('finalizado')) return 'border-l-4 border-l-green-500';
+    // Cancelada - Rojo
+    if (statusLower.includes('cancelada')) return 'border-l-4 border-l-red-500';
+    return 'border-l-4 border-l-gray-500';
   };
 
   const getProjectDuration = (createdAt: string) => {
@@ -308,7 +322,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
 
   // Si se está mostrando la vista de detalle, renderizar ese componente
   if (showDetailView && selectedProject) {
-    return <ProjectDetailView project={selectedProject} onBack={handleBackFromDetail} onUpdate={onProjectUpdate} />;
+    return <ProjectDetailView project={selectedProject} onBack={handleBackFromDetail} onUpdate={onProjectUpdate} onFilterSidebarChange={onFilterSidebarChange} />;
   }
 
   return (
@@ -478,155 +492,52 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                 <div
                   key={project.id}
                   onClick={() => handleProjectClick(project)}
-                  className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden hover:shadow-lg hover:scale-[1.005] transition-all duration-300 cursor-pointer group ${getProjectBorderColor(project.status)}`}
+                  className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer group"
                 >
-                  {/* Project Header */}
-                  <div className={`bg-gradient-to-r from-gray-50 to-white px-6 py-5 group-hover:from-gray-100 ${getHoverColor()} transition-all duration-300`}>
-                  {/* Título y Estado */}
-                  <div className="flex items-center justify-between gap-4 mb-4">
+                  {/* Project Header Compacto */}
+                  <div className={`bg-gradient-to-r from-gray-50 to-white px-5 py-3 group-hover:from-gray-100 ${getHoverColor()} ${getLeftBorderColor(project.status)} transition-colors duration-300`}>
+                  {/* Título y Estado en línea */}
+                  <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-14 h-14 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
-                        <span className="material-symbols-outlined text-white text-2xl group-hover:scale-105 transition-transform duration-300">folder_open</span>
+                      {/* Icono más pequeño */}
+                      <div className="w-11 h-11 bg-gradient-to-br from-primary to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md group-hover:shadow-lg transition-shadow duration-300">
+                        <span className="material-symbols-outlined text-white text-xl">folder_open</span>
                       </div>
+                      
+                      {/* Info del proyecto */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="text-xl font-bold text-[#111318] truncate">{project.projectCode}</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-bold text-[#111318]">{project.projectCode}</h3>
                           {project.projectName && (
-                            <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 flex-shrink-0">
+                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
                               {project.projectName}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-gray-600 flex-wrap">
-                          <span className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[18px]">business</span>
+                        
+                        {/* Info en línea compacta */}
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">business</span>
                             <span className="font-medium">{project.clientName}</span>
                           </span>
                           <span className="text-gray-300">•</span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[18px]">person</span>
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">person</span>
                             <span>{project.projectManager}</span>
                           </span>
                           <span className="text-gray-300">•</span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[18px]">event</span>
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">event</span>
                             <span>{formatDate(project.fieldStartDate)}</span>
                           </span>
                           <span className="text-gray-300">•</span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[18px]">schedule</span>
-                            <span className="font-semibold">
-                              {(() => {
-                                const createdDate = new Date(project.createdAt);
-                                const now = new Date();
-                                const diffTime = Math.abs(now.getTime() - createdDate.getTime());
-                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                const progressPercentage = project.totalTasks && project.totalTasks > 0 
-                                  ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
-                                  : 0;
-                                const isFinalizado = progressPercentage === 100 || project.status.toLowerCase().includes('finalizada');
-                                
-                                if (diffDays === 0) {
-                                  return 'Hoy';
-                                } else if (diffDays === 1) {
-                                  return '1 día';
-                                } else {
-                                  return `${diffDays} días`;
-                                }
-                              })()}
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Estado */}
-                    <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                      {(() => {
-                        // Si tiene 100% de progreso, mostrar "Finalizado"
-                        const progressPercentage = project.totalTasks && project.totalTasks > 0 
-                          ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
-                          : 0;
-                        const displayStatus = (progressPercentage === 100 && project.status.toLowerCase().includes('proceso')) 
-                          ? 'Finalizado' 
-                          : project.status;
-                        const statusColor = getStatusColor(displayStatus);
-                        
-                        return (
-                          <span className={`px-4 py-2 rounded-lg text-sm font-bold border-2 whitespace-nowrap shadow-sm group-hover:shadow transition-all duration-300 ${statusColor}`}>
-                            {displayStatus}
-                          </span>
-                        );
-                      })()}
-                      {/* Indicador de acción */}
-                      {(() => {
-                        const progressPercentage = project.totalTasks && project.totalTasks > 0 
-                          ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
-                          : 0;
-                        const isCompleted = progressPercentage === 100 && project.status.toLowerCase().includes('proceso');
-                        
-                        if (project.status.toLowerCase().includes('pendiente')) {
-                          return (
-                            <span className="text-xs text-gray-500 flex items-center gap-1 font-medium group-hover:text-gray-700 transition-colors duration-300">
-                              <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">assignment_ind</span>
-                              <span>Asignar responsables</span>
-                            </span>
-                          );
-                        } else if (isCompleted) {
-                          return (
-                            <span className="text-xs text-green-600 flex items-center gap-1 font-semibold group-hover:text-green-700 transition-colors duration-300">
-                              <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">visibility</span>
-                              <span>Ver detalle</span>
-                            </span>
-                          );
-                        } else {
-                          return (
-                            <span className="text-xs text-blue-600 flex items-center gap-1 font-semibold group-hover:text-blue-700 transition-colors duration-300">
-                              <span className="material-symbols-outlined text-[14px] group-hover:scale-105 transition-transform duration-300">visibility</span>
-                              <span>Ver detalle</span>
-                            </span>
-                          );
-                        }
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Progreso General del Proyecto */}
-                  {project.totalTasks && project.totalTasks > 0 && (
-                    <div className="mb-4 pb-4 border-b border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-primary text-[18px]">track_changes</span>
-                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Progreso General</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {/* Tiempo Transcurrido */}
+                          {/* Tiempo transcurrido inline */}
                           {(() => {
                             const createdDate = new Date(project.createdAt);
                             const now = new Date();
                             const diffTime = Math.abs(now.getTime() - createdDate.getTime());
                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            const progressPercentage = project.totalTasks && project.totalTasks > 0 
-                              ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
-                              : 0;
-                            const isFinalizado = progressPercentage === 100 || project.status.toLowerCase().includes('finalizada');
-                            
-                            let badgeColor = 'bg-gray-100 text-gray-700 border-gray-300';
-                            let icon = 'schedule';
-                            
-                            if (isFinalizado) {
-                              badgeColor = 'bg-green-100 text-green-700 border-green-300';
-                              icon = 'check_circle';
-                            } else if (diffDays > 30) {
-                              badgeColor = 'bg-red-100 text-red-700 border-red-300';
-                              icon = 'warning';
-                            } else if (diffDays > 14) {
-                              badgeColor = 'bg-amber-100 text-amber-700 border-amber-300';
-                              icon = 'schedule';
-                            } else {
-                              badgeColor = 'bg-blue-100 text-blue-700 border-blue-300';
-                              icon = 'schedule';
-                            }
                             
                             let timeText = '';
                             if (diffDays === 0) {
@@ -638,27 +549,80 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                             }
                             
                             return (
-                              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${badgeColor} text-xs font-bold`}>
-                                <span className="material-symbols-outlined text-[16px]">{icon}</span>
-                                <span>{timeText}</span>
-                              </div>
+                              <span className="flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[14px]">schedule</span>
+                                <span className="font-semibold">{timeText}</span>
+                              </span>
                             );
                           })()}
-                          
-                          <span className="text-xs text-gray-500 font-medium">
-                            {project.completedTasks || 0} / {project.totalTasks} tareas
-                          </span>
-                          <span className={`text-sm font-extrabold ${
-                            ((project.completedTasks || 0) / project.totalTasks) >= 0.8 ? 'text-green-600' :
-                            ((project.completedTasks || 0) / project.totalTasks) >= 0.5 ? 'text-blue-600' :
-                            'text-orange-600'
-                          }`}>
-                            {Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)}%
-                          </span>
                         </div>
                       </div>
-                      {/* Barra de progreso */}
-                      <div className="relative w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                    </div>
+                    
+                    {/* Estado compacto */}
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      {(() => {
+                        const progressPercentage = project.totalTasks && project.totalTasks > 0 
+                          ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
+                          : 0;
+                        const displayStatus = (progressPercentage === 100 && project.status.toLowerCase().includes('proceso')) 
+                          ? 'Finalizado' 
+                          : project.status;
+                        const statusColor = getStatusColor(displayStatus);
+                        
+                        return (
+                          <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 whitespace-nowrap shadow-sm ${statusColor}`}>
+                            {displayStatus}
+                          </span>
+                        );
+                      })()}
+                      {/* Indicador de acción más pequeño */}
+                      {(() => {
+                        const progressPercentage = project.totalTasks && project.totalTasks > 0 
+                          ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
+                          : 0;
+                        const isCompleted = progressPercentage === 100 && project.status.toLowerCase().includes('proceso');
+                        
+                        if (project.status.toLowerCase().includes('pendiente')) {
+                          return (
+                            <span className="text-[10px] text-gray-500 flex items-center gap-0.5 font-medium">
+                              <span className="material-symbols-outlined text-[12px]">assignment_ind</span>
+                              <span>Asignar</span>
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className={`text-[10px] flex items-center gap-0.5 font-semibold ${isCompleted ? 'text-green-600' : 'text-blue-600'}`}>
+                              <span className="material-symbols-outlined text-[12px]">visibility</span>
+                              <span>Ver detalle</span>
+                            </span>
+                          );
+                        }
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Progreso General Compacto */}
+                  {project.totalTasks && project.totalTasks > 0 && (
+                    <div className="mt-3 mb-3 pb-3 border-b border-gray-200">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-primary text-[16px]">track_changes</span>
+                          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Progreso</span>
+                          <span className="text-xs text-gray-500 font-medium">
+                            {project.completedTasks || 0}/{project.totalTasks}
+                          </span>
+                        </div>
+                        <span className={`text-sm font-extrabold ${
+                          ((project.completedTasks || 0) / project.totalTasks) >= 0.8 ? 'text-green-600' :
+                          ((project.completedTasks || 0) / project.totalTasks) >= 0.5 ? 'text-blue-600' :
+                          'text-orange-600'
+                        }`}>
+                          {Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)}%
+                        </span>
+                      </div>
+                      {/* Barra de progreso más delgada */}
+                      <div className="relative w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div 
                           className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${
                             ((project.completedTasks || 0) / project.totalTasks) >= 0.8 ? 'bg-gradient-to-r from-green-500 to-green-600' :
@@ -692,7 +656,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                     }
 
                     return (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
+                      <div className="mt-2 pt-2 border-t border-gray-100">
                         <div className="grid grid-cols-4 gap-1.5">
                           {responsables.map((resp) => {
                             const tareas = (project.tasks || []).filter((t: any) => t.responsable === resp.rol);
@@ -701,50 +665,50 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                             const porcentaje = total > 0 ? (completadas / total) : 0;
 
                             const colorMap = {
-                              blue: { bg: 'bg-blue-50/80', border: 'border-blue-200/50', ring: '#DBEAFE', stroke: '#3B82F6', text: 'text-blue-600', dot: 'bg-blue-500' },
-                              orange: { bg: 'bg-orange-50/80', border: 'border-orange-200/50', ring: '#FED7AA', stroke: '#F97316', text: 'text-orange-600', dot: 'bg-orange-500' },
-                              green: { bg: 'bg-green-50/80', border: 'border-green-200/50', ring: '#D1FAE5', stroke: '#10B981', text: 'text-green-600', dot: 'bg-green-500' },
-                              purple: { bg: 'bg-purple-50/80', border: 'border-purple-200/50', ring: '#E9D5FF', stroke: '#A855F7', text: 'text-purple-600', dot: 'bg-purple-500' }
+                              blue: { bg: 'bg-blue-50/80', border: 'border-blue-200/50', ring: '#DBEAFE', stroke: '#3B82F6', text: 'text-blue-600' },
+                              orange: { bg: 'bg-orange-50/80', border: 'border-orange-200/50', ring: '#FED7AA', stroke: '#F97316', text: 'text-orange-600' },
+                              green: { bg: 'bg-green-50/80', border: 'border-green-200/50', ring: '#D1FAE5', stroke: '#10B981', text: 'text-green-600' },
+                              purple: { bg: 'bg-purple-50/80', border: 'border-purple-200/50', ring: '#E9D5FF', stroke: '#A855F7', text: 'text-purple-600' }
                             };
                             const colors = colorMap[resp.color as keyof typeof colorMap] || colorMap.blue;
 
                             return (
-                              <div key={resp.rol} className={`flex items-center gap-2.5 ${colors.bg} rounded-lg border ${colors.border} px-3 py-2.5 transition-all duration-300`}>
-                                {/* Anillo de progreso */}
+                              <div key={resp.rol} className={`flex items-center gap-2 ${colors.bg} rounded-lg border ${colors.border} px-2.5 py-2 transition-all duration-300`}>
+                                {/* Anillo de progreso más pequeño */}
                                 <div className="relative flex items-center justify-center flex-shrink-0">
-                                  <svg className="w-14 h-14 transform -rotate-90">
-                                    <circle cx="28" cy="28" r="23" stroke={colors.ring} strokeWidth="3.5" fill="none" />
+                                  <svg className="w-11 h-11 transform -rotate-90">
+                                    <circle cx="22" cy="22" r="18" stroke={colors.ring} strokeWidth="3" fill="none" />
                                     <circle
-                                      cx="28"
-                                      cy="28"
-                                      r="23"
+                                      cx="22"
+                                      cy="22"
+                                      r="18"
                                       stroke={colors.stroke}
-                                      strokeWidth="3.5"
+                                      strokeWidth="3"
                                       fill="none"
-                                      strokeDasharray={`${2 * Math.PI * 23}`}
-                                      strokeDashoffset={`${2 * Math.PI * 23 * (1 - porcentaje)}`}
+                                      strokeDasharray={`${2 * Math.PI * 18}`}
+                                      strokeDashoffset={`${2 * Math.PI * 18 * (1 - porcentaje)}`}
                                       strokeLinecap="round"
                                       className="transition-all duration-500"
                                     />
                                   </svg>
                                   <div className="absolute inset-0 flex items-center justify-center">
-                                    <span className="text-sm font-extrabold text-gray-800">
+                                    <span className="text-xs font-extrabold text-gray-800">
                                       {Math.round(porcentaje * 100)}%
                                     </span>
                                   </div>
                                 </div>
-                                {/* Info horizontal */}
+                                {/* Info compacta */}
                                 <div className="flex flex-col justify-center min-w-0 flex-1">
-                                  <div className="flex items-baseline gap-1.5 mb-0.5">
-                                    <p className={`text-sm font-extrabold uppercase tracking-wide ${colors.text}`}>{resp.rol}</p>
+                                  <div className="flex items-baseline gap-1 mb-0.5">
+                                    <p className={`text-xs font-extrabold uppercase ${colors.text}`}>{resp.rol}</p>
                                     <div className="flex items-baseline gap-0.5">
-                                      <p className={`text-lg font-bold ${colors.text}`}>{completadas}</p>
-                                      <span className="text-xs font-semibold text-gray-400">/</span>
-                                      <p className="text-base font-semibold text-gray-500">{total}</p>
+                                      <p className={`text-sm font-bold ${colors.text}`}>{completadas}</p>
+                                      <span className="text-[10px] font-semibold text-gray-400">/</span>
+                                      <p className="text-xs font-semibold text-gray-500">{total}</p>
                                     </div>
                                   </div>
                                   {resp.nombre && (
-                                    <p className="text-sm text-gray-600 font-medium truncate leading-tight">
+                                    <p className="text-[11px] text-gray-600 font-medium truncate leading-tight">
                                       {resp.nombre}
                                     </p>
                                   )}

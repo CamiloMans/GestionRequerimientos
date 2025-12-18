@@ -21,6 +21,7 @@ function App() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [projects, setProjects] = useState<ProjectGalleryItem[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingProjects, setLoadingProjects] = useState(false);
 
@@ -125,6 +126,7 @@ function App() {
         onNavigateToFieldRequest={handleNavigateToFieldRequest}
         onNavigateToReports={handleNavigateToReports}
         activeView={view}
+        hideOnDesktop={isFilterSidebarOpen}
       />
       
       {/* Mobile Header */}
@@ -139,7 +141,7 @@ function App() {
         <div className="w-10"></div> {/* Spacer for centering */}
       </div>
 
-      <main className="flex flex-1 flex-col h-full min-h-screen bg-[#f8fafc] pt-[60px] lg:pt-0 lg:ml-[80px] overflow-x-hidden">
+      <main className={`flex flex-1 flex-col h-full min-h-screen bg-[#f8fafc] pt-[60px] lg:pt-0 overflow-x-hidden ${!isFilterSidebarOpen ? 'lg:ml-[80px]' : ''}`}>
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-screen">
             <div className="text-center">
@@ -169,6 +171,7 @@ function App() {
             <ProjectGalleryV2 
               projects={projects}
               onProjectUpdate={loadProjects}
+              onFilterSidebarChange={setIsFilterSidebarOpen}
             />
           )
         ) : (

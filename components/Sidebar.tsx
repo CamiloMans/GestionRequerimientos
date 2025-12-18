@@ -7,9 +7,10 @@ interface SidebarProps {
   onNavigateToFieldRequest?: () => void;
   onNavigateToReports?: () => void;
   activeView?: 'list' | 'create' | 'fieldRequest' | 'reports';
+  hideOnDesktop?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, onNavigateToReports, activeView }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, onNavigateToReports, activeView, hideOnDesktop = false }) => {
   const isRequestsActive = activeView === 'list' || activeView === 'create';
   const isFieldRequestActive = activeView === 'fieldRequest';
   const isReportsActive = activeView === 'reports';
@@ -52,7 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
         className={`
           fixed top-0 left-0 flex-col border-r border-[#e5e7eb] bg-white
           transition-transform duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${isOpen ? 'translate-x-0' : hideOnDesktop ? '-translate-x-full' : '-translate-x-full lg:translate-x-0'}
           flex
         `}
         style={{ 
