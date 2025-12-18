@@ -49,7 +49,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const categorias = Array.from(new Set(requirements.map(r => r.categoria)));
 
   const handleToggleRealizado = async (e: React.MouseEvent, id: number) => {
-    // Detener la propagación para evitar que se active el click del contenedor
+    // Prevenir comportamiento por defecto y propagación
+    e.preventDefault();
     e.stopPropagation();
     
     const requirement = requirements.find(r => r.id === id);
@@ -76,10 +77,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       
       console.log(`✅ Requerimiento ${id} actualizado a ${newEstado}`);
       
-      // Notificar al componente padre para que recargue los datos
-      if (onUpdate) {
-        onUpdate();
-      }
+      // NO llamar a onUpdate aquí para evitar recargar toda la vista
+      // El estado local ya se actualizó correctamente
     } catch (error) {
       console.error('❌ Error actualizando requerimiento:', error);
       alert('Error al actualizar el requerimiento. Por favor, intente nuevamente.');
@@ -289,6 +288,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button
+                          type="button"
                           onClick={(e) => handleToggleRealizado(e, req.id)}
                           className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-all ${
                             req.realizado 
