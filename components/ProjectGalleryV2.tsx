@@ -193,11 +193,28 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
           console.log('\n✅ Requerimientos del proyecto guardados exitosamente en la BD');
           console.log('═══════════════════════════════════════════════════\n');
         } catch (reqError) {
-          // Si falla la creación de requerimientos, NO afecta el guardado principal
-          console.error('\n❌ Error al guardar requerimientos:', reqError);
+          // Si falla la creación de requerimientos, mostrar error detallado
+          console.error('═══════════════════════════════════════════════════');
+          console.error('❌ ERROR AL GUARDAR REQUERIMIENTOS');
+          console.error('═══════════════════════════════════════════════════');
+          console.error('Error completo:', reqError);
+          console.error('Tipo:', typeof reqError);
+          
+          if (reqError instanceof Error) {
+            console.error('Mensaje:', reqError.message);
+            console.error('Stack:', reqError.stack);
+          }
+          
+          console.error('═══════════════════════════════════════════════════\n');
           console.warn('⚠️ Los responsables se guardaron, pero hubo un problema con los requerimientos');
-          console.log('💡 Posible causa: La tabla proyecto_requerimientos_acreditacion no existe o faltan columnas');
-          // No lanzamos el error, continuamos normalmente
+          
+          // Mostrar alerta al usuario con el error
+          alert('⚠️ Advertencia\n\n' +
+                'Los responsables se guardaron correctamente,\n' +
+                'pero hubo un error al crear los requerimientos:\n\n' +
+                (reqError instanceof Error ? reqError.message : String(reqError)) + '\n\n' +
+                'Verifica la consola del navegador (F12) para más detalles.'
+          );
         }
       } else {
         console.log('\n⚠️ No hay requerimientos para guardar');

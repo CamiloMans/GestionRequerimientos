@@ -98,6 +98,22 @@ export interface ProyectoRequerimientoAcreditacion {
   observaciones?: string;
   nombre_responsable?: string;
   nombre_trabajador?: string; // Nombre del trabajador asignado a este requerimiento
+  categoria_empresa?: string; // MyMA o Contratista
+  id_proyecto_trabajador?: number; // ID del trabajador en proyecto_trabajadores
+}
+
+// Tipo para las tareas del proyecto en la galería
+export interface ProjectTask {
+  id: number;
+  responsable: string;
+  nombre_responsable?: string;
+  nombre_trabajador?: string;
+  categoria_empresa?: string;
+  id_proyecto_trabajador?: number;
+  requerimiento: string;
+  categoria: string;
+  realizado: boolean;
+  fechaFinalizada?: string;
 }
 
 export interface ProyectoTrabajador {
@@ -274,7 +290,7 @@ export interface ProjectGalleryItem {
   // Progreso de tareas
   completedTasks?: number;
   totalTasks?: number;
-  tasks?: any[]; // Array de tareas del proyecto (ProjectTask[])
+  tasks?: ProjectTask[]; // Array de tareas del proyecto
   // Responsables del proyecto
   empresa_id?: string;
   empresa_nombre?: string;

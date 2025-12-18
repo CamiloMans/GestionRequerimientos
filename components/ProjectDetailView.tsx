@@ -7,6 +7,8 @@ interface ProjectRequirement {
   responsable: string;
   nombre_responsable?: string;
   nombre_trabajador?: string;
+  categoria_empresa?: string;
+  id_proyecto_trabajador?: number;
   requerimiento: string;
   categoria: string;
   realizado: boolean;
@@ -31,6 +33,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       responsable: task.responsable,
       nombre_responsable: task.nombre_responsable,
       nombre_trabajador: task.nombre_trabajador,
+      categoria_empresa: task.categoria_empresa,
+      id_proyecto_trabajador: task.id_proyecto_trabajador,
       requerimiento: task.requerimiento,
       categoria: task.categoria,
       realizado: task.realizado,
@@ -66,7 +70,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       // Actualizar en la base de datos
       await updateRequerimientoEstado(id, newEstado);
       
-      // Actualizar estado local
+      // Actualizar estado local inmediatamente sin recargar
       setRequirements(prev => prev.map(req => {
         if (req.id === id) {
           return {
@@ -80,10 +84,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       
       console.log(`✅ Requerimiento ${id} actualizado a ${newEstado}`);
       
-      // Notificar al componente padre para que recargue los datos
-      if (onUpdate) {
-        onUpdate();
-      }
+      // NO llamamos a onUpdate() para evitar navegar/recargar la página
+      // El estado local ya está actualizado y la UI se refresca automáticamente
     } catch (error) {
       console.error('❌ Error actualizando requerimiento:', error);
       alert('Error al actualizar el requerimiento. Por favor, intente nuevamente.');

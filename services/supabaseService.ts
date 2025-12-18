@@ -269,6 +269,8 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
           responsable: req.responsable,
           nombre_responsable: req.nombre_responsable,
           nombre_trabajador: req.nombre_trabajador,
+          categoria_empresa: req.categoria_empresa,
+          id_proyecto_trabajador: req.id_proyecto_trabajador,
           requerimiento: req.requerimiento,
           categoria: req.categoria_requerimiento,
           realizado: req.estado === 'Completado',
@@ -520,42 +522,97 @@ export const createProyectoRequerimientos = async (
     legal_nombre?: string;
   }
 ): Promise<void> => {
-  console.log('📝 Creando requerimientos para proyecto:', codigoProyecto);
-  console.log('👥 Responsables:', responsables);
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🚀 INICIO: createProyectoRequerimientos');
+  console.log('═══════════════════════════════════════════════════');
+  console.log('📝 Código Proyecto:', codigoProyecto);
+  console.log('🏢 Cliente:', cliente);
+  console.log('📋 Empresa Requerimientos recibidos:', empresaRequerimientos?.length || 0);
+  console.log('👥 Responsables:', JSON.stringify(responsables, null, 2));
   
-  // Primero, verificar si ya existen requerimientos para este proyecto
-  const { data: existingReqs } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
-    .select('id')
-    .eq('codigo_proyecto', codigoProyecto)
-    .limit(1);
-  
-  if (existingReqs && existingReqs.length > 0) {
-    console.log('⚠️ Ya existen requerimientos para este proyecto, no se crearán duplicados');
+  if (!empresaRequerimientos || empresaRequerimientos.length === 0) {
+    console.error('❌ NO HAY REQUERIMIENTOS PARA GUARDAR');
+    console.log('═══════════════════════════════════════════════════\n');
     return;
   }
+  
+  // Primero, verificar si ya existen requerimientos para este proyecto
+  console.log('\n🔍 Verificando requerimientos existentes...');
+  const { data: existingReqs, error: checkError } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .select('id, requerimiento, categoria_requerimiento')
+    .eq('codigo_proyecto', codigoProyecto);
+  
+  if (checkError) {
+    console.error('❌ Error al verificar requerimientos existentes:', checkError);
+  }
+  
+  console.log(`📊 Requerimientos existentes: ${existingReqs?.length || 0}`);
+  
+  if (existingReqs && existingReqs.length > 0) {
+    console.log('⚠️ Ya existen requerimientos para este proyecto:');
+    existingReqs.forEach((req: any, i) => {
+      console.log(`  ${i + 1}. ${req.requerimiento} (${req.categoria_requerimiento})`);
+    });
+    console.log('⏭️  SALIENDO SIN CREAR NUEVOS REQUERIMIENTOS');
+    console.log('═══════════════════════════════════════════════════\n');
+    return;
+  }
+  
+  console.log('✅ No hay requerimientos existentes, procediendo a crear...');
 
-  // Obtener la solicitud de acreditación para conocer las cantidades de trabajadores
+  // Obtener la solicitud de acreditación para conocer el id_proyecto
+  console.log('\n🔍 Buscando solicitud_acreditacion...');
   const { data: solicitud, error: solicitudError } = await supabase
     .from('solicitud_acreditacion')
-    .select('cantidad_trabajadores_myma, cantidad_trabajadores_contratista')
+    .select('id')
     .eq('codigo_proyecto', codigoProyecto)
     .single();
 
   if (solicitudError) {
-    console.warn('⚠️ No se pudo obtener la información de trabajadores:', solicitudError);
+    console.error('❌ Error obteniendo solicitud:', solicitudError);
+    console.log('═══════════════════════════════════════════════════\n');
+    throw new Error(`No se encontró el proyecto ${codigoProyecto}`);
   }
 
-  const cantidadTrabajadoresMyma = solicitud?.cantidad_trabajadores_myma || 0;
-  const cantidadTrabajadoresContratista = solicitud?.cantidad_trabajadores_contratista || 0;
-  const totalTrabajadores = cantidadTrabajadoresMyma + cantidadTrabajadoresContratista;
+  const idProyecto = solicitud?.id;
+  console.log(`✅ ID Proyecto encontrado: ${idProyecto}`);
 
-  console.log(`👥 Total de trabajadores: ${totalTrabajadores} (MYMA: ${cantidadTrabajadoresMyma} + Contratista: ${cantidadTrabajadoresContratista})`);
+  // Obtener los trabajadores de proyecto_trabajadores
+  console.log('\n🔍 Buscando trabajadores en proyecto_trabajadores...');
+  let trabajadoresProyecto: ProyectoTrabajador[] = [];
+  
+  if (idProyecto) {
+    const { data: trabajadores, error: trabajadoresError } = await supabase
+      .from('proyecto_trabajadores')
+      .select('*')
+      .eq('id_proyecto', idProyecto);
+
+    if (trabajadoresError) {
+      console.error('❌ Error obteniendo trabajadores:', trabajadoresError);
+    } else {
+      trabajadoresProyecto = trabajadores || [];
+      console.log(`✅ Trabajadores encontrados: ${trabajadoresProyecto.length}`);
+      if (trabajadoresProyecto.length > 0) {
+        trabajadoresProyecto.forEach((t, i) => {
+          console.log(`  ${i + 1}. ${t.nombre_trabajador} (${t.categoria_empresa}) - ID: ${t.id}`);
+        });
+      }
+    }
+  } else {
+    console.warn('⚠️ No se pudo obtener el ID del proyecto');
+  }
   
   // Mapear cada requerimiento de empresa a uno o más requerimientos de proyecto
+  console.log('\n🔧 Construyendo requerimientos...');
   const proyectoRequerimientos: any[] = [];
 
   empresaRequerimientos.forEach((req, index) => {
+    console.log(`\n  Procesando requerimiento ${index + 1}/${empresaRequerimientos.length}:`);
+    console.log(`    Requerimiento: ${req.requerimiento}`);
+    console.log(`    Categoría: ${req.categoria_requerimiento}`);
+    console.log(`    Responsable: ${req.responsable}`);
+    
     // Asignar el nombre del responsable según el rol
     let nombreResponsable = '';
     switch (req.responsable) {
@@ -574,26 +631,38 @@ export const createProyectoRequerimientos = async (
       default:
         nombreResponsable = 'Sin asignar';
     }
+    
+    console.log(`    Nombre responsable asignado: ${nombreResponsable}`);
 
-    // Si la categoría es "Trabajadores", crear un registro por cada trabajador
-    if (req.categoria_requerimiento?.toLowerCase() === 'trabajadores' && totalTrabajadores > 0) {
-      console.log(`👷 Creando ${totalTrabajadores} registros para requerimiento: ${req.requerimiento}`);
+    // Si la categoría es "Trabajadores", crear un registro por cada trabajador de proyecto_trabajadores
+    const esTrabajadores = req.categoria_requerimiento?.toLowerCase() === 'trabajadores';
+    console.log(`    ¿Es categoría Trabajadores?: ${esTrabajadores}`);
+    console.log(`    Trabajadores disponibles: ${trabajadoresProyecto.length}`);
+    
+    if (esTrabajadores && trabajadoresProyecto.length > 0) {
+      console.log(`    👷 Creando ${trabajadoresProyecto.length} registros (uno por trabajador)`);
       
-      for (let i = 1; i <= totalTrabajadores; i++) {
-        proyectoRequerimientos.push({
+      trabajadoresProyecto.forEach((trabajador, tIndex) => {
+        const registro = {
           codigo_proyecto: codigoProyecto,
-          requerimiento: `${req.requerimiento} - Trabajador ${i}`,
+          requerimiento: req.requerimiento,
           responsable: req.responsable,
           estado: 'Pendiente',
           cliente: cliente,
           categoria_requerimiento: req.categoria_requerimiento,
           observaciones: req.observaciones || null,
-          nombre_responsable: nombreResponsable
-        });
-      }
+          nombre_responsable: nombreResponsable,
+          nombre_trabajador: trabajador.nombre_trabajador,
+          categoria_empresa: trabajador.categoria_empresa,
+          id_proyecto_trabajador: trabajador.id
+        };
+        console.log(`      Trabajador ${tIndex + 1}: ${trabajador.nombre_trabajador}`);
+        proyectoRequerimientos.push(registro);
+      });
     } else {
       // Para otras categorías, crear solo un registro
-      proyectoRequerimientos.push({
+      console.log(`    📄 Creando 1 registro (categoría normal)`);
+      const registro = {
         codigo_proyecto: codigoProyecto,
         requerimiento: req.requerimiento,
         responsable: req.responsable,
@@ -601,30 +670,77 @@ export const createProyectoRequerimientos = async (
         cliente: cliente,
         categoria_requerimiento: req.categoria_requerimiento,
         observaciones: req.observaciones || null,
-        nombre_responsable: nombreResponsable
-      });
+        nombre_responsable: nombreResponsable,
+        nombre_trabajador: null,
+        categoria_empresa: null,
+        id_proyecto_trabajador: null
+      };
+      proyectoRequerimientos.push(registro);
     }
   });
 
-  console.log(`📦 Insertando ${proyectoRequerimientos.length} requerimientos en total`);
+  console.log(`\n📦 TOTAL DE REGISTROS A INSERTAR: ${proyectoRequerimientos.length}`);
+  
+  if (proyectoRequerimientos.length === 0) {
+    console.error('❌ NO SE CONSTRUYERON REQUERIMIENTOS');
+    console.log('═══════════════════════════════════════════════════\n');
+    return;
+  }
+  
+  console.log('\nVista previa de los primeros 3 registros:');
+  proyectoRequerimientos.slice(0, 3).forEach((r, i) => {
+    console.log(`\n  Registro ${i + 1}:`);
+    console.log(`    Requerimiento: ${r.requerimiento}`);
+    console.log(`    Responsable: ${r.responsable} (${r.nombre_responsable})`);
+    console.log(`    Categoría: ${r.categoria_requerimiento}`);
+    console.log(`    Trabajador: ${r.nombre_trabajador || 'N/A'}`);
+  });
 
   // Insertar todos los requerimientos
+  console.log('\n💾 INSERTANDO EN BASE DE DATOS...');
+  console.log(`Tabla: proyecto_requerimientos_acreditacion`);
+  console.log(`Registros a insertar: ${proyectoRequerimientos.length}`);
+  
   const { data, error } = await supabase
     .from('proyecto_requerimientos_acreditacion')
     .insert(proyectoRequerimientos)
     .select();
   
   if (error) {
-    console.error('❌ Error creando requerimientos del proyecto:', error);
+    console.error('═══════════════════════════════════════════════════');
+    console.error('❌ ERROR EN INSERT');
+    console.error('═══════════════════════════════════════════════════');
+    console.error('Mensaje:', error.message);
+    console.error('Código:', error.code);
+    console.error('Detalles:', error.details);
+    console.error('Hint:', error.hint);
+    console.error('Error completo:', JSON.stringify(error, null, 2));
+    
     // Si es error de duplicado, no es crítico
-    if (error.message.includes('duplicate') || error.message.includes('unique')) {
-      console.log('⚠️ Algunos requerimientos ya existen (UNIQUE constraint)');
+    if (error.message.includes('duplicate') || error.message.includes('unique') || error.code === '23505') {
+      console.log('⚠️ Error de UNIQUE constraint - algunos requerimientos ya existen');
+      console.log('💡 Solución: Ejecuta sql/URGENTE_actualizar_constraint.sql');
+      console.log('═══════════════════════════════════════════════════\n');
       return; // No lanzamos error
     }
+    
+    console.log('═══════════════════════════════════════════════════\n');
     throw error;
   }
   
-  console.log(`✅ ${data?.length || 0} requerimientos creados exitosamente`);
+  console.log('═══════════════════════════════════════════════════');
+  console.log('✅ INSERT EXITOSO');
+  console.log('═══════════════════════════════════════════════════');
+  console.log(`Registros insertados: ${data?.length || 0}`);
+  
+  if (data && data.length > 0) {
+    console.log('\nPrimeros 3 registros insertados:');
+    data.slice(0, 3).forEach((r: any, i) => {
+      console.log(`  ${i + 1}. ID: ${r.id} - ${r.requerimiento} (${r.categoria_requerimiento})`);
+    });
+  }
+  
+  console.log('═══════════════════════════════════════════════════\n');
 };
 
 // Función para obtener requerimientos de un proyecto
