@@ -22,7 +22,12 @@ interface ProjectDetailViewProps {
 }
 
 const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate }) => {
-  const [filterResponsable, setFilterResponsable] = useState('');
+  // Estados de filtros
+  const [filterCargo, setFilterCargo] = useState('');
+  const [filterNombreResponsable, setFilterNombreResponsable] = useState('');
+  const [filterNombreTrabajador, setFilterNombreTrabajador] = useState('');
+  const [filterCategoriaEmpresa, setFilterCategoriaEmpresa] = useState('');
+  const [filterRequerimiento, setFilterRequerimiento] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [filterRealizado, setFilterRealizado] = useState('');
 
@@ -44,17 +49,25 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Filtrar requerimientos
   const filteredRequirements = requirements.filter(req => {
-    const matchesResponsable = filterResponsable ? req.responsable === filterResponsable : true;
+    const matchesCargo = filterCargo ? req.responsable === filterCargo : true;
+    const matchesNombreResponsable = filterNombreResponsable ? req.nombre_responsable === filterNombreResponsable : true;
+    const matchesNombreTrabajador = filterNombreTrabajador ? req.nombre_trabajador === filterNombreTrabajador : true;
+    const matchesCategoriaEmpresa = filterCategoriaEmpresa ? req.categoria_empresa === filterCategoriaEmpresa : true;
+    const matchesRequerimiento = filterRequerimiento ? req.requerimiento.toLowerCase().includes(filterRequerimiento.toLowerCase()) : true;
     const matchesCategoria = filterCategoria ? req.categoria === filterCategoria : true;
     const matchesRealizado = filterRealizado === '' ? true : 
       filterRealizado === 'realizado' ? req.realizado : !req.realizado;
     
-    return matchesResponsable && matchesCategoria && matchesRealizado;
+    return matchesCargo && matchesNombreResponsable && matchesNombreTrabajador && 
+           matchesCategoriaEmpresa && matchesRequerimiento && matchesCategoria && matchesRealizado;
   });
 
   // Obtener listas únicas para filtros
-  const responsables = Array.from(new Set(requirements.map(r => r.responsable)));
-  const categorias = Array.from(new Set(requirements.map(r => r.categoria)));
+  const cargos = Array.from(new Set(requirements.map(r => r.responsable).filter(Boolean)));
+  const nombresResponsables = Array.from(new Set(requirements.map(r => r.nombre_responsable).filter(Boolean)));
+  const nombresTrabajadores = Array.from(new Set(requirements.map(r => r.nombre_trabajador).filter(Boolean)));
+  const categoriasEmpresa = Array.from(new Set(requirements.map(r => r.categoria_empresa).filter(Boolean)));
+  const categorias = Array.from(new Set(requirements.map(r => r.categoria).filter(Boolean)));
 
   const handleToggleRealizado = async (e: React.MouseEvent, id: number) => {
     // Detener la propagación para evitar que se active el click del contenedor
@@ -93,12 +106,17 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   };
 
   const clearFilters = () => {
-    setFilterResponsable('');
+    setFilterCargo('');
+    setFilterNombreResponsable('');
+    setFilterNombreTrabajador('');
+    setFilterCategoriaEmpresa('');
+    setFilterRequerimiento('');
     setFilterCategoria('');
     setFilterRealizado('');
   };
 
-  const hasActiveFilters = filterResponsable || filterCategoria || filterRealizado;
+  const hasActiveFilters = filterCargo || filterNombreResponsable || filterNombreTrabajador || 
+                          filterCategoriaEmpresa || filterRequerimiento || filterCategoria || filterRealizado;
 
   const completedCount = requirements.filter(r => r.realizado).length;
   const totalCount = requirements.length;
@@ -203,23 +221,71 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
             <span className="text-sm font-semibold text-gray-700">Filtros:</span>
           </div>
 
-          {/* Filtro por Responsable */}
+          {/* Filtro por Cargo */}
           <select
-            value={filterResponsable}
-            onChange={(e) => setFilterResponsable(e.target.value)}
-            className="min-w-[200px] px-4 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:1.25em] bg-[right_0.5rem_center] bg-no-repeat"
+            value={filterCargo}
+            onChange={(e) => setFilterCargo(e.target.value)}
+            className="min-w-[160px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
           >
-            <option value="">Todos los Responsables</option>
-            {responsables.map(resp => (
-              <option key={resp} value={resp}>{resp}</option>
+            <option value="">Todos los Cargos</option>
+            {cargos.map(cargo => (
+              <option key={cargo} value={cargo}>{cargo}</option>
             ))}
           </select>
+
+          {/* Filtro por Nombre Responsable */}
+          <select
+            value={filterNombreResponsable}
+            onChange={(e) => setFilterNombreResponsable(e.target.value)}
+            className="min-w-[200px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
+          >
+            <option value="">Todos los Responsables</option>
+            {nombresResponsables.map(nombre => (
+              <option key={nombre} value={nombre}>{nombre}</option>
+            ))}
+          </select>
+
+          {/* Filtro por Nombre Trabajador */}
+          <select
+            value={filterNombreTrabajador}
+            onChange={(e) => setFilterNombreTrabajador(e.target.value)}
+            className="min-w-[200px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
+          >
+            <option value="">Todos los Trabajadores</option>
+            {nombresTrabajadores.map(nombre => (
+              <option key={nombre} value={nombre}>{nombre}</option>
+            ))}
+          </select>
+
+          {/* Filtro por Categoría Empresa */}
+          <select
+            value={filterCategoriaEmpresa}
+            onChange={(e) => setFilterCategoriaEmpresa(e.target.value)}
+            className="min-w-[180px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
+          >
+            <option value="">Todas las Empresas</option>
+            {categoriasEmpresa.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+
+          {/* Filtro por Requerimiento (búsqueda) */}
+          <div className="relative min-w-[220px]">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
+            <input
+              type="text"
+              value={filterRequerimiento}
+              onChange={(e) => setFilterRequerimiento(e.target.value)}
+              placeholder="Buscar requerimiento..."
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors"
+            />
+          </div>
 
           {/* Filtro por Categoría */}
           <select
             value={filterCategoria}
             onChange={(e) => setFilterCategoria(e.target.value)}
-            className="min-w-[200px] px-4 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:1.25em] bg-[right_0.5rem_center] bg-no-repeat"
+            className="min-w-[180px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
           >
             <option value="">Todas las Categorías</option>
             {categorias.map(cat => (
@@ -231,7 +297,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
           <select
             value={filterRealizado}
             onChange={(e) => setFilterRealizado(e.target.value)}
-            className="min-w-[180px] px-4 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27currentColor%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e')] bg-[length:1.25em] bg-[right_0.5rem_center] bg-no-repeat"
+            className="min-w-[160px] px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white hover:border-gray-400 transition-colors cursor-pointer"
           >
             <option value="">Todos los Estados</option>
             <option value="realizado">Realizados</option>
@@ -242,7 +308,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="ml-auto flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-300"
+              className="ml-auto flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors shadow-sm"
             >
               <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
               Limpiar filtros
@@ -266,6 +332,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Nombre Trabajador
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Categoría Empresa
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Requerimiento
@@ -322,6 +391,21 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                           </div>
                         </td>
 
+                        {/* Categoría Empresa */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {req.categoria_empresa ? (
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                              req.categoria_empresa === 'MyMA' 
+                                ? 'bg-blue-50 text-blue-700 border-blue-300' 
+                                : 'bg-amber-50 text-amber-700 border-amber-300'
+                            }`}>
+                              {req.categoria_empresa}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 italic text-xs">N/A</span>
+                          )}
+                        </td>
+
                         {/* Requerimiento */}
                         <td className="px-6 py-4">
                           <span className="text-sm text-gray-900">{req.requerimiento}</span>
@@ -373,7 +457,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center">
+                    <td colSpan={8} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <span className="material-symbols-outlined text-gray-300 text-5xl">search_off</span>
                         <p className="text-gray-500 text-lg">No se encontraron requerimientos</p>
