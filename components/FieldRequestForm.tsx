@@ -795,7 +795,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">description</span>
-                Información del Contrato
+                Información del Contrato Contratista
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -832,7 +832,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">person</span>
-                Responsable de la Solicitud
+                Responsable de la Solicitud Contratista
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
