@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem } from '../types';
-import { updateRequerimientoEstado } from '../services/supabaseService';
+import { updateRequerimientoEstado, fetchEmpresaRequerimientoObservaciones, fetchEmpresaRequerimientos } from '../services/supabaseService';
 
 interface ProjectRequirement {
   id: number;
@@ -81,6 +81,38 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const [filterRequerimiento, setFilterRequerimiento] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
   const [filterRealizado, setFilterRealizado] = useState('');
+
+  // Estados para el modal de observaciones
+  const [observacionesModalOpen, setObservacionesModalOpen] = useState(false);
+  const [observacionesText, setObservacionesText] = useState<string | null>(null);
+  const [loadingObservaciones, setLoadingObservaciones] = useState(false);
+  const [requerimientoSeleccionado, setRequerimientoSeleccionado] = useState<string>('');
+  // Set de requerimientos que tienen observaciones
+  const [requerimientosConObservaciones, setRequerimientosConObservaciones] = useState<Set<string>>(new Set());
+
+  // Cargar requerimientos de la empresa al montar para saber cuáles tienen observaciones
+  useEffect(() => {
+    const loadRequerimientosConObservaciones = async () => {
+      if (!project.empresa_nombre) return;
+
+      try {
+        const empresaRequerimientos = await fetchEmpresaRequerimientos(project.empresa_nombre);
+        const requerimientosConObs = new Set<string>();
+        
+        empresaRequerimientos.forEach(req => {
+          if (req.observaciones && req.observaciones.trim() !== '') {
+            requerimientosConObs.add(req.requerimiento);
+          }
+        });
+        
+        setRequerimientosConObservaciones(requerimientosConObs);
+      } catch (error) {
+        console.error('Error al cargar requerimientos de empresa:', error);
+      }
+    };
+
+    loadRequerimientosConObservaciones();
+  }, [project.empresa_nombre]);
 
   // Usar las tareas del proyecto (vienen de ProjectGalleryItem)
   const [requirements, setRequirements] = useState<ProjectRequirement[]>(
@@ -202,6 +234,39 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const completedCount = requirements.filter(r => r.realizado).length;
   const totalCount = requirements.length;
   const progressPercentage = (completedCount / totalCount) * 100;
+
+  // Función para manejar el clic en el icono de información
+  const handleInfoClick = async (requerimiento: string) => {
+    if (!project.empresa_nombre) {
+      console.warn('No hay empresa asociada al proyecto');
+      return;
+    }
+
+    setRequerimientoSeleccionado(requerimiento);
+    setLoadingObservaciones(true);
+    setObservacionesModalOpen(true);
+    setObservacionesText(null);
+
+    try {
+      const observaciones = await fetchEmpresaRequerimientoObservaciones(
+        project.empresa_nombre,
+        requerimiento
+      );
+      setObservacionesText(observaciones);
+    } catch (error) {
+      console.error('Error al obtener observaciones:', error);
+      setObservacionesText(null);
+    } finally {
+      setLoadingObservaciones(false);
+    }
+  };
+
+  // Función para cerrar el modal
+  const handleCloseObservacionesModal = () => {
+    setObservacionesModalOpen(false);
+    setObservacionesText(null);
+    setRequerimientoSeleccionado('');
+  };
 
   return (
     <div className="layout-container flex h-full grow flex-col bg-gradient-to-br from-gray-50 to-blue-50/30">
@@ -871,7 +936,21 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
                         {/* Requerimiento */}
                         <td className="px-6 py-4">
-                          <span className="text-sm text-gray-900">{req.requerimiento}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-900">{req.requerimiento}</span>
+                            {requerimientosConObservaciones.has(req.requerimiento) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleInfoClick(req.requerimiento);
+                                }}
+                                className="flex-shrink-0 p-1.5 rounded-full text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                title="Ver observaciones"
+                              >
+                                <span className="material-symbols-outlined text-lg">info</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                         {/* Categoría */}
@@ -936,6 +1015,71 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
           </div>
         </div>
       </div>
+
+      {/* Modal de Observaciones */}
+      {observacionesModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={handleCloseObservacionesModal}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100">
+                  <span className="material-symbols-outlined text-blue-600">info</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Observaciones del Requerimiento</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{requerimientoSeleccionado}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseObservacionesModal}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Contenido del Modal */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {loadingObservaciones ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p className="text-gray-600 text-sm">Cargando observaciones...</p>
+                  </div>
+                </div>
+              ) : observacionesText ? (
+                <div className="prose max-w-none">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{observacionesText}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <span className="material-symbols-outlined text-gray-300 text-5xl mb-3">info</span>
+                  <p className="text-gray-500 text-base">No hay observaciones disponibles para este requerimiento</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="flex items-center justify-end p-6 border-t border-gray-200">
+              <button
+                onClick={handleCloseObservacionesModal}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

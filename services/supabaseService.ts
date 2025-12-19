@@ -523,6 +523,35 @@ export const fetchEmpresaRequerimientos = async (empresa: string): Promise<Empre
   return data || [];
 };
 
+// Función para obtener las observaciones de un requerimiento específico de una empresa
+export const fetchEmpresaRequerimientoObservaciones = async (
+  empresa: string,
+  requerimiento: string
+): Promise<string | null> => {
+  const { data, error } = await supabase
+    .from('empresa_requerimiento')
+    .select('observaciones')
+    .eq('empresa', empresa)
+    .eq('requerimiento', requerimiento)
+    .single();
+  
+  if (error) {
+    // Si no se encuentra el registro, no es un error crítico
+    if (error.code === 'PGRST116') {
+      return null;
+    }
+    console.error('Error fetching observaciones:', error);
+    return null;
+  }
+  
+  // Retornar observaciones solo si no están vacías
+  if (data && data.observaciones && data.observaciones.trim() !== '') {
+    return data.observaciones;
+  }
+  
+  return null;
+};
+
 // Función para crear requerimientos de acreditación de un proyecto
 export const createProyectoRequerimientos = async (
   codigoProyecto: string,

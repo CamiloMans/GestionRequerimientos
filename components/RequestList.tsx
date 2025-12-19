@@ -164,20 +164,49 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
         </div>
 
         {/* Header */}
-        <div className="mb-6 lg:mb-8 flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 border-b border-[#e5e7eb] pb-4 lg:pb-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Listado de requerimientos por persona</h1>
-            <p className="text-[#616f89] text-sm lg:text-base font-normal">Visualice y gestione los requerimientos de los colaboradores.</p>
-          </div>
-          <div className="w-full lg:w-auto">
-            <button 
-              onClick={onCreateNew}
-              className="w-full lg:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-all shadow-primary/20 hover:shadow-primary/40"
-            >
-              <span className="material-symbols-outlined text-[20px]">add_circle</span>
-              <span className="hidden sm:inline">Crear Nuevo Registro</span>
-              <span className="sm:hidden">Crear Nuevo</span>
-            </button>
+        <div className="mb-6 lg:mb-8 border-b border-gray-200 pb-6">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6">
+            <div className="flex flex-col gap-4 flex-1">
+              {/* Título principal con icono */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                  <span className="material-symbols-outlined text-primary text-2xl">description</span>
+                </div>
+                <div className="flex flex-col">
+                  <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">
+                    Gestión de Requerimientos
+                  </h1>
+                  <p className="text-gray-500 text-sm font-medium mt-0.5">
+                    Listado de requerimientos por persona
+                  </p>
+                </div>
+              </div>
+              
+              {/* Descripción con badges de categorías */}
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-gray-600 text-sm lg:text-base">
+                  Visualice y gestione los requerimientos de documentación de los colaboradores.
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold border border-blue-200">
+                    <span className="material-symbols-outlined text-sm">folder_copy</span>
+                    Gestión de Documentación
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Botón de acción */}
+            <div className="flex-shrink-0">
+              <button 
+                onClick={onCreateNew}
+                className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-xl font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <span className="material-symbols-outlined text-xl">add_circle</span>
+                <span className="hidden sm:inline">Nuevo Requerimiento</span>
+                <span className="sm:hidden">Nuevo</span>
+              </button>
+            </div>
           </div>
         </div>
 

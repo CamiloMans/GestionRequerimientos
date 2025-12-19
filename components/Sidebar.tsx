@@ -65,12 +65,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           position: 'fixed'
         }}
       >
-        <div className="flex h-full flex-col justify-between py-6 w-full items-center">
-          <div className="flex flex-col gap-6 w-full items-center">
+        <div className="flex h-full flex-col justify-between py-4 w-full">
+          <div className="flex flex-col gap-1 w-full">
             {/* Logo MyMA */}
-            <div className="flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center justify-center mb-6 px-3">
               <div 
-                className="size-12 rounded-full bg-gradient-to-br from-teal-700 to-teal-900 flex items-center justify-center shadow-lg border-2 border-teal-600"
+                className="size-14 rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 flex items-center justify-center shadow-md border border-teal-500/20 transition-transform hover:scale-105"
                 title="MyMA - Sistema de Gestión"
               >
                 <span className="text-white font-bold text-sm tracking-tight">MyMA</span>
@@ -78,71 +78,101 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
             </div>
             
             {/* Navigation */}
-            <nav className="flex flex-col gap-3 w-full px-3">
+            <nav className="flex flex-col gap-1 w-full px-2">
               {/* Inicio */}
               <button 
-                className="flex items-center justify-center p-3 rounded-lg text-[#616f89] hover:bg-gray-100 w-full aspect-square transition-colors" 
-                title="Inicio"
+                className="group flex items-center justify-center p-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 w-full transition-all duration-200 hover:shadow-sm relative" 
+                title="Dashboard"
               >
-                <span className="material-symbols-outlined text-2xl pointer-events-none">home</span>
+                <span className="material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110">dashboard</span>
+                <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200">
+                  Dashboard
+                </span>
               </button>
               
               {/* Solicitudes */}
               <button 
                 onClick={handleRequestsClick}
-                className={`flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors ${
+                className={`group flex items-center justify-center p-3 rounded-xl w-full transition-all duration-200 relative ${
                   isRequestsActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
+                    ? 'bg-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30' 
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm'
                 }`}
-                title="Solicitudes"
+                title="Solicitudes de Acreditación"
               >
-                <span className="material-symbols-outlined fill text-2xl pointer-events-none">grid_view</span>
+                <span className={`material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110 ${isRequestsActive ? 'fill' : ''}`}>description</span>
+                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                  isRequestsActive 
+                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                }`}>
+                  Solicitudes
+                </span>
               </button>
               
               {/* Proyectos */}
               <button 
                 onClick={handleFieldRequestClick}
-                className={`flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors ${
+                className={`group flex items-center justify-center p-3 rounded-xl w-full transition-all duration-200 relative ${
                   isFieldRequestActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
+                    ? 'bg-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30' 
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm'
                 }`}
-                title="Proyectos"
+                title="Proyectos de Campo"
               >
-                <span className="material-symbols-outlined text-2xl pointer-events-none">work</span>
+                <span className={`material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110 ${isFieldRequestActive ? 'fill' : ''}`}>engineering</span>
+                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                  isFieldRequestActive 
+                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                }`}>
+                  Proyectos
+                </span>
               </button>
               
               {/* Reportes */}
               <button 
                 onClick={handleReportsClick}
-                className={`flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors ${
+                className={`group flex items-center justify-center p-3 rounded-xl w-full transition-all duration-200 relative ${
                   isReportsActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
+                    ? 'bg-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30' 
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm'
                 }`}
-                title="Reportes"
+                title="Reportes y Análisis"
               >
-                <span className="material-symbols-outlined text-2xl pointer-events-none">bar_chart</span>
+                <span className={`material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110 ${isReportsActive ? 'fill' : ''}`}>assessment</span>
+                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                  isReportsActive 
+                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                }`}>
+                  Reportes
+                </span>
               </button>
               
               {/* Configuración */}
               <button 
-                className="flex items-center justify-center p-3 rounded-lg text-[#616f89] hover:bg-gray-100 w-full aspect-square transition-colors" 
+                className="group flex items-center justify-center p-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 w-full transition-all duration-200 hover:shadow-sm relative mt-2" 
                 title="Configuración"
               >
-                <span className="material-symbols-outlined text-2xl pointer-events-none">settings</span>
+                <span className="material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110">settings</span>
+                <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200">
+                  Configuración
+                </span>
               </button>
             </nav>
           </div>
           
           {/* Logout Button */}
-          <div className="w-full px-3">
+          <div className="w-full px-2 mt-2 border-t border-gray-200 pt-2">
             <button 
-              className="flex items-center justify-center w-full aspect-square p-3 rounded-lg text-[#616f89] hover:bg-gray-100 transition-colors" 
+              className="group flex items-center justify-center w-full p-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200 hover:shadow-sm relative" 
               title="Cerrar Sesión"
             >
-              <span className="material-symbols-outlined text-2xl pointer-events-none">logout</span>
+              <span className="material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110">logout</span>
+              <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200">
+                Cerrar Sesión
+              </span>
             </button>
           </div>
         </div>
