@@ -112,6 +112,7 @@ export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
     expirationDate: item.fecha_vencimiento || '-',
     persona_id: item.persona_id,
     requerimiento_id: item.requerimiento_id,
+    link: item.link || undefined,
   }));
 };
 
@@ -120,7 +121,8 @@ export const createPersonaRequerimiento = async (
   personaId: number,
   requerimientoId: number,
   fechaVigencia: string,
-  fechaVencimiento: string
+  fechaVencimiento: string,
+  linkDrive?: string
 ): Promise<PersonaRequerimientoSST> => {
   // Obtener información de persona y requerimiento
   const [personaResult, requerimientoResult] = await Promise.all([
@@ -141,19 +143,25 @@ export const createPersonaRequerimiento = async (
   const diasAnticipacion = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
   // Insertar nuevo registro
+  const insertData: any = {
+    persona_id: personaId,
+    requerimiento_id: requerimientoId,
+    rut: persona.rut,
+    nombre_completo: persona.nombre_completo,
+    requerimiento: requerimiento.requerimiento,
+    categoria_requerimiento: requerimiento.categoria_requerimiento,
+    fecha_vigencia: fechaVigencia,
+    fecha_vencimiento: fechaVencimiento,
+    dias_anticipacion: diasAnticipacion,
+  };
+
+  if (linkDrive) {
+    insertData.link = linkDrive;
+  }
+
   const { data, error } = await supabase
     .from('persona_requerimientos_sst')
-    .insert({
-      persona_id: personaId,
-      requerimiento_id: requerimientoId,
-      rut: persona.rut,
-      nombre_completo: persona.nombre_completo,
-      requerimiento: requerimiento.requerimiento,
-      categoria_requerimiento: requerimiento.categoria_requerimiento,
-      fecha_vigencia: fechaVigencia,
-      fecha_vencimiento: fechaVencimiento,
-      dias_anticipacion: diasAnticipacion,
-    })
+    .insert(insertData)
     .select()
     .single();
   
@@ -170,7 +178,8 @@ export const updatePersonaRequerimiento = async (
   id: number,
   fechaVigencia: string,
   fechaVencimiento: string,
-  estado?: RequestStatus
+  estado?: RequestStatus,
+  linkDrive?: string
 ): Promise<PersonaRequerimientoSST> => {
   console.log('🔧 updatePersonaRequerimiento recibido:');
   console.log('  - ID:', id);
@@ -190,6 +199,10 @@ export const updatePersonaRequerimiento = async (
     dias_anticipacion: diasAnticipacion,
     estado: estado || null, // Siempre incluir el campo estado
   };
+
+  if (linkDrive !== undefined) {
+    updateData.link = linkDrive || null;
+  }
   
   console.log('💾 Datos a enviar a Supabase:', updateData);
   

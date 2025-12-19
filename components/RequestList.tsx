@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RequestItem, RequestStatus, RequirementType, RequestCategory } from '../types';
 
 interface RequestListProps {
@@ -10,11 +10,32 @@ interface RequestListProps {
 const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [openDriveMenuId, setOpenDriveMenuId] = useState<string | null>(null);
+  const [previewLink, setPreviewLink] = useState<string | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   
   // Filter States
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterRequirement, setFilterRequirement] = useState('');
+
+  // Cerrar menú de drive al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (openDriveMenuId && !target.closest('.drive-menu-container')) {
+        setOpenDriveMenuId(null);
+      }
+    };
+
+    if (openDriveMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openDriveMenuId]);
 
   const filteredRequests = requests.filter(req => {
     const term = searchTerm.toLowerCase();
@@ -77,6 +98,59 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
     // Assume input is YYYY-MM-DD, output DD/MM/YYYY
     const [y, m, d] = dateString.split('-');
     return `${d}/${m}/${y}`;
+  };
+
+  // Función para extraer el ID del archivo de un link de Google Drive
+  const getFileIdFromDriveLink = (link: string): string | null => {
+    const patterns = [
+      /\/d\/([a-zA-Z0-9_-]+)/,
+      /id=([a-zA-Z0-9_-]+)/,
+      /\/file\/d\/([a-zA-Z0-9_-]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = link.match(pattern);
+      if (match) return match[1];
+    }
+    
+    return null;
+  };
+
+  // Función para obtener URLs según la acción
+  const getDriveUrls = (link: string) => {
+    const fileId = getFileIdFromDriveLink(link);
+    
+    if (!fileId) {
+      return {
+        preview: link,
+        drive: link
+      };
+    }
+    
+    return {
+      preview: `https://drive.google.com/file/d/${fileId}/preview`,
+      drive: `https://drive.google.com/file/d/${fileId}/view`
+    };
+  };
+
+  const handleDriveAction = (link: string, action: 'preview' | 'drive', e: React.MouseEvent) => {
+    e.stopPropagation();
+    const urls = getDriveUrls(link);
+    
+    if (action === 'preview') {
+      // Abrir en modal
+      setPreviewLink(urls.preview);
+      setIsPreviewModalOpen(true);
+    } else {
+      // Abrir carpeta o archivo en nueva pestaña
+      window.open(urls[action], '_blank', 'noopener,noreferrer');
+    }
+    setOpenDriveMenuId(null);
+  };
+
+  const handleClosePreviewModal = () => {
+    setIsPreviewModalOpen(false);
+    setPreviewLink(null);
   };
 
   return (
@@ -209,13 +283,16 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
                   <th scope="col" className="px-6 py-4 font-semibold">Estado</th>
                   <th scope="col" className="px-6 py-4 font-semibold">F. Adjudicación</th>
                   <th scope="col" className="px-6 py-4 font-semibold">F. Vencimiento</th>
+                  <th scope="col" className="px-6 py-4 font-semibold text-center">Documento</th>
                   <th scope="col" className="px-6 py-4 font-semibold text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredRequests.map((req) => (
                   <tr key={req.id} className="hover:bg-gray-50/80 transition-colors group">
-                    <td className="px-6 py-4 font-medium text-[#111318]">{req.name}</td>
+                    <td className="px-6 py-4 font-medium text-[#111318]">
+                      {req.name}
+                    </td>
                     <td className="px-6 py-4 font-mono text-gray-600">{req.rut}</td>
                     <td className="px-6 py-4 text-gray-600 text-center">
                       {req.requirement}
@@ -242,6 +319,34 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
                         <span className={`material-symbols-outlined text-[16px] ${req.expirationDate !== '-' ? 'text-red-500' : 'text-gray-400'}`}>event_busy</span>
                         {formatDate(req.expirationDate)}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {req.link && (
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDriveAction(req.link || '', 'preview', e);
+                            }}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
+                            title="Visualizar documento"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">visibility</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDriveAction(req.link || '', 'drive', e);
+                            }}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                            title="Abrir en Google Drive"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button 
@@ -287,6 +392,39 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
                 <h3 className="font-semibold text-[#111318] text-lg mb-1">{req.name}</h3>
                 <p className="font-mono text-sm text-gray-600">{req.rut}</p>
               </div>
+
+              {/* Documento */}
+              {req.link && (
+                <div className="mb-4 pr-24">
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Documento</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDriveAction(req.link || '', 'preview', e);
+                      }}
+                      className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors text-sm"
+                      title="Visualizar documento"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">visibility</span>
+                      <span>Visualizar</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDriveAction(req.link || '', 'drive', e);
+                      }}
+                      className="flex items-center gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors text-sm"
+                      title="Abrir en Google Drive"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                      <span>Abrir</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Grid Info */}
               <div className="space-y-3 mb-4">
@@ -351,6 +489,44 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
           )}
         </div>
       </div>
+
+      {/* Modal de Vista Previa del Documento */}
+      {isPreviewModalOpen && previewLink && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={handleClosePreviewModal}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-primary px-6 py-4 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-white text-2xl">description</span>
+                <h2 className="text-xl font-bold text-white">Vista Previa del Documento</h2>
+              </div>
+              <button
+                onClick={handleClosePreviewModal}
+                className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                title="Cerrar"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Content - Iframe */}
+            <div className="flex-1 p-4 bg-gray-100">
+              <iframe
+                src={previewLink}
+                className="w-full h-full min-h-[600px] border-0 rounded-lg"
+                title="Vista previa del documento"
+                allow="fullscreen"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -73,6 +73,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
     fecha_vigencia: initialData?.adjudicationDate || '',
     fecha_vencimiento: initialData?.expirationDate || '',
     estado: undefined as RequestStatus | undefined,
+    link: initialData?.link || '',
   });
 
   useEffect(() => {
@@ -518,6 +519,34 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Section 3 - Link de Google Drive */}
+            <div>
+              <h2 className="text-base lg:text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">link</span>
+                Link de Google Drive (Opcional)
+              </h2>
+              <div className="space-y-2">
+                <label htmlFor="link" className="block text-sm font-medium text-[#111318]">
+                  URL del Documento
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-[20px]">description</span>
+                  <input 
+                    type="url" 
+                    id="link" 
+                    name="link" 
+                    className="w-full pl-10 rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5"
+                    placeholder="https://drive.google.com/..."
+                    value={formData.link}
+                    onChange={handleChange}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Ingrese el link completo del documento en Google Drive. El documento se mostrará como un ícono en la tabla de solicitudes.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">

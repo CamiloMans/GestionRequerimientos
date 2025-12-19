@@ -8,6 +8,16 @@ interface Horario {
   horario: string;
 }
 
+interface VehiculoMyma {
+  placa: string;
+  conductor: string;
+}
+
+interface VehiculoContratista {
+  placa: string;
+  conductor: string;
+}
+
 interface FieldRequestFormProps {
   onBack: () => void;
 }
@@ -58,41 +68,41 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [targetWorkerCountMyma, setTargetWorkerCountMyma] = useState(0);
   const [targetWorkerCountContratista, setTargetWorkerCountContratista] = useState(0);
   const [horarios, setHorarios] = useState<Horario[]>([]);
-  const [placasPatente, setPlacasPatente] = useState<string[]>([]);
-  const [placasPatenteContratista, setPlacasPatenteContratista] = useState<string[]>([]);
+  const [vehiculosMyma, setVehiculosMyma] = useState<VehiculoMyma[]>([]);
+  const [vehiculosContratista, setVehiculosContratista] = useState<VehiculoContratista[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Si se cambia la cantidad de vehículos, actualizar el array de placas
+    // Si se cambia la cantidad de vehículos, actualizar el array de vehículos
     if (name === 'cantidadVehiculos') {
       const cantidad = parseInt(value) || 0;
-      setPlacasPatente(prev => {
-        const newPlacas = [...prev];
+      setVehiculosMyma(prev => {
+        const newVehiculos = [...prev];
         // Agregar o quitar elementos según la cantidad
-        if (cantidad > newPlacas.length) {
-          // Agregar elementos vacíos
-          return [...newPlacas, ...Array(cantidad - newPlacas.length).fill('')];
+        if (cantidad > newVehiculos.length) {
+          // Agregar elementos vacíos con placa y conductor
+          return [...newVehiculos, ...Array(cantidad - newVehiculos.length).fill(null).map(() => ({ placa: '', conductor: '' }))];
         } else {
           // Recortar el array
-          return newPlacas.slice(0, cantidad);
+          return newVehiculos.slice(0, cantidad);
         }
       });
     }
 
-    // Si se cambia la cantidad de vehículos del contratista, actualizar el array de placas
+    // Si se cambia la cantidad de vehículos del contratista, actualizar el array de vehículos
     if (name === 'cantidadVehiculosContratista') {
       const cantidad = parseInt(value) || 0;
-      setPlacasPatenteContratista(prev => {
-        const newPlacas = [...prev];
+      setVehiculosContratista(prev => {
+        const newVehiculos = [...prev];
         // Agregar o quitar elementos según la cantidad
-        if (cantidad > newPlacas.length) {
-          // Agregar elementos vacíos
-          return [...newPlacas, ...Array(cantidad - newPlacas.length).fill('')];
+        if (cantidad > newVehiculos.length) {
+          // Agregar elementos vacíos con placa y conductor
+          return [...newVehiculos, ...Array(cantidad - newVehiculos.length).fill(null).map(() => ({ placa: '', conductor: '' }))];
         } else {
           // Recortar el array
-          return newPlacas.slice(0, cantidad);
+          return newVehiculos.slice(0, cantidad);
         }
       });
     }
@@ -120,12 +130,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     ));
   };
 
-  const handlePlacaChange = (index: number, value: string) => {
-    setPlacasPatente(prev => prev.map((placa, i) => i === index ? value : placa));
+  const handleVehiculoMymaChange = (index: number, field: 'placa' | 'conductor', value: string) => {
+    setVehiculosMyma(prev => prev.map((vehiculo, i) => 
+      i === index ? { ...vehiculo, [field]: value } : vehiculo
+    ));
   };
 
-  const handlePlacaContratistaChange = (index: number, value: string) => {
-    setPlacasPatenteContratista(prev => prev.map((placa, i) => i === index ? value : placa));
+  const handleVehiculoContratistaChange = (index: number, field: 'placa' | 'conductor', value: string) => {
+    setVehiculosContratista(prev => prev.map((vehiculo, i) => 
+      i === index ? { ...vehiculo, [field]: value } : vehiculo
+    ));
   };
 
   const handleAddWorkerContratista = (worker: Worker) => {
@@ -179,7 +193,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         
         // Vehículos - Nombres corregidos
         solicitudData.cantidad_vehiculos = parseInt(formData.cantidadVehiculos) || 0; // ← Nombre corregido
-        solicitudData.placas_patente = placasPatente.length > 0 ? placasPatente : null; // ← Nombre corregido (text[])
+        // Enviar información completa de vehículos (placas y conductores) como JSONB
+        solicitudData.vehiculos_placas = vehiculosMyma.length > 0 
+          ? vehiculosMyma.filter(v => v.placa || v.conductor) 
+          : null; // ← JSONB con array de objetos {placa, conductor}
       }
 
       // Información de Contratista
@@ -195,7 +212,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           
           // Vehículos Contratista - Nombres corregidos
           solicitudData.cantidad_vehiculos_contratista = parseInt(formData.cantidadVehiculosContratista) || 0; // ← Nombre corregido
-          solicitudData.placas_vehiculos_contratista = placasPatenteContratista.length > 0 ? placasPatenteContratista : null; // ← Nombre corregido (text[])
+          // Enviar información completa de vehículos (placas y conductores) como JSONB
+          solicitudData.vehiculos_contratista_placas = vehiculosContratista.length > 0 
+            ? vehiculosContratista.filter(v => v.placa || v.conductor) 
+            : null; // ← JSONB con array de objetos {placa, conductor}
           
           // SST - Convertir a boolean
           solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes'; // ← Convertir a boolean
@@ -286,11 +306,47 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Código de Proyecto</span>
+                <input 
+                  type="text" 
+                  name="projectCode"
+                  value={formData.projectCode}
+                  onChange={handleInputChange}
+                  placeholder="Ej: PRJ-2024-001"
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Requisito</span>
+                <select 
+                  name="requirement"
+                  value={formData.requirement}
+                  onChange={handleInputChange}
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                >
+                  <option value="">Seleccione un requisito...</option>
+                  <option value="Acreditación">Acreditación</option>
+                  <option value="Carpeta de arranque">Carpeta de arranque</option>
+                  <option value="Acreditación y Carpeta de arranque">Acreditación y Carpeta de arranque</option>
+                  <option value="Pase de visita">Pase de visita</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Fecha de Solicitud</span>
                 <input 
                   type="date" 
                   name="requestDate"
                   value={formData.requestDate}
+                  onChange={handleInputChange}
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Fecha Reunión de Arranque</span>
+                <input 
+                  type="date" 
+                  name="kickoffDate"
+                  value={formData.kickoffDate}
                   onChange={handleInputChange}
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
@@ -307,27 +363,6 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 />
               </label>
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Fecha Reunión de Arranque</span>
-                <input 
-                  type="date" 
-                  name="kickoffDate"
-                  value={formData.kickoffDate}
-                  onChange={handleInputChange}
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Código de Proyecto</span>
-                <input 
-                  type="text" 
-                  name="projectCode"
-                  value={formData.projectCode}
-                  onChange={handleInputChange}
-                  placeholder="Ej: PRJ-2024-001"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
-              </label>
-              <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Fecha de Inicio de Terreno</span>
                 <div className="relative">
                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">calendar_today</span>
@@ -339,17 +374,6 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none pl-10" 
                   />
                 </div>
-              </label>
-              <label className="flex flex-col gap-2 md:col-span-2 lg:col-span-4">
-                <span className="text-[#111318] text-sm font-medium">Requisito</span>
-                <textarea 
-                  name="requirement"
-                  value={formData.requirement}
-                  onChange={handleInputChange}
-                  rows={2}
-                  placeholder="Descripción breve del requisito"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" 
-                />
               </label>
             </div>
           </div>
@@ -692,12 +716,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 />
               </label>
 
-              {placasPatente.length > 0 && (
+              {vehiculosMyma.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente</h4>
+                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente y conductores</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {placasPatente.map((placa, index) => (
-                      <div key={index} className="flex flex-col gap-2">
+                    {vehiculosMyma.map((vehiculo, index) => (
+                      <div key={index} className="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <span className="text-[#111318] text-xs font-medium">Vehículo {index + 1}</span>
                         <div className="relative">
                           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">directions_car</span>
@@ -705,8 +729,18 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                             type="text" 
                             placeholder="Ej: ABCD12"
                             className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                            value={placa}
-                            onChange={(e) => handlePlacaChange(index, e.target.value)}
+                            value={vehiculo.placa}
+                            onChange={(e) => handleVehiculoMymaChange(index, 'placa', e.target.value)}
+                          />
+                        </div>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">person</span>
+                          <input 
+                            type="text" 
+                            placeholder="Nombre del conductor"
+                            className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            value={vehiculo.conductor}
+                            onChange={(e) => handleVehiculoMymaChange(index, 'conductor', e.target.value)}
                           />
                         </div>
                       </div>
@@ -897,12 +931,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 />
               </label>
 
-              {placasPatenteContratista.length > 0 && (
+              {vehiculosContratista.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente</h4>
+                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente y conductores</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {placasPatenteContratista.map((placa, index) => (
-                      <div key={index} className="flex flex-col gap-2">
+                    {vehiculosContratista.map((vehiculo, index) => (
+                      <div key={index} className="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <span className="text-[#111318] text-xs font-medium">Vehículo {index + 1}</span>
                         <div className="relative">
                           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">directions_car</span>
@@ -910,8 +944,18 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                             type="text" 
                             placeholder="Ej: ABCD12"
                             className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                            value={placa}
-                            onChange={(e) => handlePlacaContratistaChange(index, e.target.value)}
+                            value={vehiculo.placa}
+                            onChange={(e) => handleVehiculoContratistaChange(index, 'placa', e.target.value)}
+                          />
+                        </div>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">person</span>
+                          <input 
+                            type="text" 
+                            placeholder="Nombre del conductor"
+                            className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            value={vehiculo.conductor}
+                            onChange={(e) => handleVehiculoContratistaChange(index, 'conductor', e.target.value)}
                           />
                         </div>
                       </div>

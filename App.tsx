@@ -95,7 +95,8 @@ function App() {
           parseInt(editingItem.id),
           data.fecha_vigencia,
           data.fecha_vencimiento,
-          data.estado
+          data.estado,
+          data.link
         );
       } else {
         // Crear nuevo registro
@@ -103,7 +104,8 @@ function App() {
           data.persona_id,
           data.requerimiento_id,
           data.fecha_vigencia,
-          data.fecha_vencimiento
+          data.fecha_vencimiento,
+          data.link
         );
       }
       

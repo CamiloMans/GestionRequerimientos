@@ -138,6 +138,7 @@ export interface PersonaRequerimientoSST {
   fecha_vigencia?: string;
   fecha_vencimiento?: string;
   estado?: string;
+  link?: string;
   created_at: string;
 }
 
@@ -153,6 +154,7 @@ export interface RequestItem {
   expirationDate: string;
   persona_id?: number;
   requerimiento_id?: number;
+  link?: string;
 }
 
 export interface NewRequestPayload {
@@ -161,6 +163,7 @@ export interface NewRequestPayload {
   fecha_vigencia: string;
   fecha_vencimiento: string;
   estado?: RequestStatus;
+  link?: string;
 }
 
 // === Tipos para Solicitud de Terreno ===
