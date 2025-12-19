@@ -577,28 +577,6 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                         );
                       })()}
                       {/* Indicador de acción más pequeño */}
-                      {(() => {
-                        const progressPercentage = project.totalTasks && project.totalTasks > 0 
-                          ? Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)
-                          : 0;
-                        const isCompleted = progressPercentage === 100 && project.status.toLowerCase().includes('proceso');
-                        
-                        if (project.status.toLowerCase().includes('pendiente')) {
-                          return (
-                            <span className="text-[10px] text-gray-500 flex items-center gap-0.5 font-medium">
-                              <span className="material-symbols-outlined text-[12px]">assignment_ind</span>
-                              <span>Asignar</span>
-                            </span>
-                          );
-                        } else {
-                          return (
-                            <span className={`text-[10px] flex items-center gap-0.5 font-semibold ${isCompleted ? 'text-green-600' : 'text-blue-600'}`}>
-                              <span className="material-symbols-outlined text-[12px]">visibility</span>
-                              <span>Ver detalle</span>
-                            </span>
-                          );
-                        }
-                      })()}
                     </div>
                   </div>
 
@@ -613,22 +591,14 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                             {project.completedTasks || 0}/{project.totalTasks}
                           </span>
                         </div>
-                        <span className={`text-sm font-extrabold ${
-                          ((project.completedTasks || 0) / project.totalTasks) >= 0.8 ? 'text-green-600' :
-                          ((project.completedTasks || 0) / project.totalTasks) >= 0.5 ? 'text-blue-600' :
-                          'text-orange-600'
-                        }`}>
+                        <span className="text-sm font-extrabold text-green-600">
                           {Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)}%
                         </span>
                       </div>
                       {/* Barra de progreso más delgada */}
                       <div className="relative w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${
-                            ((project.completedTasks || 0) / project.totalTasks) >= 0.8 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                            ((project.completedTasks || 0) / project.totalTasks) >= 0.5 ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
-                            'bg-gradient-to-r from-orange-500 to-orange-600'
-                          }`}
+                          className="absolute top-0 left-0 h-full rounded-full transition-all duration-500 bg-gradient-to-r from-green-500 to-green-600"
                           style={{ width: `${Math.round(((project.completedTasks || 0) / project.totalTasks) * 100)}%` }}
                         />
                       </div>
