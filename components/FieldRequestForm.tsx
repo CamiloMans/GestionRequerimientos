@@ -191,12 +191,13 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         // Horarios de trabajo (como JSONB)
         solicitudData.horarios_trabajo = horarios.length > 0 ? horarios : null;
         
-        // Vehículos - Nombres corregidos
-        solicitudData.cantidad_vehiculos = parseInt(formData.cantidadVehiculos) || 0; // ← Nombre corregido
-        // Enviar información completa de vehículos (placas y conductores) como JSONB
-        solicitudData.vehiculos_placas = vehiculosMyma.length > 0 
-          ? vehiculosMyma.filter(v => v.placa || v.conductor) 
-          : null; // ← JSONB con array de objetos {placa, conductor}
+        // Vehículos - Convertir a array de texto simple (text[])
+        solicitudData.cantidad_vehiculos = parseInt(formData.cantidadVehiculos) || 0;
+        // Extraer solo las placas como array de texto
+        const placasMyma = vehiculosMyma
+          .filter(v => v.placa && v.placa.trim() !== '')
+          .map(v => v.placa.trim());
+        solicitudData.placas_patente = placasMyma.length > 0 ? placasMyma : null;
       }
 
       // Información de Contratista
@@ -210,12 +211,13 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           if (formData.telefonoResponsableContratista) solicitudData.telefono_responsable_contratista = formData.telefonoResponsableContratista; // ← Nombre corregido
           if (formData.emailResponsableContratista) solicitudData.email_responsable_contratista = formData.emailResponsableContratista; // ← Nombre corregido
           
-          // Vehículos Contratista - Nombres corregidos
-          solicitudData.cantidad_vehiculos_contratista = parseInt(formData.cantidadVehiculosContratista) || 0; // ← Nombre corregido
-          // Enviar información completa de vehículos (placas y conductores) como JSONB
-          solicitudData.vehiculos_contratista_placas = vehiculosContratista.length > 0 
-            ? vehiculosContratista.filter(v => v.placa || v.conductor) 
-            : null; // ← JSONB con array de objetos {placa, conductor}
+          // Vehículos Contratista - Convertir a array de texto simple (text[])
+          solicitudData.cantidad_vehiculos_contratista = parseInt(formData.cantidadVehiculosContratista) || 0;
+          // Extraer solo las placas como array de texto
+          const placasContratista = vehiculosContratista
+            .filter(v => v.placa && v.placa.trim() !== '')
+            .map(v => v.placa.trim());
+          solicitudData.placas_vehiculos_contratista = placasContratista.length > 0 ? placasContratista : null;
           
           // SST - Convertir a boolean
           solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes'; // ← Convertir a boolean

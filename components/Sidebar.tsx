@@ -65,12 +65,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           position: 'fixed'
         }}
       >
-        <div className="flex h-full flex-col justify-between py-4 w-full">
-          <div className="flex flex-col gap-1 w-full">
+        <div className="flex h-full flex-col justify-between py-6 w-full items-center">
+          <div className="flex flex-col gap-6 w-full items-center">
             {/* Logo MyMA */}
-            <div className="flex flex-col items-center justify-center mb-6 px-3">
+            <div className="flex flex-col items-center justify-center">
               <div 
-                className="size-14 rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 flex items-center justify-center shadow-md border border-teal-500/20 transition-transform hover:scale-105"
+                className="size-12 rounded-full bg-gradient-to-br from-teal-700 to-teal-900 flex items-center justify-center shadow-lg border-2 border-teal-600"
                 title="MyMA - Sistema de Gestión"
               >
                 <span className="text-white font-bold text-sm tracking-tight">MyMA</span>
@@ -78,13 +78,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
             </div>
             
             {/* Navigation */}
-            <nav className="flex flex-col gap-1 w-full px-2">
+            <nav className="flex flex-col gap-3 w-full px-3">
               {/* Inicio */}
               <button 
-                className="group flex items-center justify-center p-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 w-full transition-all duration-200 hover:shadow-sm relative" 
+                className="group flex items-center justify-center p-3 rounded-lg text-[#616f89] hover:bg-gray-100 w-full aspect-square transition-colors relative" 
                 title="Dashboard"
               >
-                <span className="material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110">dashboard</span>
+                <span className="material-symbols-outlined text-2xl pointer-events-none">dashboard</span>
                 <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200">
                   Dashboard
                 </span>
@@ -93,14 +93,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               {/* Solicitudes */}
               <button 
                 onClick={handleRequestsClick}
-                className={`group flex items-center justify-center p-3 rounded-xl w-full transition-all duration-200 relative ${
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
                   isRequestsActive 
-                    ? 'bg-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30' 
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm'
+                    ? 'bg-primary text-white hover:bg-primary-hover' 
+                    : 'text-[#616f89] hover:bg-gray-100'
                 }`}
-                title="Solicitudes de Acreditación"
+                title="Solicitudes"
               >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110 ${isRequestsActive ? 'fill' : ''}`}>description</span>
+                <span className={`material-symbols-outlined fill text-2xl pointer-events-none ${isRequestsActive ? 'fill' : ''}`}>description</span>
                 <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
                   isRequestsActive 
                     ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
@@ -113,14 +113,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               {/* Proyectos */}
               <button 
                 onClick={handleFieldRequestClick}
-                className={`group flex items-center justify-center p-3 rounded-xl w-full transition-all duration-200 relative ${
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
                   isFieldRequestActive 
-                    ? 'bg-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30' 
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm'
+                    ? 'bg-primary text-white hover:bg-primary-hover' 
+                    : 'text-[#616f89] hover:bg-gray-100'
                 }`}
-                title="Proyectos de Campo"
+                title="Proyectos"
               >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110 ${isFieldRequestActive ? 'fill' : ''}`}>engineering</span>
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isFieldRequestActive ? 'fill' : ''}`}>engineering</span>
                 <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
                   isFieldRequestActive 
                     ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
@@ -133,14 +133,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               {/* Reportes */}
               <button 
                 onClick={handleReportsClick}
-                className={`group flex items-center justify-center p-3 rounded-xl w-full transition-all duration-200 relative ${
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
                   isReportsActive 
-                    ? 'bg-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30' 
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm'
+                    ? 'bg-primary text-white hover:bg-primary-hover' 
+                    : 'text-[#616f89] hover:bg-gray-100'
                 }`}
-                title="Reportes y Análisis"
+                title="Reportes"
               >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110 ${isReportsActive ? 'fill' : ''}`}>assessment</span>
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isReportsActive ? 'fill' : ''}`}>assessment</span>
                 <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
                   isReportsActive 
                     ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
@@ -152,10 +152,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               
               {/* Configuración */}
               <button 
-                className="group flex items-center justify-center p-3 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 w-full transition-all duration-200 hover:shadow-sm relative mt-2" 
+                className="group flex items-center justify-center p-3 rounded-lg text-[#616f89] hover:bg-gray-100 w-full aspect-square transition-colors relative" 
                 title="Configuración"
               >
-                <span className="material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110">settings</span>
+                <span className="material-symbols-outlined text-2xl pointer-events-none">settings</span>
                 <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200">
                   Configuración
                 </span>
@@ -164,12 +164,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           </div>
           
           {/* Logout Button */}
-          <div className="w-full px-2 mt-2 border-t border-gray-200 pt-2">
+          <div className="w-full px-3">
             <button 
-              className="group flex items-center justify-center w-full p-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200 hover:shadow-sm relative" 
+              className="group flex items-center justify-center w-full aspect-square p-3 rounded-lg text-[#616f89] hover:bg-gray-100 transition-colors relative" 
               title="Cerrar Sesión"
             >
-              <span className="material-symbols-outlined text-2xl pointer-events-none transition-transform group-hover:scale-110">logout</span>
+              <span className="material-symbols-outlined text-2xl pointer-events-none">logout</span>
               <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200">
                 Cerrar Sesión
               </span>
