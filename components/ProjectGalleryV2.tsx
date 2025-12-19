@@ -347,7 +347,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">ACREDITACIONES OK</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">ACREDITACIONES COMPLETADAS</p>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   <p className="text-2xl font-bold text-blue-600">{finishedProjects.length}</p>
                   <span className="text-sm font-semibold text-gray-400">/</span>
