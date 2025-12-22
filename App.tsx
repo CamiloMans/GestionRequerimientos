@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import RequestList from './components/RequestList';
 import RequestForm from './components/RequestForm';
 import FieldRequestForm from './components/FieldRequestForm';
 import ProjectGalleryV2 from './components/ProjectGalleryV2';
+import Login from './components/Login';
 import { RequestItem, NewRequestPayload, ProjectGalleryItem } from './types';
 import { 
   fetchPersonaRequerimientos, 
@@ -11,9 +12,10 @@ import {
   updatePersonaRequerimiento,
   fetchProjectGalleryItems
 } from './services/supabaseService';
+import { supabase } from './config/supabase';
 import './utils/testSupabase'; // Script de diagnóstico disponible en consola
 
-type ViewState = 'list' | 'create' | 'fieldRequest' | 'reports';
+type ViewState = 'list' | 'create' | 'fieldRequest' | 'reports' | 'login';
 
 function App() {
   const [view, setView] = useState<ViewState>('list');
@@ -24,13 +26,10 @@ function App() {
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // null = verificando, true = autenticado, false = no autenticado
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Cargar datos al montar el componente
-  useEffect(() => {
-    loadRequests();
-  }, []);
-
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     try {
       setLoading(true);
       const data = await fetchPersonaRequerimientos();
@@ -41,7 +40,60 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Verificar autenticación al cargar la aplicación
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error verificando sesión:', error);
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(!!session);
+          if (session) {
+            // Si hay sesión, cargar los datos
+            loadRequests();
+          } else {
+            // Si no hay sesión, mostrar login
+            setView('login');
+          }
+        }
+      } catch (error) {
+        console.error('Error en verificación de autenticación:', error);
+        setIsAuthenticated(false);
+        setView('login');
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+
+    // Escuchar cambios en el estado de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      const authenticated = !!session;
+      setIsAuthenticated(authenticated);
+      
+      if (authenticated) {
+        // Si el usuario se autentica, cargar datos y mostrar la aplicación
+        loadRequests();
+        setView((currentView) => {
+          // Solo cambiar a 'list' si estamos en login
+          return currentView === 'login' ? 'list' : currentView;
+        });
+      } else {
+        // Si el usuario cierra sesión, mostrar login
+        setView('login');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadRequests]);
 
   const loadProjects = async () => {
     try {
@@ -83,6 +135,19 @@ function App() {
     loadProjects();
   };
 
+  const handleNavigateToLogin = () => {
+    setEditingItem(null);
+    setView('login');
+  };
+
+  const handleLoginSuccess = () => {
+    // Después de un login exitoso, redirigir a la vista principal
+    console.log('Login exitoso');
+    setIsAuthenticated(true);
+    setView('list');
+    loadRequests();
+  };
+
   const handleSave = async (data: NewRequestPayload) => {
     console.log('🔥 handleSave recibió:', data);
     console.log('🔥 Estado en data:', data.estado);
@@ -119,6 +184,24 @@ function App() {
     }
   };
 
+  // Mostrar loading mientras se verifica la autenticación
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mb-4"></div>
+          <p className="text-gray-600">Verificando autenticación...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no está autenticado, mostrar solo el login (sin sidebar ni header)
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Si está autenticado, mostrar la aplicación completa
   return (
     <div className="relative flex min-h-screen w-full flex-row">
       <Sidebar 
@@ -127,6 +210,7 @@ function App() {
         onNavigateToRequests={handleNavigateToList}
         onNavigateToFieldRequest={handleNavigateToFieldRequest}
         onNavigateToReports={handleNavigateToReports}
+        onNavigateToLogin={handleNavigateToLogin}
         activeView={view}
         hideOnDesktop={isFilterSidebarOpen}
       />
@@ -144,7 +228,9 @@ function App() {
       </div>
 
       <main className={`flex flex-1 flex-col h-full min-h-screen bg-[#f8fafc] pt-[60px] lg:pt-0 overflow-x-hidden ${!isFilterSidebarOpen ? 'lg:ml-[80px]' : ''}`}>
-        {loading ? (
+        {view === 'login' ? (
+          <Login onLoginSuccess={handleLoginSuccess} />
+        ) : loading ? (
           <div className="flex items-center justify-center h-full min-h-screen">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>

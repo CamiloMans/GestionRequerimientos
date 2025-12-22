@@ -100,6 +100,21 @@ export const fetchCatalogoRequerimientos = async (): Promise<any[]> => {
   return data || [];
 };
 
+// Función para obtener todos los proveedores
+export const fetchProveedores = async (): Promise<{ id: number; nombre_proveedor: string }[]> => {
+  const { data, error } = await supabase
+    .from('proveedor')
+    .select('id, nombre_proveedor')
+    .order('nombre_proveedor', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching proveedores:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
 // Función para obtener persona_requerimientos_sst con cálculo de estado
 export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
   const { data, error } = await supabase

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
 import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES } from '../types';
-import { createSolicitudAcreditacion, createProyectoTrabajadores } from '../services/supabaseService';
+import { createSolicitudAcreditacion, createProyectoTrabajadores, fetchProveedores } from '../services/supabaseService';
 
 interface Horario {
   dias: string;
@@ -70,6 +70,24 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [vehiculosMyma, setVehiculosMyma] = useState<VehiculoMyma[]>([]);
   const [vehiculosContratista, setVehiculosContratista] = useState<VehiculoContratista[]>([]);
+  const [proveedores, setProveedores] = useState<string[]>([]);
+
+  // Cargar proveedores desde la base de datos
+  useEffect(() => {
+    const loadProveedores = async () => {
+      try {
+        const proveedoresData = await fetchProveedores();
+        const nombresProveedores = proveedoresData.map(p => p.nombre_proveedor);
+        setProveedores(nombresProveedores);
+      } catch (error) {
+        console.error('Error cargando proveedores:', error);
+        // Si falla, usar MOCK_COMPANIES como fallback
+        setProveedores(MOCK_COMPANIES.map(c => c.name));
+      }
+    };
+
+    loadProveedores();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -817,14 +835,19 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
               <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Razón social de contratista</span>
-                <input 
-                  type="text" 
+                <select 
                   name="razonSocialContratista"
                   value={formData.razonSocialContratista}
                   onChange={handleInputChange}
-                  placeholder="Ingrese la razón social"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
+                  className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                >
+                  <option value="">Seleccione...</option>
+                  {proveedores.map((proveedor, index) => (
+                    <option key={index} value={proveedor}>
+                      {proveedor}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
           </div>
@@ -904,7 +927,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 onAddWorker={handleAddWorkerContratista} 
                 onRemoveWorker={handleRemoveWorkerContratista}
                 requireCompanySelection={true}
-                companies={MOCK_COMPANIES.map(c => c.name)}
+                companies={proveedores.length > 0 ? proveedores : MOCK_COMPANIES.map(c => c.name)}
                 targetWorkerCount={targetWorkerCountContratista}
                 onTargetWorkerCountChange={setTargetWorkerCountContratista}
               />
