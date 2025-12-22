@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ProjectGalleryItem } from '../types';
 import { fetchClientes, fetchEmpresaRequerimientos, createProyectoRequerimientos, fetchCatalogoRequerimientos } from '../services/supabaseService';
 import { Cliente, EmpresaRequerimiento } from '../types';
@@ -39,6 +39,28 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     responsable: 'JPRO',
     observaciones: '',
   });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isOtroSelected, setIsOtroSelected] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const searchInputRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar el dropdown cuando se hace click fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchInputRef.current && !searchInputRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+
+    if (showSearchResults) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchResults]);
 
   useEffect(() => {
     loadData();
@@ -97,6 +119,23 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   };
 
   const handleRequerimientoChange = (requerimientoId: string) => {
+    // Si se selecciona "Otro"
+    if (requerimientoId === 'otro') {
+      setIsOtroSelected(true);
+      setNewRequerimiento({
+        requerimientoId: 'otro',
+        requerimiento: '',
+        categoria_requerimiento: '',
+        responsable: 'JPRO',
+        observaciones: newRequerimiento.observaciones,
+      });
+      setSearchTerm('');
+      setShowSearchResults(false);
+      return;
+    }
+
+    setIsOtroSelected(false);
+    
     // Buscar el requerimiento seleccionado en el catálogo por ID
     const requerimientoSeleccionado = catalogoRequerimientos.find(
       req => (req.id?.toString() || req.id) === requerimientoId
@@ -111,6 +150,8 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
         responsable: requerimientoSeleccionado.responsable || 'JPRO',
         observaciones: newRequerimiento.observaciones, // Mantener observaciones
       });
+      setSearchTerm(requerimientoSeleccionado.requerimiento);
+      setShowSearchResults(false);
     } else {
       // Si no se encuentra, limpiar los campos
       setNewRequerimiento({
@@ -120,7 +161,43 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
         responsable: 'JPRO',
         observaciones: newRequerimiento.observaciones,
       });
+      setSearchTerm('');
+      setShowSearchResults(false);
     }
+  };
+
+  // Filtrar requerimientos basado en la búsqueda
+  // Si no hay término de búsqueda, mostrar todos los requerimientos
+  const filteredRequerimientos = searchTerm.trim() 
+    ? catalogoRequerimientos.filter(req => {
+        const searchLower = searchTerm.toLowerCase();
+        const requerimientoMatch = req.requerimiento?.toLowerCase().includes(searchLower);
+        const categoriaMatch = req.categoria_requerimiento?.toLowerCase().includes(searchLower);
+        return requerimientoMatch || categoriaMatch;
+      })
+    : catalogoRequerimientos;
+
+  // Categorías disponibles (solo las especificadas)
+  const categoriasDisponibles = [
+    'Carpeta de Arranque',
+    'Trabajadores',
+    'Empresa MyMA',
+    'Empresa Subcontrato'
+  ];
+
+  const handleEditRequerimiento = (index: number) => {
+    const req = empresaRequerimientos[index];
+    setEditingIndex(index);
+    setNewRequerimiento({
+      requerimientoId: 'editing',
+      requerimiento: req.requerimiento,
+      categoria_requerimiento: req.categoria_requerimiento,
+      responsable: req.responsable,
+      observaciones: req.observaciones || '',
+    });
+    setIsOtroSelected(true);
+    setSearchTerm(req.requerimiento);
+    setShowAddRequerimiento(true);
   };
 
   const handleAddRequerimiento = () => {
@@ -129,15 +206,31 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       return;
     }
 
-    const nuevoReq: EmpresaRequerimiento = {
-      empresa: selectedEmpresaNombre,
-      requerimiento: newRequerimiento.requerimiento.trim(),
-      categoria_requerimiento: newRequerimiento.categoria_requerimiento,
-      responsable: newRequerimiento.responsable,
-      observaciones: newRequerimiento.observaciones.trim() || undefined,
-    };
+    // Si está editando, actualizar el requerimiento existente
+    if (editingIndex !== null) {
+      const updatedReqs = [...empresaRequerimientos];
+      updatedReqs[editingIndex] = {
+        ...updatedReqs[editingIndex],
+        requerimiento: newRequerimiento.requerimiento.trim(),
+        categoria_requerimiento: newRequerimiento.categoria_requerimiento,
+        responsable: newRequerimiento.responsable,
+        observaciones: newRequerimiento.observaciones.trim() || undefined,
+      };
+      setEmpresaRequerimientos(updatedReqs);
+      setEditingIndex(null);
+    } else {
+      // Si no está editando, agregar nuevo requerimiento
+      const nuevoReq: EmpresaRequerimiento = {
+        empresa: selectedEmpresaNombre,
+        requerimiento: newRequerimiento.requerimiento.trim(),
+        categoria_requerimiento: newRequerimiento.categoria_requerimiento,
+        responsable: newRequerimiento.responsable,
+        observaciones: newRequerimiento.observaciones.trim() || undefined,
+      };
+      setEmpresaRequerimientos([...empresaRequerimientos, nuevoReq]);
+    }
 
-    setEmpresaRequerimientos([...empresaRequerimientos, nuevoReq]);
+    // Limpiar formulario
     setNewRequerimiento({
       requerimientoId: '',
       requerimiento: '',
@@ -145,6 +238,9 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       responsable: 'JPRO',
       observaciones: '',
     });
+    setSearchTerm('');
+    setShowSearchResults(false);
+    setIsOtroSelected(false);
     setShowAddRequerimiento(false);
   };
 
@@ -289,40 +385,145 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                 </button>
               </div>
 
-              {/* Formulario para agregar requerimiento */}
+              {/* Formulario para agregar/editar requerimiento */}
               {showAddRequerimiento && (
                 <div className="mb-4 p-4 bg-white rounded-lg border-2 border-blue-300">
-                  <h5 className="text-sm font-bold text-[#111318] mb-3">Nuevo Requerimiento</h5>
+                  <h5 className="text-sm font-bold text-[#111318] mb-3">
+                    {editingIndex !== null ? 'Editar Requerimiento' : 'Nuevo Requerimiento'}
+                  </h5>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
+                    <div className="relative" ref={searchInputRef}>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
                         Requerimiento *
                       </label>
-                      <select
-                        value={newRequerimiento.requerimientoId}
-                        onChange={(e) => handleRequerimientoChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">Seleccionar requerimiento...</option>
-                        {catalogoRequerimientos.map((req, index) => (
-                          <option key={req.id || index} value={req.id?.toString() || req.id || index.toString()}>
-                            {req.requerimiento} {req.categoria_requerimiento ? `(${req.categoria_requerimiento})` : ''}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={searchTerm}
+                          onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setShowSearchResults(true);
+                            setIsOtroSelected(false);
+                            if (!e.target.value) {
+                              setNewRequerimiento({
+                                ...newRequerimiento,
+                                requerimientoId: '',
+                                requerimiento: '',
+                                categoria_requerimiento: '',
+                              });
+                            }
+                          }}
+                          onFocus={() => setShowSearchResults(true)}
+                          placeholder="Buscar requerimiento..."
+                          className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                          search
+                        </span>
+                        
+                        {/* Dropdown de resultados - Mostrar siempre cuando está abierto */}
+                        {showSearchResults && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            {filteredRequerimientos.length > 0 ? (
+                              <>
+                                {filteredRequerimientos.map((req, index) => (
+                                  <div
+                                    key={req.id || index}
+                                    onClick={() => handleRequerimientoChange(req.id?.toString() || req.id?.toString() || index.toString())}
+                                    className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 transition-colors"
+                                  >
+                                    <div className="font-medium text-sm text-[#111318]">
+                                      {req.requerimiento}
+                                    </div>
+                                    {req.categoria_requerimiento && (
+                                      <div className="text-xs text-[#616f89] mt-0.5">
+                                        {req.categoria_requerimiento}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                                {/* Opción "Otro" al final */}
+                                <div
+                                  onClick={() => handleRequerimientoChange('otro')}
+                                  className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-t-2 border-gray-200 bg-gray-50 transition-colors"
+                                >
+                                  <div className="font-medium text-sm text-[#111318] flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-base">add_circle</span>
+                                    Otro
+                                  </div>
+                                  <div className="text-xs text-[#616f89] mt-0.5">
+                                    Escribir requerimiento personalizado
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="p-3 text-sm text-gray-500 text-center border-b border-gray-200">
+                                  {searchTerm 
+                                    ? `No se encontraron requerimientos que coincidan con "${searchTerm}"`
+                                    : 'No hay requerimientos disponibles'
+                                  }
+                                </div>
+                                {/* Opción "Otro" cuando no hay resultados */}
+                                <div
+                                  onClick={() => handleRequerimientoChange('otro')}
+                                  className="px-3 py-2 hover:bg-blue-50 cursor-pointer bg-gray-50 transition-colors"
+                                >
+                                  <div className="font-medium text-sm text-[#111318] flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-base">add_circle</span>
+                                    Otro
+                                  </div>
+                                  <div className="text-xs text-[#616f89] mt-0.5">
+                                    Escribir requerimiento personalizado
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Mostrar requerimiento seleccionado (solo si no es "Otro") */}
+                      {newRequerimiento.requerimientoId && newRequerimiento.requerimiento && !isOtroSelected && (
+                        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="text-xs font-medium text-blue-900">
+                            Seleccionado: {newRequerimiento.requerimiento}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Campo de texto para "Otro" o cuando está editando */}
+                      {(isOtroSelected || editingIndex !== null) && (
+                        <div className="mt-2">
+                          <input
+                            type="text"
+                            value={newRequerimiento.requerimiento}
+                            onChange={(e) => setNewRequerimiento({ ...newRequerimiento, requerimiento: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Escribe el requerimiento personalizado *"
+                          />
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
                         Categoría *
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={newRequerimiento.categoria_requerimiento}
                         onChange={(e) => setNewRequerimiento({ ...newRequerimiento, categoria_requerimiento: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Se completará automáticamente"
-                        readOnly={!!newRequerimiento.requerimientoId && !!newRequerimiento.categoria_requerimiento}
-                      />
+                        disabled={!isOtroSelected && !editingIndex && !!newRequerimiento.requerimientoId && !!newRequerimiento.categoria_requerimiento}
+                      >
+                        <option value="">
+                          {isOtroSelected ? "Seleccionar categoría *" : "Se completará automáticamente"}
+                        </option>
+                        {categoriasDisponibles.map((categoria, index) => (
+                          <option key={index} value={categoria}>
+                            {categoria}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -332,7 +533,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                         value={newRequerimiento.responsable}
                         onChange={(e) => setNewRequerimiento({ ...newRequerimiento, responsable: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        disabled={!newRequerimiento.requerimientoId}
+                        disabled={!isOtroSelected && !editingIndex && !newRequerimiento.requerimientoId}
                       >
                         <option value="JPRO">JPRO</option>
                         <option value="EPR">EPR</option>
@@ -358,7 +559,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                       onClick={handleAddRequerimiento}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
                     >
-                      Agregar
+                      {editingIndex !== null ? 'Actualizar' : 'Agregar'}
                     </button>
                     <button
                       onClick={() => {
@@ -370,6 +571,10 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                           responsable: 'JPRO',
                           observaciones: '',
                         });
+                        setSearchTerm('');
+                        setShowSearchResults(false);
+                        setIsOtroSelected(false);
+                        setEditingIndex(null);
                       }}
                       className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
                     >
@@ -418,13 +623,22 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                               {req.observaciones || '-'}
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <button
-                                onClick={() => handleRemoveRequerimiento(index)}
-                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Eliminar requerimiento"
-                              >
-                                <span className="material-symbols-outlined text-lg">delete</span>
-                              </button>
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => handleEditRequerimiento(index)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Editar requerimiento"
+                                >
+                                  <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveRequerimiento(index)}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Eliminar requerimiento"
+                                >
+                                  <span className="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );

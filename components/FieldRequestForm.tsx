@@ -497,47 +497,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Section 4: Terreno, Seguridad y Acreditación */}
+          {/* Section 4: Acreditación MyMA */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">shield</span>
-                Seguridad y Acreditación
+                Acreditación MyMA
               </h3>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
-                  <span className="material-symbols-outlined text-orange-500 text-base">warning</span>
-                  ¿Se dio aviso a los encargados de Prevención de Riesgo?
-                </span>
-                <div className="flex gap-6 mt-1">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="riskPreventionNotice" 
-                      value="yes"
-                      checked={formData.riskPreventionNotice === 'yes'}
-                      onChange={handleInputChange}
-                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
-                    />
-                    <span className="text-sm">Sí</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="riskPreventionNotice" 
-                      value="no"
-                      checked={formData.riskPreventionNotice === 'no'}
-                      onChange={handleInputChange}
-                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
-                    />
-                    <span className="text-sm">No</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="p-6">
+              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100 w-full">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
                   ¿Se requiere acreditar empresa?
@@ -567,7 +536,6 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   </label>
                 </div>
               </div>
-
             </div>
           </div>
 
