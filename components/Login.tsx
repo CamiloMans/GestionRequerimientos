@@ -73,11 +73,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       setLoading(true);
       setError(null);
 
+      // Obtener la URL de redirección correcta
+      // En producción, usar la URL actual; en desarrollo, usar localhost
+      const redirectUrl = window.location.origin + window.location.pathname;
+      
+      console.log('🔗 URL de redirección:', redirectUrl);
+
       // Iniciar sesión con Google
       const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}`,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
