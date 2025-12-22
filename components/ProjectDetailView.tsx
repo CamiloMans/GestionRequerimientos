@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem } from '../types';
-import { updateRequerimientoEstado, fetchEmpresaRequerimientoObservaciones, fetchEmpresaRequerimientos } from '../services/supabaseService';
+import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos } from '../services/supabaseService';
 
 interface ProjectRequirement {
   id: number;
@@ -90,16 +90,16 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   // Set de requerimientos que tienen observaciones
   const [requerimientosConObservaciones, setRequerimientosConObservaciones] = useState<Set<string>>(new Set());
 
-  // Cargar requerimientos de la empresa al montar para saber cuáles tienen observaciones
+  // Cargar requerimientos del proyecto al montar para saber cuáles tienen observaciones
   useEffect(() => {
     const loadRequerimientosConObservaciones = async () => {
-      if (!project.empresa_nombre) return;
+      if (!project.projectCode) return;
 
       try {
-        const empresaRequerimientos = await fetchEmpresaRequerimientos(project.empresa_nombre);
+        const proyectoRequerimientos = await fetchProyectoRequerimientos(project.projectCode);
         const requerimientosConObs = new Set<string>();
         
-        empresaRequerimientos.forEach(req => {
+        proyectoRequerimientos.forEach(req => {
           if (req.observaciones && req.observaciones.trim() !== '') {
             requerimientosConObs.add(req.requerimiento);
           }
@@ -107,12 +107,12 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
         
         setRequerimientosConObservaciones(requerimientosConObs);
       } catch (error) {
-        console.error('Error al cargar requerimientos de empresa:', error);
+        console.error('Error al cargar requerimientos del proyecto:', error);
       }
     };
 
     loadRequerimientosConObservaciones();
-  }, [project.empresa_nombre]);
+  }, [project.projectCode]);
 
   // Usar las tareas del proyecto (vienen de ProjectGalleryItem)
   const [requirements, setRequirements] = useState<ProjectRequirement[]>(
@@ -237,8 +237,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para manejar el clic en el icono de información
   const handleInfoClick = async (requerimiento: string) => {
-    if (!project.empresa_nombre) {
-      console.warn('No hay empresa asociada al proyecto');
+    if (!project.projectCode) {
+      console.warn('No hay código de proyecto');
       return;
     }
 
@@ -248,8 +248,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     setObservacionesText(null);
 
     try {
-      const observaciones = await fetchEmpresaRequerimientoObservaciones(
-        project.empresa_nombre,
+      const observaciones = await fetchProyectoRequerimientoObservaciones(
+        project.projectCode,
         requerimiento
       );
       setObservacionesText(observaciones);

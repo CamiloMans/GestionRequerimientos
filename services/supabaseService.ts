@@ -85,6 +85,21 @@ export const fetchRequerimientos = async (): Promise<Requerimiento[]> => {
   return data || [];
 };
 
+// Función para obtener requerimientos del catálogo
+export const fetchCatalogoRequerimientos = async (): Promise<any[]> => {
+  const { data, error } = await supabase
+    .from('catalogo_requerimientos')
+    .select('*')
+    .order('requerimiento', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching catalogo_requerimientos:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
 // Función para obtener persona_requerimientos_sst con cálculo de estado
 export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
   const { data, error } = await supabase
@@ -552,6 +567,36 @@ export const fetchEmpresaRequerimientoObservaciones = async (
   return null;
 };
 
+// Función para obtener las observaciones de un requerimiento específico de un proyecto
+export const fetchProyectoRequerimientoObservaciones = async (
+  codigoProyecto: string,
+  requerimiento: string
+): Promise<string | null> => {
+  const { data, error } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .select('observaciones')
+    .eq('codigo_proyecto', codigoProyecto)
+    .eq('requerimiento', requerimiento)
+    .limit(1)
+    .single();
+  
+  if (error) {
+    // Si no se encuentra el registro, no es un error crítico
+    if (error.code === 'PGRST116') {
+      return null;
+    }
+    console.error('Error fetching observaciones del proyecto:', error);
+    return null;
+  }
+  
+  // Retornar observaciones solo si no están vacías
+  if (data && data.observaciones && data.observaciones.trim() !== '') {
+    return data.observaciones;
+  }
+  
+  return null;
+};
+
 // Función para crear requerimientos de acreditación de un proyecto
 export const createProyectoRequerimientos = async (
   codigoProyecto: string,
@@ -562,7 +607,8 @@ export const createProyectoRequerimientos = async (
     epr_nombre?: string;
     rrhh_nombre?: string;
     legal_nombre?: string;
-  }
+  },
+  idProyecto?: number
 ): Promise<void> => {
   console.log('═══════════════════════════════════════════════════');
   console.log('🚀 INICIO: createProyectoRequerimientos');
@@ -596,39 +642,89 @@ export const createProyectoRequerimientos = async (
     existingReqs.forEach((req: any, i) => {
       console.log(`  ${i + 1}. ${req.requerimiento} (${req.categoria_requerimiento})`);
     });
-    console.log('⏭️  SALIENDO SIN CREAR NUEVOS REQUERIMIENTOS');
-    console.log('═══════════════════════════════════════════════════\n');
-    return;
+    
+    // Si hay responsables asignados, actualizar los requerimientos existentes
+    const tieneResponsables = responsables.jpro_nombre || responsables.epr_nombre || responsables.rrhh_nombre || responsables.legal_nombre;
+    
+    if (tieneResponsables) {
+      console.log('🔄 Actualizando requerimientos existentes con responsables asignados...');
+      
+      // Actualizar cada requerimiento existente con el nombre del responsable correspondiente
+      for (const req of existingReqs) {
+        let nombreResponsable = '';
+        switch (req.responsable) {
+          case 'JPRO':
+            nombreResponsable = responsables.jpro_nombre || '';
+            break;
+          case 'EPR':
+            nombreResponsable = responsables.epr_nombre || '';
+            break;
+          case 'RRHH':
+            nombreResponsable = responsables.rrhh_nombre || '';
+            break;
+          case 'Legal':
+            nombreResponsable = responsables.legal_nombre || '';
+            break;
+        }
+        
+        if (nombreResponsable) {
+          const { error: updateError } = await supabase
+            .from('proyecto_requerimientos_acreditacion')
+            .update({ nombre_responsable: nombreResponsable })
+            .eq('id', req.id);
+          
+          if (updateError) {
+            console.error(`❌ Error actualizando requerimiento ${req.id}:`, updateError);
+          } else {
+            console.log(`✅ Requerimiento ${req.id} actualizado con responsable: ${nombreResponsable}`);
+          }
+        }
+      }
+      
+      console.log('✅ Requerimientos actualizados exitosamente');
+      console.log('═══════════════════════════════════════════════════\n');
+      return;
+    } else {
+      console.log('⏭️  SALIENDO SIN CREAR NUEVOS REQUERIMIENTOS (ya existen y no hay responsables para asignar)');
+      console.log('═══════════════════════════════════════════════════\n');
+      return;
+    }
   }
   
   console.log('✅ No hay requerimientos existentes, procediendo a crear...');
 
-  // Obtener la solicitud de acreditación para conocer el id_proyecto
-  console.log('\n🔍 Buscando solicitud_acreditacion...');
-  const { data: solicitud, error: solicitudError } = await supabase
-    .from('solicitud_acreditacion')
-    .select('id')
-    .eq('codigo_proyecto', codigoProyecto)
-    .single();
+  // Obtener el id_proyecto (id de solicitud_acreditacion)
+  let proyectoId = idProyecto;
+  
+  if (!proyectoId) {
+    // Si no se pasó como parámetro, buscarlo en la base de datos
+    console.log('\n🔍 Buscando solicitud_acreditacion...');
+    const { data: solicitud, error: solicitudError } = await supabase
+      .from('solicitud_acreditacion')
+      .select('id')
+      .eq('codigo_proyecto', codigoProyecto)
+      .single();
 
-  if (solicitudError) {
-    console.error('❌ Error obteniendo solicitud:', solicitudError);
-    console.log('═══════════════════════════════════════════════════\n');
-    throw new Error(`No se encontró el proyecto ${codigoProyecto}`);
+    if (solicitudError) {
+      console.error('❌ Error obteniendo solicitud:', solicitudError);
+      console.log('═══════════════════════════════════════════════════\n');
+      throw new Error(`No se encontró el proyecto ${codigoProyecto}`);
+    }
+
+    proyectoId = solicitud?.id;
   }
-
-  const idProyecto = solicitud?.id;
-  console.log(`✅ ID Proyecto encontrado: ${idProyecto}`);
+  
+  console.log(`✅ ID Proyecto encontrado: ${proyectoId}`);
 
   // Obtener los trabajadores de proyecto_trabajadores
   console.log('\n🔍 Buscando trabajadores en proyecto_trabajadores...');
   let trabajadoresProyecto: ProyectoTrabajador[] = [];
   
-  if (idProyecto) {
+  if (proyectoId) {
     const { data: trabajadores, error: trabajadoresError } = await supabase
       .from('proyecto_trabajadores')
       .select('*')
-      .eq('id_proyecto', idProyecto);
+      .eq('id_proyecto', proyectoId);
 
     if (trabajadoresError) {
       console.error('❌ Error obteniendo trabajadores:', trabajadoresError);
@@ -687,6 +783,7 @@ export const createProyectoRequerimientos = async (
       trabajadoresProyecto.forEach((trabajador, tIndex) => {
         const registro = {
           codigo_proyecto: codigoProyecto,
+          id_proyecto: proyectoId,
           requerimiento: req.requerimiento,
           responsable: req.responsable,
           estado: 'Pendiente',
@@ -706,6 +803,7 @@ export const createProyectoRequerimientos = async (
       console.log(`    📄 Creando 1 registro (categoría normal)`);
       const registro = {
         codigo_proyecto: codigoProyecto,
+        id_proyecto: proyectoId,
         requerimiento: req.requerimiento,
         responsable: req.responsable,
         estado: 'Pendiente',
@@ -825,6 +923,91 @@ export const updateRequerimientoEstado = async (
   }
   
   console.log(`✅ Requerimiento ${id} actualizado a ${estado}`);
+};
+
+// Función para actualizar los nombres de responsables en los requerimientos del proyecto
+export const updateProyectoRequerimientosResponsables = async (
+  codigoProyecto: string,
+  responsables: {
+    jpro_nombre?: string;
+    epr_nombre?: string;
+    rrhh_nombre?: string;
+    legal_nombre?: string;
+  }
+): Promise<void> => {
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🔄 ACTUALIZANDO RESPONSABLES EN REQUERIMIENTOS');
+  console.log('═══════════════════════════════════════════════════');
+  console.log('Código Proyecto:', codigoProyecto);
+  console.log('Responsables:', responsables);
+
+  // Obtener todos los requerimientos del proyecto
+  const { data: requerimientos, error: fetchError } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .select('id, requerimiento, responsable')
+    .eq('codigo_proyecto', codigoProyecto);
+
+  if (fetchError) {
+    console.error('❌ Error obteniendo requerimientos:', fetchError);
+    throw fetchError;
+  }
+
+  if (!requerimientos || requerimientos.length === 0) {
+    console.log('⚠️ No se encontraron requerimientos para actualizar');
+    return;
+  }
+
+  console.log(`📋 Encontrados ${requerimientos.length} requerimientos para actualizar`);
+
+  // Actualizar cada requerimiento según su responsable
+  let actualizados = 0;
+  let errores = 0;
+
+  for (const req of requerimientos) {
+    let nombreResponsable = '';
+    
+    switch (req.responsable) {
+      case 'JPRO':
+        nombreResponsable = responsables.jpro_nombre || '';
+        break;
+      case 'EPR':
+        nombreResponsable = responsables.epr_nombre || '';
+        break;
+      case 'RRHH':
+        nombreResponsable = responsables.rrhh_nombre || '';
+        break;
+      case 'Legal':
+        nombreResponsable = responsables.legal_nombre || '';
+        break;
+      default:
+        console.log(`⚠️ Responsable desconocido: ${req.responsable} para requerimiento ${req.id}`);
+        continue;
+    }
+
+    if (nombreResponsable) {
+      const { error: updateError } = await supabase
+        .from('proyecto_requerimientos_acreditacion')
+        .update({ 
+          nombre_responsable: nombreResponsable,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', req.id);
+
+      if (updateError) {
+        console.error(`❌ Error actualizando requerimiento ${req.id}:`, updateError);
+        errores++;
+      } else {
+        console.log(`✅ Requerimiento ${req.id} (${req.requerimiento}) actualizado: ${req.responsable} → ${nombreResponsable}`);
+        actualizados++;
+      }
+    } else {
+      console.log(`⚠️ No hay responsable asignado para ${req.responsable} en requerimiento ${req.id}`);
+    }
+  }
+
+  console.log('═══════════════════════════════════════════════════');
+  console.log(`✅ Actualización completada: ${actualizados} actualizados, ${errores} errores`);
+  console.log('═══════════════════════════════════════════════════\n');
 };
 
 // Función para guardar trabajadores del proyecto

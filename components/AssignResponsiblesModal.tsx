@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { fetchResponsablesRequerimiento, fetchClientes, fetchEmpresaRequerimientos } from '../services/supabaseService';
-import { ResponsableRequerimiento, Cliente, EmpresaRequerimiento } from '../types';
+import { fetchResponsablesRequerimiento } from '../services/supabaseService';
+import { ResponsableRequerimiento } from '../types';
 
 interface AssignResponsiblesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (responsables: ResponsablesData) => void;
   projectName: string;
+  projectCode?: string;
   currentResponsables?: ResponsablesData;
 }
 
@@ -21,7 +22,6 @@ export interface ResponsablesData {
   rrhh_nombre?: string;
   legal_id?: number;
   legal_nombre?: string;
-  empresaRequerimientos?: EmpresaRequerimiento[];
 }
 
 const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
@@ -29,12 +29,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
   onClose,
   onSave,
   projectName,
+  projectCode,
   currentResponsables,
 }) => {
   const [responsables, setResponsables] = useState<ResponsableRequerimiento[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [empresaRequerimientos, setEmpresaRequerimientos] = useState<EmpresaRequerimiento[]>([]);
-  const [loadingRequerimientos, setLoadingRequerimientos] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<ResponsablesData>({
     empresa_id: currentResponsables?.empresa_id,
@@ -67,91 +65,12 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [responsablesData, clientesData] = await Promise.all([
-        fetchResponsablesRequerimiento(),
-        fetchClientes()
-      ]);
+      const responsablesData = await fetchResponsablesRequerimiento();
       setResponsables(responsablesData);
-      setClientes(clientesData);
     } catch (error) {
       console.error('Error cargando datos:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleEmpresaChange = async (empresaId: string) => {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🏢 CAMBIO DE EMPRESA');
-    console.log('═══════════════════════════════════════════════════');
-    console.log('ID seleccionado:', empresaId);
-    
-    const selectedCliente = clientes.find(c => c.id.toString() === empresaId);
-    console.log('Cliente encontrado:', selectedCliente);
-    
-    const empresaNombre = selectedCliente ? selectedCliente.nombre : undefined;
-    console.log('Nombre de empresa:', empresaNombre);
-    console.log('Longitud del nombre:', empresaNombre?.length);
-    console.log('Nombre con marcadores:', empresaNombre ? `|${empresaNombre}|` : 'undefined');
-    
-    setFormData(prev => ({
-      ...prev,
-      empresa_id: empresaId || undefined,
-      empresa_nombre: empresaNombre,
-    }));
-
-    // Cargar requerimientos de la empresa seleccionada
-    if (empresaNombre) {
-      console.log('─────────────────────────────────────────────────');
-      console.log('📋 BUSCANDO REQUERIMIENTOS');
-      console.log('WHERE empresa =', `'${empresaNombre}'`);
-      console.log('─────────────────────────────────────────────────');
-      
-      setLoadingRequerimientos(true);
-      setEmpresaRequerimientos([]);
-      
-      try {
-        const reqs = await fetchEmpresaRequerimientos(empresaNombre);
-        
-        console.log('═══════════════════════════════════════════════════');
-        console.log('✅ RESULTADO DE LA BÚSQUEDA');
-        console.log('═══════════════════════════════════════════════════');
-        console.log(`Total encontrados: ${reqs.length}`);
-        
-        if (reqs.length > 0) {
-          console.log('\n📦 REQUERIMIENTOS ENCONTRADOS:');
-          reqs.forEach((req, i) => {
-            console.log(`\n  ${i + 1}. ${req.requerimiento}`);
-            console.log(`     Categoría: ${req.categoria_requerimiento}`);
-            console.log(`     Cargo: ${req.responsable}`);
-            console.log(`     Observaciones: ${req.observaciones || 'N/A'}`);
-          });
-        } else {
-          console.warn('\n⚠️ NO SE ENCONTRARON REQUERIMIENTOS');
-          console.log('💡 Posibles causas:');
-          console.log('   1. No hay datos en empresa_requerimiento para esta empresa');
-          console.log('   2. El nombre de la empresa no coincide exactamente');
-          console.log('   3. Hay espacios o caracteres invisibles en el nombre');
-          console.log('\n🔧 Para verificar, ejecuta en Supabase:');
-          console.log(`   SELECT * FROM empresa_requerimiento WHERE empresa = '${empresaNombre}';`);
-          console.log(`   SELECT DISTINCT empresa FROM empresa_requerimiento;`);
-        }
-        console.log('═══════════════════════════════════════════════════\n');
-        
-        setEmpresaRequerimientos(reqs);
-      } catch (error) {
-        console.error('═══════════════════════════════════════════════════');
-        console.error('❌ ERROR AL BUSCAR REQUERIMIENTOS');
-        console.error('═══════════════════════════════════════════════════');
-        console.error(error);
-        console.error('═══════════════════════════════════════════════════\n');
-        setEmpresaRequerimientos([]);
-      } finally {
-        setLoadingRequerimientos(false);
-      }
-    } else {
-      console.log('⚠️ No se seleccionó ninguna empresa');
-      setEmpresaRequerimientos([]);
     }
   };
 
@@ -187,9 +106,6 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
       const responsable = responsables.find(r => r.id === formData.legal_id);
       dataToSave.legal_nombre = responsable?.nombre_responsable;
     }
-
-    // Incluir los requerimientos de la empresa para guardarlos después
-    dataToSave.empresaRequerimientos = empresaRequerimientos;
 
     onSave(dataToSave);
     onClose();
@@ -228,131 +144,6 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Selector de Empresa */}
-              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-                    <span className="material-symbols-outlined text-white text-2xl">business</span>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#111318]">
-                      Empresa Contratista
-                    </label>
-                    <p className="text-xs text-[#616f89]">Selecciona la empresa responsable del proyecto</p>
-                  </div>
-                </div>
-                <select
-                  value={formData.empresa_id || ''}
-                  onChange={(e) => handleEmpresaChange(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white text-[#111318] font-medium"
-                >
-                  <option value="">Seleccionar empresa...</option>
-                  {clientes.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Tabla de Requerimientos de la Empresa */}
-              {formData.empresa_nombre && (
-                <div className="bg-blue-50/30 border border-blue-200 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="material-symbols-outlined text-blue-600 text-xl">checklist</span>
-                    <h4 className="text-sm font-bold text-[#111318]">
-                      Requerimientos de {formData.empresa_nombre}
-                    </h4>
-                  </div>
-
-                  {loadingRequerimientos ? (
-                    <div className="flex items-center justify-center py-6">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    </div>
-                  ) : empresaRequerimientos.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-blue-200">
-                            <th className="text-left py-2 px-3 font-semibold text-[#111318]">Requerimiento</th>
-                            <th className="text-left py-2 px-3 font-semibold text-[#111318]">Categoría</th>
-                            <th className="text-center py-2 px-3 font-semibold text-[#111318]">Cargo</th>
-                            <th className="text-left py-2 px-3 font-semibold text-[#111318]">Nombre Responsable</th>
-                            <th className="text-left py-2 px-3 font-semibold text-[#111318]">Observaciones</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {empresaRequerimientos.map((req, index) => {
-                            // Colores por responsable
-                            const responsableColors = {
-                              'JPRO': 'bg-blue-100 text-blue-700 border-blue-300',
-                              'EPR': 'bg-orange-100 text-orange-700 border-orange-300',
-                              'RRHH': 'bg-green-100 text-green-700 border-green-300',
-                              'Legal': 'bg-purple-100 text-purple-700 border-purple-300',
-                            };
-                            const colorClass = responsableColors[req.responsable as keyof typeof responsableColors] || 'bg-gray-100 text-gray-700 border-gray-300';
-
-                            // Obtener el nombre del responsable SELECCIONADO en el dropdown según el cargo
-                            let nombreResponsable = '';
-                            if (req.responsable === 'JPRO') {
-                              nombreResponsable = formData.jpro_nombre || '';
-                            } else if (req.responsable === 'EPR') {
-                              nombreResponsable = formData.epr_nombre || '';
-                            } else if (req.responsable === 'RRHH') {
-                              nombreResponsable = formData.rrhh_nombre || '';
-                            } else if (req.responsable === 'Legal') {
-                              nombreResponsable = formData.legal_nombre || '';
-                            }
-
-                            return (
-                              <tr key={index} className="border-b border-blue-100 hover:bg-blue-50/50 transition-colors">
-                                <td className="py-2.5 px-3 text-[#111318]">{req.requerimiento}</td>
-                                <td className="py-2.5 px-3 text-[#616f89]">{req.categoria_requerimiento}</td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${colorClass}`}>
-                                    {req.responsable}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-[#111318] font-medium">
-                                  {nombreResponsable ? (
-                                    <span className="text-[#111318]">{nombreResponsable}</span>
-                                  ) : (
-                                    <span className="text-gray-400 italic text-xs">Sin asignar</span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3 text-[#616f89] text-xs">
-                                  {req.observaciones || '-'}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      <div className="mt-3 text-xs text-[#616f89] flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">info</span>
-                        <span>Se crearán {empresaRequerimientos.length} tareas para este proyecto</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-[#616f89]">
-                      <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400">inbox</span>
-                      <p className="text-sm">No hay requerimientos estándar definidos para esta empresa</p>
-                      <p className="text-xs mt-1">Las tareas se crearán manualmente</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Divisor */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500 font-medium">Responsables del Proyecto</span>
-                </div>
-              </div>
-
               {/* JPRO - Jefe de Proyecto */}
               <div className="bg-gray-50/50 border border-[#e5e7eb] rounded-xl p-5 hover:border-blue-300 hover:shadow-sm transition-all">
                 <div className="flex items-center gap-3 mb-3">

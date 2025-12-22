@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ProjectGalleryItem } from '../types';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
 import ProjectDetailView from './ProjectDetailView';
-import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos } from '../services/supabaseService';
+import SelectCompanyAndRequirementsView from './SelectCompanyAndRequirementsView';
+import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables } from '../services/supabaseService';
 
 interface ProjectGalleryV2Props {
   projects: ProjectGalleryItem[];
@@ -18,6 +19,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const [selectedProject, setSelectedProject] = useState<ProjectGalleryItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showDetailView, setShowDetailView] = useState(false);
+  const [showCompanyView, setShowCompanyView] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Obtener lista única de clientes
@@ -121,11 +123,18 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const handleProjectClick = (project: ProjectGalleryItem) => {
     setSelectedProject(project);
     
-    // Si el proyecto está en estado "Pendiente", abre el modal de asignación
-    // Si NO está en "Pendiente", abre la vista de detalle
-    if (project.status.toLowerCase().includes('pendiente')) {
+    const statusLower = project.status.toLowerCase();
+    
+    // Si el proyecto está en estado "Pendiente", abre la vista de selección de empresa
+    if (statusLower.includes('pendiente')) {
+      setShowCompanyView(true);
+    }
+    // Si el proyecto está en estado "Por asignar responsables", abre el modal de asignación
+    else if (statusLower.includes('por asignar responsables') || statusLower.includes('por asignar')) {
       setIsModalOpen(true);
-    } else {
+    }
+    // Para cualquier otro estado, abre la vista de detalle
+    else {
       setShowDetailView(true);
     }
   };
@@ -139,6 +148,15 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     setShowDetailView(false);
     setSelectedProject(null);
     // Recargar datos después de ver el detalle (por si hubo cambios)
+    if (onProjectUpdate) {
+      onProjectUpdate();
+    }
+  };
+
+  const handleBackFromCompanyView = () => {
+    setShowCompanyView(false);
+    setSelectedProject(null);
+    // Recargar datos después de ver la vista de empresa (por si hubo cambios)
     if (onProjectUpdate) {
       onProjectUpdate();
     }
@@ -164,11 +182,30 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       console.log('Requerimientos recibidos:', responsables.empresaRequerimientos?.length || 0);
       
       // 1. Guardar responsables en la base de datos (esto es lo PRINCIPAL)
+      // Esto también cambiará el estado a "En proceso"
       console.log('\n📝 Paso 1: Guardando responsables en solicitud_acreditacion...');
       await updateResponsablesSolicitud(selectedProject.id, responsables);
       console.log('✅ Responsables guardados exitosamente');
+
+      // 2. Actualizar nombres de responsables en proyecto_requerimientos_acreditacion
+      console.log('\n📝 Paso 2: Actualizando responsables en proyecto_requerimientos_acreditacion...');
+      try {
+        await updateProyectoRequerimientosResponsables(
+          selectedProject.projectCode,
+          {
+            jpro_nombre: responsables.jpro_nombre,
+            epr_nombre: responsables.epr_nombre,
+            rrhh_nombre: responsables.rrhh_nombre,
+            legal_nombre: responsables.legal_nombre,
+          }
+        );
+        console.log('✅ Responsables actualizados en requerimientos exitosamente');
+      } catch (reqError) {
+        console.error('❌ Error actualizando responsables en requerimientos:', reqError);
+        console.warn('⚠️ Los responsables se guardaron en solicitud_acreditacion, pero hubo un problema actualizando los requerimientos');
+      }
       
-      // 2. Guardar requerimientos del proyecto si hay empresa y requerimientos
+      // 3. Guardar requerimientos del proyecto si hay empresa y requerimientos (legacy - ya no se usa)
       if (responsables.empresa_nombre && responsables.empresaRequerimientos && responsables.empresaRequerimientos.length > 0) {
         try {
           console.log('\n📋 Paso 2: Guardando requerimientos en proyecto_requerimientos_acreditacion...');
@@ -320,6 +357,11 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       )
     : 0;
 
+  // Si se está mostrando la vista de selección de empresa, renderizar ese componente
+  if (showCompanyView && selectedProject) {
+    return <SelectCompanyAndRequirementsView project={selectedProject} onBack={handleBackFromCompanyView} onUpdate={onProjectUpdate} />;
+  }
+
   // Si se está mostrando la vista de detalle, renderizar ese componente
   if (showDetailView && selectedProject) {
     return <ProjectDetailView project={selectedProject} onBack={handleBackFromDetail} onUpdate={onProjectUpdate} onFilterSidebarChange={onFilterSidebarChange} />;
@@ -443,6 +485,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
               >
                 <option value="">Todos los estados</option>
                 <option value="Pendiente">Pendiente</option>
+                <option value="Por asignar responsables">Por asignar responsables</option>
                 <option value="En proceso">En proceso</option>
                 <option value="Finalizada">Finalizada</option>
                 <option value="Cancelada">Cancelada</option>
@@ -760,6 +803,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
           onClose={handleCloseModal}
           onSave={handleSaveResponsables}
           projectName={selectedProject.projectCode}
+          projectCode={selectedProject.projectCode}
           currentResponsables={{
             empresa_id: (selectedProject as any).empresa_id,
             empresa_nombre: (selectedProject as any).empresa_nombre,
