@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ProjectGalleryItem } from '../types';
-import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos } from '../services/supabaseService';
+import { ProjectGalleryItem, RequestItem } from '../types';
+import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre } from '../services/supabaseService';
 
 interface ProjectRequirement {
   id: number;
@@ -89,6 +89,16 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const [requerimientoSeleccionado, setRequerimientoSeleccionado] = useState<string>('');
   // Set de requerimientos que tienen observaciones
   const [requerimientosConObservaciones, setRequerimientosConObservaciones] = useState<Set<string>>(new Set());
+
+  // Estados para el modal de documentos de persona
+  const [documentosModalOpen, setDocumentosModalOpen] = useState(false);
+  const [personaSeleccionada, setPersonaSeleccionada] = useState<string>('');
+  const [documentosPersona, setDocumentosPersona] = useState<RequestItem[]>([]);
+  const [loadingDocumentos, setLoadingDocumentos] = useState(false);
+  const [documentosSeleccionados, setDocumentosSeleccionados] = useState<Set<string>>(new Set());
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewLink, setPreviewLink] = useState<string | null>(null);
+  const [guardandoDocumentos, setGuardandoDocumentos] = useState(false);
 
   // Cargar requerimientos del proyecto al montar para saber cuáles tienen observaciones
   useEffect(() => {
@@ -266,6 +276,206 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     setObservacionesModalOpen(false);
     setObservacionesText(null);
     setRequerimientoSeleccionado('');
+  };
+
+  // Función para manejar el clic en el nombre del trabajador
+  const handleTrabajadorClick = async (nombreTrabajador: string) => {
+    if (!nombreTrabajador) return;
+    
+    setPersonaSeleccionada(nombreTrabajador);
+    setLoadingDocumentos(true);
+    setDocumentosModalOpen(true);
+    setDocumentosPersona([]);
+    setDocumentosSeleccionados(new Set());
+
+    try {
+      const documentos = await fetchPersonaRequerimientosByNombre(nombreTrabajador);
+      setDocumentosPersona(documentos);
+    } catch (error) {
+      console.error('Error al cargar documentos de la persona:', error);
+      setDocumentosPersona([]);
+    } finally {
+      setLoadingDocumentos(false);
+    }
+  };
+
+  // Función para cerrar el modal de documentos
+  const handleCloseDocumentosModal = () => {
+    setDocumentosModalOpen(false);
+    setPersonaSeleccionada('');
+    setDocumentosPersona([]);
+    setDocumentosSeleccionados(new Set());
+  };
+
+  // Función para manejar la selección de documentos
+  const handleToggleDocumentoSeleccionado = (documentoId: string) => {
+    setDocumentosSeleccionados(prev => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(documentoId)) {
+        nuevo.delete(documentoId);
+      } else {
+        nuevo.add(documentoId);
+      }
+      return nuevo;
+    });
+  };
+
+  // Función para obtener URLs de Google Drive
+  const getFileIdFromDriveLink = (link: string): string | null => {
+    const patterns = [
+      /\/d\/([a-zA-Z0-9_-]+)/,
+      /id=([a-zA-Z0-9_-]+)/,
+      /\/file\/d\/([a-zA-Z0-9_-]+)/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = link.match(pattern);
+      if (match) return match[1];
+    }
+    
+    return null;
+  };
+
+  const getDriveUrls = (link: string) => {
+    const fileId = getFileIdFromDriveLink(link);
+    
+    if (!fileId) {
+      return {
+        preview: link,
+        drive: link
+      };
+    }
+    
+    return {
+      preview: `https://drive.google.com/file/d/${fileId}/preview`,
+      drive: `https://drive.google.com/file/d/${fileId}/view`
+    };
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Vigente':
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'En Renovación':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'A vencer':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'Vencida':
+        return 'bg-red-100 text-red-700 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  // Función para enviar webhook con los documentos seleccionados
+  const handleGuardarDocumentos = async () => {
+    if (documentosSeleccionados.size === 0) {
+      alert('Por favor, selecciona al menos un documento para guardar.');
+      return;
+    }
+
+    // Obtener los documentos seleccionados con toda su información
+    const documentosParaEnviar = documentosPersona
+      .filter(doc => documentosSeleccionados.has(doc.id))
+      .map(doc => ({
+        id: String(doc.id || ''),
+        nombre: String(doc.name || ''),
+        rut: String(doc.rut || ''),
+        requerimiento: String(doc.requirement || ''),
+        categoria: String(doc.category || ''),
+        estado: String(doc.status || ''),
+        fecha_vigencia: doc.adjudicationDate || '-',
+        fecha_vencimiento: doc.expirationDate || '-',
+        link_drive: doc.link || null,
+        drive_folder_id: doc.drive_folder_id || null,
+        drive_folder_url: doc.drive_folder_url || null,
+        persona_id: doc.persona_id ? Number(doc.persona_id) : null,
+        requerimiento_id: doc.requerimiento_id ? Number(doc.requerimiento_id) : null,
+      }));
+
+    const payload = {
+      persona: personaSeleccionada || '',
+      proyecto: project.projectCode || '',
+      fecha_envio: new Date().toISOString(),
+      documentos: documentosParaEnviar,
+    };
+
+    console.log('📤 Enviando webhook con payload:', payload);
+
+    setGuardandoDocumentos(true);
+
+    try {
+      const response = await fetch('https://calen123.app.n8n.cloud/webhook-test/9ae98572-d390-43e0-9cad-25dc4fdf4da9', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log('📥 Respuesta del webhook:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        console.error('❌ Error en respuesta:', errorText);
+        throw new Error(`Error ${response.status}: ${response.statusText || errorText}`);
+      }
+
+      // Intentar leer la respuesta como JSON, pero no fallar si no es JSON
+      let result;
+      try {
+        const text = await response.text();
+        result = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        result = {};
+      }
+      
+      console.log('✅ Webhook enviado exitosamente:', result);
+      alert(`✅ ${documentosSeleccionados.size} documento(s) enviado(s) exitosamente.`);
+      
+      // Opcional: cerrar el modal después de guardar
+      // handleCloseDocumentosModal();
+    } catch (error) {
+      console.error('❌ Error completo al enviar webhook:', error);
+      
+      let errorMessage = 'Error desconocido';
+      let isCorsError = false;
+      
+      if (error instanceof TypeError) {
+        if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+          // Verificar si es un error de CORS
+          const errorString = error.toString().toLowerCase();
+          if (errorString.includes('cors') || errorString.includes('access-control')) {
+            isCorsError = true;
+            errorMessage = 'Error de CORS: El webhook de n8n no permite solicitudes desde el navegador.\n\n' +
+              'SOLUCIONES:\n' +
+              '1. Configura CORS en n8n: En la configuración del webhook, permite solicitudes desde tu dominio.\n' +
+              '2. Usa un proxy: Crea una función edge de Supabase que haga el proxy al webhook.\n' +
+              '3. Contacta al administrador del webhook para habilitar CORS.';
+          } else {
+            errorMessage = 'Error de conexión. Verifica tu conexión a internet o si el servidor está disponible.';
+          }
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      if (isCorsError) {
+        // Mostrar un alert más detallado para errores de CORS
+        alert(`❌ Error de CORS al guardar los documentos\n\n${errorMessage}\n\nRevisa la consola para más detalles.`);
+      } else {
+        alert(`❌ Error al guardar los documentos: ${errorMessage}`);
+      }
+    } finally {
+      setGuardandoDocumentos(false);
+    }
   };
 
   return (
@@ -913,9 +1123,16 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-gray-600 text-[20px]">person</span>
-                            <span className="text-sm text-gray-900">
-                              {req.nombre_trabajador || <span className="text-gray-400 italic text-xs">N/A</span>}
-                            </span>
+                            {req.nombre_trabajador ? (
+                              <button
+                                onClick={() => handleTrabajadorClick(req.nombre_trabajador!)}
+                                className="text-sm text-primary hover:text-primary-hover hover:underline font-medium transition-colors cursor-pointer"
+                              >
+                                {req.nombre_trabajador}
+                              </button>
+                            ) : (
+                              <span className="text-sm text-gray-400 italic text-xs">N/A</span>
+                            )}
                           </div>
                         </td>
 
@@ -1076,6 +1293,240 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               >
                 Cerrar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Documentos de Persona */}
+      {documentosModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={handleCloseDocumentosModal}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
+                  <span className="material-symbols-outlined text-primary">description</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Documentos de {personaSeleccionada}</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {documentosPersona.length} documento{documentosPersona.length !== 1 ? 's' : ''} encontrado{documentosPersona.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseDocumentosModal}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Contenido del Modal */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {loadingDocumentos ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p className="text-gray-600 text-sm">Cargando documentos...</p>
+                  </div>
+                </div>
+              ) : documentosPersona.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-gray-600 uppercase bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th scope="col" className="px-4 py-3 font-semibold w-12">
+                          <input
+                            type="checkbox"
+                            checked={documentosSeleccionados.size === documentosPersona.length && documentosPersona.length > 0}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setDocumentosSeleccionados(new Set(documentosPersona.map(d => d.id)));
+                              } else {
+                                setDocumentosSeleccionados(new Set());
+                              }
+                            }}
+                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                          />
+                        </th>
+                        <th scope="col" className="px-6 py-3 font-semibold">NOMBRE</th>
+                        <th scope="col" className="px-6 py-3 font-semibold">Requerimiento</th>
+                        <th scope="col" className="px-6 py-3 font-semibold">Categoría</th>
+                        <th scope="col" className="px-6 py-3 font-semibold">Estado</th>
+                        <th scope="col" className="px-6 py-3 font-semibold text-center">Documento</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {documentosPersona.map((doc) => (
+                        <tr 
+                          key={doc.id} 
+                          className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+                            documentosSeleccionados.has(doc.id) ? 'bg-blue-50' : ''
+                          }`}
+                          onClick={() => handleToggleDocumentoSeleccionado(doc.id)}
+                        >
+                          <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={documentosSeleccionados.has(doc.id)}
+                              onChange={() => handleToggleDocumentoSeleccionado(doc.id)}
+                              className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </td>
+                          <td className="px-6 py-4 font-medium text-gray-900">{doc.name}</td>
+                          <td className="px-6 py-4 text-gray-600">{doc.requirement}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                              {doc.category}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border inline-flex items-center gap-1.5 ${getStatusBadge(doc.status)}`}>
+                              {doc.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {doc.link ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const urls = getDriveUrls(doc.link!);
+                                    setPreviewLink(urls.preview);
+                                    setIsPreviewModalOpen(true);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
+                                  title="Visualizar documento"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const urls = getDriveUrls(doc.link!);
+                                    window.open(urls.drive, '_blank', 'noopener,noreferrer');
+                                  }}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                                  title="Abrir en Google Drive"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">Sin documento</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <span className="material-symbols-outlined text-gray-300 text-5xl mb-3">description</span>
+                  <p className="text-gray-500 text-base">No se encontraron documentos para esta persona</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="flex items-center justify-between p-6 border-t border-gray-200 flex-shrink-0">
+              <div className="text-sm text-gray-600">
+                {documentosSeleccionados.size > 0 && (
+                  <span className="font-medium">
+                    {documentosSeleccionados.size} documento{documentosSeleccionados.size !== 1 ? 's' : ''} seleccionado{documentosSeleccionados.size !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleGuardarDocumentos}
+                  disabled={documentosSeleccionados.size === 0 || guardandoDocumentos}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                    documentosSeleccionados.size === 0 || guardandoDocumentos
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-primary hover:bg-primary-hover text-white shadow-md hover:shadow-lg'
+                  }`}
+                >
+                  {guardandoDocumentos ? (
+                    <>
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">save</span>
+                      <span>Guardar</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCloseDocumentosModal}
+                  disabled={guardandoDocumentos}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    guardandoDocumentos
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Vista Previa del Documento */}
+      {isPreviewModalOpen && previewLink && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={() => {
+            setIsPreviewModalOpen(false);
+            setPreviewLink(null);
+          }}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-primary px-6 py-4 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-white text-2xl">description</span>
+                <h2 className="text-xl font-bold text-white">Vista Previa del Documento</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setIsPreviewModalOpen(false);
+                  setPreviewLink(null);
+                }}
+                className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                title="Cerrar"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Content - Iframe */}
+            <div className="flex-1 p-4 bg-gray-100">
+              <iframe
+                src={previewLink}
+                className="w-full h-full min-h-[600px] border-0 rounded-lg"
+                title="Vista previa del documento"
+                allow="fullscreen"
+              />
             </div>
           </div>
         </div>

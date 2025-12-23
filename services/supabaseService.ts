@@ -143,6 +143,42 @@ export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
     persona_id: item.persona_id,
     requerimiento_id: item.requerimiento_id,
     link: item.link || undefined,
+    drive_folder_id: item.drive_folder_id || undefined,
+    drive_folder_url: item.drive_folder_url || undefined,
+  }));
+};
+
+// Función para obtener requerimientos de una persona específica por nombre
+export const fetchPersonaRequerimientosByNombre = async (nombreCompleto: string): Promise<RequestItem[]> => {
+  const { data, error } = await supabase
+    .from('persona_requerimientos_sst')
+    .select('*')
+    .ilike('nombre_completo', `%${nombreCompleto}%`)
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching persona_requerimientos_sst by nombre:', error);
+    throw error;
+  }
+  
+  if (!data) return [];
+  
+  // Transformar los datos al formato RequestItem
+  return data.map((item: PersonaRequerimientoSST) => ({
+    id: item.id.toString(),
+    name: item.nombre_completo || '',
+    rut: item.rut || '',
+    requirement: item.requerimiento || '',
+    category: item.categoria_requerimiento || '',
+    // Usar estado si existe, sino calcular automáticamente
+    status: item.estado ? (item.estado as RequestStatus) : calculateStatus(item.fecha_vencimiento),
+    adjudicationDate: item.fecha_vigencia || '-',
+    expirationDate: item.fecha_vencimiento || '-',
+    persona_id: item.persona_id,
+    requerimiento_id: item.requerimiento_id,
+    link: item.link || undefined,
+    drive_folder_id: item.drive_folder_id || undefined,
+    drive_folder_url: item.drive_folder_url || undefined,
   }));
 };
 

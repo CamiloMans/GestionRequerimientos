@@ -139,6 +139,8 @@ export interface PersonaRequerimientoSST {
   fecha_vencimiento?: string;
   estado?: string;
   link?: string;
+  drive_folder_id?: string;
+  drive_folder_url?: string;
   created_at: string;
 }
 
@@ -155,6 +157,8 @@ export interface RequestItem {
   persona_id?: number;
   requerimiento_id?: number;
   link?: string;
+  drive_folder_id?: string;
+  drive_folder_url?: string;
 }
 
 export interface NewRequestPayload {
