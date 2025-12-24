@@ -277,6 +277,8 @@ export interface SolicitudAcreditacion {
   rrhh_nombre?: string; // Nombre del Responsable de RRHH
   legal_id?: number; // ID del Responsable Legal
   legal_nombre?: string; // Nombre del Responsable Legal
+  drive_folder_id?: string; // ID de la carpeta de Google Drive del proyecto
+  drive_folder_url?: string; // URL de la carpeta de Google Drive del proyecto
   created_at: string;
   updated_at?: string;
 }

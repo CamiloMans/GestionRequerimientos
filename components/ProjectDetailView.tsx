@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem, RequestItem } from '../types';
-import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre } from '../services/supabaseService';
+import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre, sendWebhookViaEdgeFunction, fetchSolicitudAcreditacionByCodigo } from '../services/supabaseService';
 
 interface ProjectRequirement {
   id: number;
@@ -374,6 +374,31 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       return;
     }
 
+    // Obtener drive_folder_id y drive_folder_url del proyecto desde solicitud_acreditacion
+    let driveFolderId = null;
+    let driveFolderUrl = null;
+    
+    console.log('🔍 Obteniendo datos de carpeta para proyecto:', project.projectCode);
+    
+    try {
+      const solicitud = await fetchSolicitudAcreditacionByCodigo(project.projectCode || '');
+      if (solicitud) {
+        driveFolderId = solicitud.drive_folder_id || null;
+        driveFolderUrl = solicitud.drive_folder_url || null;
+        console.log('📁 Datos de carpeta del proyecto obtenidos:', { 
+          driveFolderId, 
+          driveFolderUrl,
+          proyecto: project.projectCode 
+        });
+      } else {
+        console.warn('⚠️ No se encontró solicitud_acreditacion para el proyecto:', project.projectCode);
+      }
+    } catch (error) {
+      console.error('❌ Error al obtener datos del proyecto:', error);
+    }
+    
+    console.log('📋 Valores finales que se enviarán:', { driveFolderId, driveFolderUrl });
+
     // Obtener los documentos seleccionados con toda su información
     const documentosParaEnviar = documentosPersona
       .filter(doc => documentosSeleccionados.has(doc.id))
@@ -387,8 +412,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
         fecha_vigencia: doc.adjudicationDate || '-',
         fecha_vencimiento: doc.expirationDate || '-',
         link_drive: doc.link || null,
-        drive_folder_id: doc.drive_folder_id || null,
-        drive_folder_url: doc.drive_folder_url || null,
+        drive_folder_id: driveFolderId, // Usar el valor del proyecto
+        drive_folder_url: driveFolderUrl, // Usar el valor del proyecto
         persona_id: doc.persona_id ? Number(doc.persona_id) : null,
         requerimiento_id: doc.requerimiento_id ? Number(doc.requerimiento_id) : null,
       }));
@@ -405,37 +430,16 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     setGuardandoDocumentos(true);
 
     try {
-      const response = await fetch('https://calen123.app.n8n.cloud/webhook-test/9ae98572-d390-43e0-9cad-25dc4fdf4da9', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      // Usar la función edge de Supabase como proxy para evitar CORS
+      const result = await sendWebhookViaEdgeFunction(payload);
 
-      console.log('📥 Respuesta del webhook:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      });
+      console.log('📥 Respuesta del webhook:', result);
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Error desconocido');
-        console.error('❌ Error en respuesta:', errorText);
-        throw new Error(`Error ${response.status}: ${response.statusText || errorText}`);
-      }
-
-      // Intentar leer la respuesta como JSON, pero no fallar si no es JSON
-      let result;
-      try {
-        const text = await response.text();
-        result = text ? JSON.parse(text) : {};
-      } catch (parseError) {
-        result = {};
+      if (!result.success) {
+        throw new Error(result.error || `Error ${result.status || 'desconocido'}`);
       }
       
-      console.log('✅ Webhook enviado exitosamente:', result);
+      console.log('✅ Webhook enviado exitosamente:', result.data);
       alert(`✅ ${documentosSeleccionados.size} documento(s) enviado(s) exitosamente.`);
       
       // Opcional: cerrar el modal después de guardar

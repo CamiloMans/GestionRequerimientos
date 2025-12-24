@@ -1,4 +1,63 @@
 import { supabase } from '../config/supabase';
+
+// Función para enviar webhook a través de la función edge de Supabase (evita CORS)
+export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pugasfsnckeyitjemvju.supabase.co';
+  const functionUrl = `${supabaseUrl}/functions/v1/send-webhook`;
+  
+  console.log('🔗 Invocando función edge:', functionUrl);
+  console.log('📦 Payload:', payload);
+  
+  try {
+    const { data, error } = await supabase.functions.invoke('send-webhook', {
+      body: payload,
+    });
+
+    if (error) {
+      console.error('❌ Error al invocar función edge:', error);
+      console.error('❌ Detalles del error:', {
+        message: error.message,
+        name: error.name,
+        context: (error as any).context,
+      });
+      
+      // Si es un 404, intentar hacer fetch directo como fallback
+      if (error.message?.includes('404') || error.message?.includes('not found') || (error as any).status === 404) {
+        console.warn('⚠️ Función edge no encontrada (404). Intentando método alternativo...');
+        
+        // Fallback: intentar hacer fetch directo con headers CORS
+        try {
+          const directResponse = await fetch(functionUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || supabase.supabaseKey}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (!directResponse.ok) {
+            throw new Error(`Error ${directResponse.status}: La función edge "send-webhook" no está desplegada o no es accesible. Por favor, verifica en el Dashboard de Supabase que la función esté desplegada correctamente.`);
+          }
+
+          const directData = await directResponse.json();
+          console.log('✅ Respuesta usando método alternativo:', directData);
+          return directData;
+        } catch (fallbackError: any) {
+          throw new Error(`La función edge "send-webhook" no está desplegada. Ve al Dashboard de Supabase > Edge Functions y verifica que la función "send-webhook" esté desplegada. Error: ${fallbackError.message}`);
+        }
+      }
+      
+      throw error;
+    }
+
+    console.log('✅ Respuesta de función edge:', data);
+    return data;
+  } catch (err: any) {
+    console.error('❌ Error completo:', err);
+    throw err;
+  }
+};
 import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento, ProyectoTrabajador } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 
@@ -951,6 +1010,31 @@ export const fetchProyectoRequerimientos = async (codigoProyecto: string): Promi
   
   console.log(`✅ Encontrados ${data?.length || 0} requerimientos para proyecto ${codigoProyecto}`);
   return data || [];
+};
+
+// Función para obtener solicitud_acreditacion por código de proyecto (para obtener drive_folder_id y drive_folder_url)
+export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string): Promise<SolicitudAcreditacion | null> => {
+  console.log('🔍 Buscando solicitud_acreditacion para proyecto:', codigoProyecto);
+  
+  const { data, error } = await supabase
+    .from('solicitud_acreditacion')
+    .select('drive_folder_id, drive_folder_url, codigo_proyecto')
+    .eq('codigo_proyecto', codigoProyecto)
+    .single();
+  
+  if (error) {
+    console.error('❌ Error fetching solicitud_acreditacion:', error);
+    console.error('❌ Código de proyecto buscado:', codigoProyecto);
+    return null;
+  }
+  
+  console.log('✅ Solicitud encontrada:', {
+    codigo_proyecto: data?.codigo_proyecto,
+    drive_folder_id: data?.drive_folder_id,
+    drive_folder_url: data?.drive_folder_url,
+  });
+  
+  return data;
 };
 
 // Función para actualizar el estado de un requerimiento
