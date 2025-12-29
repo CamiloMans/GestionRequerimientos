@@ -4,6 +4,7 @@ import RequestList from './components/RequestList';
 import RequestForm from './components/RequestForm';
 import FieldRequestForm from './components/FieldRequestForm';
 import ProjectGalleryV2 from './components/ProjectGalleryV2';
+import DashboardView from './components/DashboardView';
 import Login from './components/Login';
 import { RequestItem, NewRequestPayload, ProjectGalleryItem } from './types';
 import { 
@@ -15,7 +16,7 @@ import {
 import { supabase } from './config/supabase';
 import './utils/testSupabase'; // Script de diagnóstico disponible en consola
 
-type ViewState = 'list' | 'create' | 'fieldRequest' | 'reports' | 'login';
+type ViewState = 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'login';
 
 function App() {
   const [view, setView] = useState<ViewState>('list');
@@ -135,6 +136,11 @@ function App() {
     loadProjects();
   };
 
+  const handleNavigateToDashboards = () => {
+    setEditingItem(null);
+    setView('dashboards');
+  };
+
   const handleNavigateToLogin = () => {
     setEditingItem(null);
     setView('login');
@@ -210,6 +216,7 @@ function App() {
         onNavigateToRequests={handleNavigateToList}
         onNavigateToFieldRequest={handleNavigateToFieldRequest}
         onNavigateToReports={handleNavigateToReports}
+        onNavigateToDashboards={handleNavigateToDashboards}
         onNavigateToLogin={handleNavigateToLogin}
         activeView={view}
         hideOnDesktop={isFilterSidebarOpen}
@@ -262,6 +269,8 @@ function App() {
               onFilterSidebarChange={setIsFilterSidebarOpen}
             />
           )
+        ) : view === 'dashboards' ? (
+          <DashboardView />
         ) : (
           <RequestForm 
             onBack={() => setView('list')} 

@@ -9,11 +9,12 @@ interface SidebarProps {
   onNavigateToFieldRequest?: () => void;
   onNavigateToReports?: () => void;
   onNavigateToLogin?: () => void;
-  activeView?: 'list' | 'create' | 'fieldRequest' | 'reports' | 'login';
+  onNavigateToDashboards?: () => void;
+  activeView?: 'list' | 'create' | 'fieldRequest' | 'reports' | 'login' | 'dashboards';
   hideOnDesktop?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, onNavigateToReports, onNavigateToLogin, activeView, hideOnDesktop = false }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests, onNavigateToFieldRequest, onNavigateToReports, onNavigateToLogin, onNavigateToDashboards, activeView, hideOnDesktop = false }) => {
   const [user, setUser] = useState<User | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,6 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   const isFieldRequestActive = activeView === 'fieldRequest';
   const isReportsActive = activeView === 'reports';
   const isLoginActive = activeView === 'login';
+  const isDashboardsActive = activeView === 'dashboards';
 
   // Obtener información del usuario
   useEffect(() => {
@@ -83,6 +85,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
     console.log('🖱️ Click en Reportes detectado!');
     if (onNavigateToReports) {
       onNavigateToReports();
+    }
+    onClose();
+  };
+
+  const handleDashboardsClick = () => {
+    console.log('🖱️ Click en Gráficos detectado!');
+    if (onNavigateToDashboards) {
+      onNavigateToDashboards();
     }
     onClose();
   };
@@ -222,6 +232,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
                 }`}>
                   Reportes
+                </span>
+              </button>
+              
+              {/* Gráficos */}
+              <button 
+                onClick={handleDashboardsClick}
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                  isDashboardsActive 
+                    ? 'bg-primary text-white hover:bg-primary-hover' 
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
+                title="Gráficos"
+              >
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isDashboardsActive ? 'fill' : ''}`}>bar_chart</span>
+                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                  isDashboardsActive 
+                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                }`}>
+                  Gráficos
                 </span>
               </button>
               

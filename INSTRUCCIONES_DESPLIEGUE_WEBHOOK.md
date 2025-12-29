@@ -69,3 +69,9 @@ La función edge actúa como proxy y:
 - ✅ Maneja errores apropiadamente
 - ✅ Devuelve respuestas con CORS habilitado
 
+
+
+
+
+
+
