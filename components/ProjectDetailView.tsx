@@ -576,16 +576,17 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
         </div>
       </div>
 
-      {/* Barra de Filtros y Estadísticas */}
-      <div className="bg-gradient-to-r from-white to-gray-50 border-b border-gray-200 px-6 py-3 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
+      {/* Barra de Filtros y Estadísticas - Ampliada */}
+      <div className="bg-gradient-to-r from-white to-gray-50 border-b border-gray-200 px-6 py-5 shadow-sm">
+        {/* Primera fila: Filtros y Estadísticas Generales */}
+        <div className="flex items-center justify-between gap-4 mb-4">
           {/* Izquierda: Filtros */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsFilterSidebarOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 hover:border-primary transition-all shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 hover:border-primary transition-all shadow-sm"
             >
-              <span className="material-symbols-outlined text-[18px]">filter_alt</span>
+              <span className="material-symbols-outlined text-[20px]">filter_alt</span>
               <span>Filtros</span>
               {hasActiveFilters && (
                 <span className="px-2 py-0.5 text-xs font-bold text-white bg-primary rounded-full">
@@ -597,58 +598,150 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
               >
-                <span className="material-symbols-outlined text-[16px]">close</span>
+                <span className="material-symbols-outlined text-[18px]">close</span>
                 <span>Limpiar</span>
               </button>
             )}
 
-            <div className="text-xs text-gray-500 ml-2">
+            <div className="text-sm text-gray-500 ml-2">
               Mostrando <span className="font-bold text-gray-900">{filteredRequirements.length}</span> de <span className="font-bold text-gray-900">{totalCount}</span>
             </div>
           </div>
 
-          {/* Derecha: Estadísticas en línea */}
-          <div className="flex items-center gap-6">
+          {/* Derecha: Estadísticas en línea - Más grandes */}
+          <div className="flex items-center gap-8">
             {/* Completados */}
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center border border-green-300">
-                <span className="material-symbols-outlined text-green-600 text-[18px]">check_circle</span>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center border-2 border-green-300 shadow-sm">
+                <span className="material-symbols-outlined text-green-600 text-[24px]">check_circle</span>
               </div>
               <div>
-                <p className="text-base font-bold text-green-700 leading-none">{completedCount}</p>
-                <p className="text-[10px] text-gray-500 font-medium uppercase">Completados</p>
+                <p className="text-2xl font-bold text-green-700 leading-none">{completedCount}</p>
+                <p className="text-xs text-gray-500 font-semibold uppercase">Completados</p>
               </div>
             </div>
             
-            <div className="w-px h-8 bg-gray-300"></div>
+            <div className="w-px h-12 bg-gray-300"></div>
             
             {/* Pendientes */}
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-amber-100 rounded-md flex items-center justify-center border border-amber-300">
-                <span className="material-symbols-outlined text-amber-600 text-[18px]">pending</span>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center border-2 border-amber-300 shadow-sm">
+                <span className="material-symbols-outlined text-amber-600 text-[24px]">pending</span>
               </div>
               <div>
-                <p className="text-base font-bold text-amber-700 leading-none">{totalCount - completedCount}</p>
-                <p className="text-[10px] text-gray-500 font-medium uppercase">Pendientes</p>
+                <p className="text-2xl font-bold text-amber-700 leading-none">{totalCount - completedCount}</p>
+                <p className="text-xs text-gray-500 font-semibold uppercase">Pendientes</p>
               </div>
             </div>
             
-            <div className="w-px h-8 bg-gray-300"></div>
+            <div className="w-px h-12 bg-gray-300"></div>
             
             {/* Progreso */}
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center border border-blue-300">
-                <span className="material-symbols-outlined text-blue-600 text-[18px]">analytics</span>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center border-2 border-blue-300 shadow-sm">
+                <span className="material-symbols-outlined text-blue-600 text-[24px]">analytics</span>
               </div>
               <div>
-                <p className="text-base font-bold text-blue-700 leading-none">{Math.round((completedCount / totalCount) * 100)}%</p>
-                <p className="text-[10px] text-gray-500 font-medium uppercase">Progreso</p>
+                <p className="text-2xl font-bold text-blue-700 leading-none">{Math.round((completedCount / totalCount) * 100)}%</p>
+                <p className="text-xs text-gray-500 font-semibold uppercase">Progreso</p>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Segunda fila: Cumplimiento por Responsables */}
+        {(() => {
+          const responsables = [
+            { id: project.jpro_id, nombre: project.jpro_nombre, rol: 'JPRO', color: 'blue' },
+            { id: project.epr_id, nombre: project.epr_nombre, rol: 'EPR', color: 'orange' },
+            { id: project.rrhh_id, nombre: project.rrhh_nombre, rol: 'RRHH', color: 'green' },
+            { id: project.legal_id, nombre: project.legal_nombre, rol: 'Legal', color: 'purple' }
+          ].filter(r => r.id);
+
+          if (responsables.length === 0) {
+            return (
+              <div className="pt-3 border-t border-gray-200">
+                <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 rounded-lg px-4 py-3">
+                  <span className="material-symbols-outlined text-[20px]">info</span>
+                  <span>Sin responsables asignados</span>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="pt-4 border-t border-gray-200">
+              <div className="mb-3">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px]">group</span>
+                  Cumplimiento por Responsable
+                </h3>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {responsables.map((resp) => {
+                  const tareas = requirements.filter((t) => t.responsable === resp.rol);
+                  const completadas = tareas.filter((t) => t.realizado).length;
+                  const total = tareas.length;
+                  const porcentaje = total > 0 ? (completadas / total) : 0;
+
+                  const colorMap = {
+                    blue: { bg: 'bg-blue-50', border: 'border-blue-200', ring: '#DBEAFE', stroke: '#3B82F6', text: 'text-blue-600' },
+                    orange: { bg: 'bg-orange-50', border: 'border-orange-200', ring: '#FED7AA', stroke: '#F97316', text: 'text-orange-600' },
+                    green: { bg: 'bg-green-50', border: 'border-green-200', ring: '#D1FAE5', stroke: '#10B981', text: 'text-green-600' },
+                    purple: { bg: 'bg-purple-50', border: 'border-purple-200', ring: '#E9D5FF', stroke: '#A855F7', text: 'text-purple-600' }
+                  };
+                  const colors = colorMap[resp.color as keyof typeof colorMap] || colorMap.blue;
+
+                  return (
+                    <div key={resp.rol} className={`flex items-center gap-3 ${colors.bg} rounded-lg border-2 ${colors.border} px-4 py-3 transition-all duration-300 shadow-sm hover:shadow-md`}>
+                      {/* Anillo de progreso */}
+                      <div className="relative flex items-center justify-center flex-shrink-0">
+                        <svg className="w-16 h-16 transform -rotate-90">
+                          <circle cx="32" cy="32" r="26" stroke={colors.ring} strokeWidth="4" fill="none" />
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r="26"
+                            stroke={colors.stroke}
+                            strokeWidth="4"
+                            fill="none"
+                            strokeDasharray={`${2 * Math.PI * 26}`}
+                            strokeDashoffset={`${2 * Math.PI * 26 * (1 - porcentaje)}`}
+                            strokeLinecap="round"
+                            className="transition-all duration-500"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-base font-extrabold text-gray-800">
+                            {Math.round(porcentaje * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                      {/* Info */}
+                      <div className="flex flex-col justify-center min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <p className={`text-sm font-extrabold uppercase ${colors.text}`}>{resp.rol}</p>
+                          <div className="flex items-baseline gap-1">
+                            <p className={`text-lg font-bold ${colors.text}`}>{completadas}</p>
+                            <span className="text-xs font-semibold text-gray-400">/</span>
+                            <p className="text-sm font-semibold text-gray-500">{total}</p>
+                          </div>
+                        </div>
+                        {resp.nombre && (
+                          <p className="text-xs text-gray-600 font-medium truncate leading-tight">
+                            {resp.nombre}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Sidebar de Filtros */}

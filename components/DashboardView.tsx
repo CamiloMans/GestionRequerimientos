@@ -23,44 +23,66 @@ interface DashboardViewProps {
 }
 
 const DashboardView: React.FC<DashboardViewProps> = () => {
+  // Estado para controlar el modal del gráfico ampliado
+  const [isActivityChartModalOpen, setIsActivityChartModalOpen] = React.useState(false);
+  
   // Datos dummy para los 12 meses del año
   const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   
   // Datos para gráfico de evolución de actividad (según tabla proporcionada)
   const activityData = [
-    { mes: 'Ene', solicitudes: 46, completadas: 38, pendientes: 7 },
-    { mes: 'Feb', solicitudes: 53, completadas: 44, pendientes: 8 },
-    { mes: 'Mar', solicitudes: 38, completadas: 31, pendientes: 6 },
-    { mes: 'Abr', solicitudes: 61, completadas: 52, pendientes: 9 },
-    { mes: 'May', solicitudes: 55, completadas: 47, pendientes: 8 },
-    { mes: 'Jun', solicitudes: 49, completadas: 41, pendientes: 7 },
-    { mes: 'Jul', solicitudes: 58, completadas: 50, pendientes: 8 },
-    { mes: 'Ago', solicitudes: 62, completadas: 54, pendientes: 8 },
-    { mes: 'Sep', solicitudes: 49, completadas: 42, pendientes: 7 },
-    { mes: 'Oct', solicitudes: 54, completadas: 46, pendientes: 8 },
-    { mes: 'Nov', solicitudes: 47, completadas: 40, pendientes: 7 },
-    { mes: 'Dic', solicitudes: 51, completadas: 44, pendientes: 7 },
+    { mes: 'Ene', solicitudes: 46, completadas: 38, pendientes: 7, cumplimiento: Math.round((38 / 46) * 100) },
+    { mes: 'Feb', solicitudes: 53, completadas: 44, pendientes: 8, cumplimiento: Math.round((44 / 53) * 100) },
+    { mes: 'Mar', solicitudes: 38, completadas: 31, pendientes: 6, cumplimiento: Math.round((31 / 38) * 100) },
+    { mes: 'Abr', solicitudes: 61, completadas: 52, pendientes: 9, cumplimiento: Math.round((52 / 61) * 100) },
+    { mes: 'May', solicitudes: 55, completadas: 47, pendientes: 8, cumplimiento: Math.round((47 / 55) * 100) },
+    { mes: 'Jun', solicitudes: 49, completadas: 41, pendientes: 7, cumplimiento: Math.round((41 / 49) * 100) },
+    { mes: 'Jul', solicitudes: 58, completadas: 50, pendientes: 8, cumplimiento: Math.round((50 / 58) * 100) },
+    { mes: 'Ago', solicitudes: 62, completadas: 54, pendientes: 8, cumplimiento: Math.round((54 / 62) * 100) },
+    { mes: 'Sep', solicitudes: 49, completadas: 42, pendientes: 7, cumplimiento: Math.round((42 / 49) * 100) },
+    { mes: 'Oct', solicitudes: 54, completadas: 46, pendientes: 8, cumplimiento: Math.round((46 / 54) * 100) },
+    { mes: 'Nov', solicitudes: 47, completadas: 40, pendientes: 7, cumplimiento: Math.round((40 / 47) * 100) },
+    { mes: 'Dic', solicitudes: 51, completadas: 44, pendientes: 7, cumplimiento: Math.round((44 / 51) * 100) },
   ];
 
   // Custom Tooltip para el gráfico
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      // Buscar el payload de cumplimiento
+      const cumplimientoEntry = payload.find((entry: any) => entry.dataKey === 'cumplimiento');
+      const data = payload[0]?.payload;
+      
       return (
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-lg">
           <p className="text-sm font-semibold text-[#111318] mb-3">{label}</p>
           <div className="space-y-2">
-            {payload.map((entry: any, index: number) => (
-              <div key={index} className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="text-sm text-gray-600">{entry.name}</span>
+            {payload.map((entry: any, index: number) => {
+              // Omitir el entry de cumplimiento de la lista normal
+              if (entry.dataKey === 'cumplimiento') return null;
+              
+              return (
+                <div key={index} className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: entry.color }}
+                    />
+                    <span className="text-sm text-gray-600">{entry.name}</span>
+                  </div>
+                  <span className="text-sm font-medium text-[#111318]">{entry.value}</span>
                 </div>
-                <span className="text-sm font-medium text-[#111318]">{entry.value}</span>
+              );
+            })}
+            {/* Mostrar cumplimiento al final con color amarillo */}
+            {cumplimientoEntry && data && (
+              <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="text-sm text-gray-600">Cumplimiento</span>
+                </div>
+                <span className="text-sm font-bold text-yellow-600">{data.cumplimiento}%</span>
               </div>
-            ))}
+            )}
           </div>
         </div>
       );
@@ -148,6 +170,100 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
   };
 
   const promedio = Math.round(barData.reduce((acc, item) => acc + item.solicitudes, 0) / barData.length);
+
+  // Función para renderizar el gráfico de Evolución de Actividad
+  const renderActivityChart = (heightClass: string = 'h-[220px]') => (
+    <div className={`${heightClass} w-full`}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart
+          data={activityData}
+          margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
+        >
+          <defs>
+            <linearGradient id="colorSolicitudes" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(243, 75%, 59%)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="hsl(243, 75%, 59%)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorCompletadas" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorPendientes" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid 
+            strokeDasharray="3 3" 
+            stroke="#e5e7eb" 
+            vertical={false}
+          />
+          <XAxis 
+            dataKey="mes" 
+            stroke="#6b7280"
+            fontSize={13}
+            fontWeight={500}
+            tickLine={false}
+            axisLine={false}
+            dy={10}
+          />
+          <YAxis 
+            stroke="#6b7280"
+            fontSize={13}
+            fontWeight={500}
+            tickLine={false}
+            axisLine={false}
+            dx={-10}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend content={() => null} />
+          <Area
+            type="monotone"
+            dataKey="solicitudes"
+            name="Solicitudes"
+            stroke="hsl(243, 75%, 59%)"
+            strokeWidth={2.5}
+            fillOpacity={1}
+            fill="url(#colorSolicitudes)"
+            dot={{ fill: 'hsl(243, 75%, 59%)', strokeWidth: 0, r: 0 }}
+            activeDot={{ fill: 'hsl(243, 75%, 59%)', strokeWidth: 3, stroke: 'white', r: 6 }}
+          />
+          <Area
+            type="monotone"
+            dataKey="completadas"
+            name="Completadas"
+            stroke="hsl(160, 72%, 42%)"
+            strokeWidth={2.5}
+            fillOpacity={1}
+            fill="url(#colorCompletadas)"
+            dot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 0, r: 0 }}
+            activeDot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 3, stroke: 'white', r: 6 }}
+          />
+          <Area
+            type="monotone"
+            dataKey="pendientes"
+            name="Pendientes"
+            stroke="hsl(4, 90%, 58%)"
+            strokeWidth={2.5}
+            fillOpacity={1}
+            fill="url(#colorPendientes)"
+            dot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 0, r: 0 }}
+            activeDot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 3, stroke: 'white', r: 6 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="cumplimiento"
+            name="Cumplimiento"
+            stroke="#eab308"
+            strokeWidth={2.5}
+            dot={{ fill: '#eab308', strokeWidth: 2, stroke: 'white', r: 5 }}
+            activeDot={{ fill: '#eab308', strokeWidth: 3, stroke: 'white', r: 7 }}
+            connectNulls={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
 
   // Datos para gráfico de tareas pendientes por responsable
   const tareasPendientesPorResponsable = [
@@ -432,63 +548,46 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
 
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Bar Chart Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-bold text-[#111318]">Solicitudes por Mes</h3>
-                <p className="text-sm text-gray-500 mt-1">Tendencia de los últimos 6 meses</p>
-              </div>
-              <div className="p-2 rounded-lg bg-gray-100">
-                <span className="material-symbols-outlined text-gray-500 text-xl">trending_up</span>
-              </div>
-            </div>
-            <div className="h-[220px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={barData}
-                  margin={{ top: 25, right: 10, left: 10, bottom: 5 }}
-                  barCategoryGap="18%"
+          {/* Evolución de Actividad */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 relative">
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#111318] mb-1">
+                    Evolución de Actividad
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Tendencias mensuales de solicitudes, completadas y pendientes
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsActivityChartModalOpen(true)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                  title="Ampliar gráfico"
                 >
-                  <defs>
-                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(160, 72%, 50%)" />
-                      <stop offset="100%" stopColor="hsl(160, 72%, 38%)" />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="mes"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#6b7280', fontSize: 12, fontWeight: 500 }}
-                    dy={8}
-                  />
-                  <YAxis hide />
-                  <Bar
-                    dataKey="solicitudes"
-                    fill="url(#barGradient)"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={48}
-                  >
-                    <LabelList
-                      dataKey="solicitudes"
-                      position="top"
-                      fill="#111318"
-                      fontSize={13}
-                      fontWeight={600}
-                      offset={8}
-                    />
-                    {barData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill="url(#barGradient)" />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                  <span className="material-symbols-outlined text-xl">open_in_full</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[hsl(243,75%,59%)]" />
+                  <span className="text-sm text-gray-600">Solicitudes</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[hsl(160,72%,42%)]" />
+                  <span className="text-sm text-gray-600">Completadas</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[hsl(4,90%,58%)]" />
+                  <span className="text-sm text-gray-600">Pendientes</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="text-sm text-gray-600">Cumplimiento</span>
+                </div>
+              </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center justify-between">
-              <span className="text-sm text-gray-500">Promedio mensual</span>
-              <span className="text-xl font-bold text-[#111318]">{promedio}</span>
-            </div>
+            {renderActivityChart('h-[220px]')}
           </div>
 
           {/* Gráfico de Tareas Pendientes por Responsable */}
@@ -591,80 +690,6 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
           </div>
         </div>
 
-        {/* Second Row Charts */}
-        <div className="mb-6">
-          {/* Tendencia de Cumplimiento */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-[#111318] mb-1">
-                  Tendencia de Cumplimiento
-                </h3>
-                <p className="text-sm text-gray-500">Porcentaje de cumplimiento mensual</p>
-              </div>
-              <span className="material-symbols-outlined text-gray-400">show_chart</span>
-            </div>
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={complianceData}
-                  margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="complianceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid 
-                    strokeDasharray="3 3" 
-                    stroke="#e5e7eb" 
-                    vertical={false}
-                  />
-                  <XAxis 
-                    dataKey="mes" 
-                    stroke="#6b7280"
-                    fontSize={13}
-                    fontWeight={500}
-                    tickLine={false}
-                    axisLine={false}
-                    dy={10}
-                  />
-                  <YAxis 
-                    domain={[0, 100]}
-                    stroke="#6b7280"
-                    fontSize={13}
-                    fontWeight={500}
-                    tickLine={false}
-                    axisLine={false}
-                    dx={-10}
-                  />
-                  <Tooltip content={<ComplianceTooltip />} />
-                  <Legend content={() => null} />
-                  <Area
-                    type="monotone"
-                    dataKey="cumplimiento"
-                    name="Cumplimiento"
-                    stroke="hsl(160, 72%, 42%)"
-                    strokeWidth={2.5}
-                    fillOpacity={1}
-                    fill="url(#complianceGradient)"
-                    dot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 0, r: 0 }}
-                    activeDot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 3, stroke: 'white', r: 6 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Promedio</span>
-                <span className="font-semibold text-emerald-600">
-                  {Math.round(complianceTrend.reduce((a, b) => a + b, 0) / complianceTrend.length)}%
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Table Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -718,118 +743,153 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
           </div>
         </div>
 
-        {/* Gráfico de Evolución de Actividad */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-6">
-          <div className="mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-              <div className="space-y-1">
-                <h3 className="text-xl font-semibold text-[#111318]">
-                  Evolución de Actividad
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Tendencias mensuales de solicitudes, completadas y pendientes
-                </p>
+        {/* Modal para gráfico ampliado de Evolución de Actividad */}
+        {isActivityChartModalOpen && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsActivityChartModalOpen(false)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header del Modal */}
+              <div className="bg-gradient-to-br from-primary to-emerald-700 text-white px-6 py-3 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-white text-xl">show_chart</span>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Evolución de Actividad</h2>
+                    <p className="text-xs text-emerald-100 mt-0.5">
+                      Tendencias mensuales de solicitudes, completadas y pendientes
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsActivityChartModalOpen(false)}
+                  className="text-white hover:bg-white/20 rounded-full p-1.5 transition-colors"
+                  title="Cerrar"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
               </div>
-              <div className="flex items-center gap-6">
+
+              {/* Leyenda */}
+              <div className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-[hsl(243,75%,59%)]" />
-                  <span className="text-sm text-gray-600">Solicitudes</span>
+                  <span className="text-sm text-gray-600 font-medium">Solicitudes</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-[hsl(160,72%,42%)]" />
-                  <span className="text-sm text-gray-600">Completadas</span>
+                  <span className="text-sm text-gray-600 font-medium">Completadas</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-[hsl(4,90%,58%)]" />
-                  <span className="text-sm text-gray-600">Pendientes</span>
+                  <span className="text-sm text-gray-600 font-medium">Pendientes</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="text-sm text-gray-600 font-medium">Cumplimiento</span>
+                </div>
+              </div>
+
+              {/* Contenido - Gráfico Ampliado */}
+              <div className="flex-1 p-4 bg-gray-50 overflow-hidden">
+                <div className="h-[450px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={activityData}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorSolicitudesModal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(243, 75%, 59%)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(243, 75%, 59%)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorCompletadasModal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorPendientesModal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid 
+                        strokeDasharray="3 3" 
+                        stroke="#e5e7eb" 
+                        vertical={false}
+                      />
+                      <XAxis 
+                        dataKey="mes" 
+                        stroke="#6b7280"
+                        fontSize={14}
+                        fontWeight={500}
+                        tickLine={false}
+                        axisLine={false}
+                        dy={10}
+                      />
+                      <YAxis 
+                        stroke="#6b7280"
+                        fontSize={14}
+                        fontWeight={500}
+                        tickLine={false}
+                        axisLine={false}
+                        dx={-10}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend content={() => null} />
+                      <Area
+                        type="monotone"
+                        dataKey="solicitudes"
+                        name="Solicitudes"
+                        stroke="hsl(243, 75%, 59%)"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorSolicitudesModal)"
+                        dot={{ fill: 'hsl(243, 75%, 59%)', strokeWidth: 0, r: 0 }}
+                        activeDot={{ fill: 'hsl(243, 75%, 59%)', strokeWidth: 4, stroke: 'white', r: 8 }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="completadas"
+                        name="Completadas"
+                        stroke="hsl(160, 72%, 42%)"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorCompletadasModal)"
+                        dot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 0, r: 0 }}
+                        activeDot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 4, stroke: 'white', r: 8 }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="pendientes"
+                        name="Pendientes"
+                        stroke="hsl(4, 90%, 58%)"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorPendientesModal)"
+                        dot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 0, r: 0 }}
+                        activeDot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 4, stroke: 'white', r: 8 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="cumplimiento"
+                        name="Cumplimiento"
+                        stroke="#eab308"
+                        strokeWidth={3}
+                        dot={{ fill: '#eab308', strokeWidth: 2, stroke: 'white', r: 6 }}
+                        activeDot={{ fill: '#eab308', strokeWidth: 4, stroke: 'white', r: 9 }}
+                        connectNulls={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
           </div>
-          <div className="h-[400px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={activityData}
-                margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="colorSolicitudes" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(243, 75%, 59%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(243, 75%, 59%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorCompletadas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(160, 72%, 42%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorPendientes" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid 
-                  strokeDasharray="3 3" 
-                  stroke="#e5e7eb" 
-                  vertical={false}
-                />
-                <XAxis 
-                  dataKey="mes" 
-                  stroke="#6b7280"
-                  fontSize={13}
-                  fontWeight={500}
-                  tickLine={false}
-                  axisLine={false}
-                  dy={10}
-                />
-                <YAxis 
-                  stroke="#6b7280"
-                  fontSize={13}
-                  fontWeight={500}
-                  tickLine={false}
-                  axisLine={false}
-                  dx={-10}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend content={() => null} />
-                {/* Solicitudes primero (atrás, más grande) - ordenadas de mayor a menor para visibilidad */}
-                <Area
-                  type="monotone"
-                  dataKey="solicitudes"
-                  name="Solicitudes"
-                  stroke="hsl(243, 75%, 59%)"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#colorSolicitudes)"
-                  dot={{ fill: 'hsl(243, 75%, 59%)', strokeWidth: 0, r: 0 }}
-                  activeDot={{ fill: 'hsl(243, 75%, 59%)', strokeWidth: 3, stroke: 'white', r: 6 }}
-                />
-                {/* Completadas en el medio */}
-                <Area
-                  type="monotone"
-                  dataKey="completadas"
-                  name="Completadas"
-                  stroke="hsl(160, 72%, 42%)"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#colorCompletadas)"
-                  dot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 0, r: 0 }}
-                  activeDot={{ fill: 'hsl(160, 72%, 42%)', strokeWidth: 3, stroke: 'white', r: 6 }}
-                />
-                {/* Pendientes al final (adelante, más pequeña) */}
-                <Area
-                  type="monotone"
-                  dataKey="pendientes"
-                  name="Pendientes"
-                  stroke="hsl(4, 90%, 58%)"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#colorPendientes)"
-                  dot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 0, r: 0 }}
-                  activeDot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 3, stroke: 'white', r: 6 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        )}
+
       </div>
     </div>
   );
