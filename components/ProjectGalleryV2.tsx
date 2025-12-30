@@ -344,6 +344,36 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     return !statusLower.includes('cancelada') && !statusLower.includes('finalizada');
   }).length;
   
+  // Calcular proyectos atrasados: activos, con tareas pendientes, y cuya fecha de inicio ya pasó
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const overdueProjects = projects.filter(p => {
+    const statusLower = p.status.toLowerCase();
+    // No considerar finalizados ni cancelados
+    if (statusLower.includes('cancelada') || statusLower.includes('finalizada')) {
+      return false;
+    }
+    
+    // Debe tener tareas pendientes
+    const hasPendingTasks = (p.totalTasks || 0) > (p.completedTasks || 0);
+    if (!hasPendingTasks) {
+      return false;
+    }
+    
+    // Si tiene fecha de inicio en terreno, debe haber pasado
+    if (p.fieldStartDate && p.fieldStartDate !== '-') {
+      const startDate = new Date(p.fieldStartDate);
+      startDate.setHours(0, 0, 0, 0);
+      return startDate < today;
+    }
+    
+    // Si no tiene fecha de inicio, considerar atrasado si tiene más de 30 días desde creación
+    const created = new Date(p.createdAt);
+    created.setHours(0, 0, 0, 0);
+    const diffInDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+    return diffInDays > 30;
+  }).length;
+  
   // Calcular tiempo promedio de proyectos finalizados (en días)
   const finishedProjects = projects.filter(p => p.status.toLowerCase().includes('finalizada'));
   const averageDuration = finishedProjects.length > 0
@@ -385,7 +415,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
@@ -445,6 +475,19 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
                 <span className="material-symbols-outlined text-orange-600 text-2xl">pending_actions</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Proyectos Atrasados</p>
+                <p className="text-2xl font-bold text-red-600 mt-1">{overdueProjects}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Con retraso</p>
+              </div>
+              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <span className="material-symbols-outlined text-red-600 text-2xl">warning</span>
               </div>
             </div>
           </div>

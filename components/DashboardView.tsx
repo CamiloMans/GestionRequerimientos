@@ -30,19 +30,20 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
   const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   
   // Datos para gráfico de evolución de actividad (según tabla proporcionada)
+  // Las atrasadas están incluidas dentro de las pendientes
   const activityData = [
-    { mes: 'Ene', solicitudes: 46, completadas: 38, pendientes: 7, cumplimiento: Math.round((38 / 46) * 100) },
-    { mes: 'Feb', solicitudes: 53, completadas: 44, pendientes: 8, cumplimiento: Math.round((44 / 53) * 100) },
-    { mes: 'Mar', solicitudes: 38, completadas: 31, pendientes: 6, cumplimiento: Math.round((31 / 38) * 100) },
-    { mes: 'Abr', solicitudes: 61, completadas: 52, pendientes: 9, cumplimiento: Math.round((52 / 61) * 100) },
-    { mes: 'May', solicitudes: 55, completadas: 47, pendientes: 8, cumplimiento: Math.round((47 / 55) * 100) },
-    { mes: 'Jun', solicitudes: 49, completadas: 41, pendientes: 7, cumplimiento: Math.round((41 / 49) * 100) },
-    { mes: 'Jul', solicitudes: 58, completadas: 50, pendientes: 8, cumplimiento: Math.round((50 / 58) * 100) },
-    { mes: 'Ago', solicitudes: 62, completadas: 54, pendientes: 8, cumplimiento: Math.round((54 / 62) * 100) },
-    { mes: 'Sep', solicitudes: 49, completadas: 42, pendientes: 7, cumplimiento: Math.round((42 / 49) * 100) },
-    { mes: 'Oct', solicitudes: 54, completadas: 46, pendientes: 8, cumplimiento: Math.round((46 / 54) * 100) },
-    { mes: 'Nov', solicitudes: 47, completadas: 40, pendientes: 7, cumplimiento: Math.round((40 / 47) * 100) },
-    { mes: 'Dic', solicitudes: 51, completadas: 44, pendientes: 7, cumplimiento: Math.round((44 / 51) * 100) },
+    { mes: 'Ene', solicitudes: 46, completadas: 38, pendientes: 7, atrasadas: 3, cumplimiento: Math.round((38 / 46) * 100) },
+    { mes: 'Feb', solicitudes: 53, completadas: 44, pendientes: 8, atrasadas: 3, cumplimiento: Math.round((44 / 53) * 100) },
+    { mes: 'Mar', solicitudes: 38, completadas: 31, pendientes: 6, atrasadas: 2, cumplimiento: Math.round((31 / 38) * 100) },
+    { mes: 'Abr', solicitudes: 61, completadas: 52, pendientes: 9, atrasadas: 4, cumplimiento: Math.round((52 / 61) * 100) },
+    { mes: 'May', solicitudes: 55, completadas: 47, pendientes: 8, atrasadas: 3, cumplimiento: Math.round((47 / 55) * 100) },
+    { mes: 'Jun', solicitudes: 49, completadas: 41, pendientes: 7, atrasadas: 3, cumplimiento: Math.round((41 / 49) * 100) },
+    { mes: 'Jul', solicitudes: 58, completadas: 50, pendientes: 8, atrasadas: 3, cumplimiento: Math.round((50 / 58) * 100) },
+    { mes: 'Ago', solicitudes: 62, completadas: 54, pendientes: 8, atrasadas: 3, cumplimiento: Math.round((54 / 62) * 100) },
+    { mes: 'Sep', solicitudes: 49, completadas: 42, pendientes: 7, atrasadas: 2, cumplimiento: Math.round((42 / 49) * 100) },
+    { mes: 'Oct', solicitudes: 54, completadas: 46, pendientes: 8, atrasadas: 3, cumplimiento: Math.round((46 / 54) * 100) },
+    { mes: 'Nov', solicitudes: 47, completadas: 40, pendientes: 7, atrasadas: 3, cumplimiento: Math.round((40 / 47) * 100) },
+    { mes: 'Dic', solicitudes: 51, completadas: 44, pendientes: 7, atrasadas: 2, cumplimiento: Math.round((44 / 51) * 100) },
   ];
 
   // Custom Tooltip para el gráfico
@@ -192,6 +193,10 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
               <stop offset="5%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0.3} />
               <stop offset="95%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0} />
             </linearGradient>
+            <linearGradient id="colorAtrasadas" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(0, 90%, 40%)" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="hsl(0, 90%, 40%)" stopOpacity={0} />
+            </linearGradient>
           </defs>
           <CartesianGrid 
             strokeDasharray="3 3" 
@@ -250,6 +255,17 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
             dot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 0, r: 0 }}
             activeDot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 3, stroke: 'white', r: 6 }}
           />
+          <Area
+            type="monotone"
+            dataKey="atrasadas"
+            name="Atrasadas"
+            stroke="hsl(0, 90%, 40%)"
+            strokeWidth={2.5}
+            fillOpacity={1}
+            fill="url(#colorAtrasadas)"
+            dot={{ fill: 'hsl(0, 90%, 40%)', strokeWidth: 0, r: 0 }}
+            activeDot={{ fill: 'hsl(0, 90%, 40%)', strokeWidth: 3, stroke: 'white', r: 6 }}
+          />
           <Line
             type="monotone"
             dataKey="cumplimiento"
@@ -299,6 +315,14 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
     { mes: 'Dic', promedio: 15, minimo: 6, maximo: 28 },
   ];
 
+  // Calcular total de atrasadas (suma del último mes)
+  const totalAtrasadas = activityData.reduce((acc, item) => acc + item.atrasadas, 0);
+  const ultimoMesAtrasadas = activityData[activityData.length - 1]?.atrasadas || 0;
+  const mesAnteriorAtrasadas = activityData[activityData.length - 2]?.atrasadas || 0;
+  const cambioAtrasadas = mesAnteriorAtrasadas > 0 
+    ? `${ultimoMesAtrasadas > mesAnteriorAtrasadas ? '+' : ''}${Math.round(((ultimoMesAtrasadas - mesAnteriorAtrasadas) / mesAnteriorAtrasadas) * 100)}%`
+    : '0%';
+
   // KPIs principales
   const stats = [
     {
@@ -324,6 +348,14 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
       positive: false,
       icon: 'pending',
       iconBg: 'bg-amber-500',
+    },
+    {
+      title: 'Solicitudes Atrasadas',
+      value: ultimoMesAtrasadas.toString(),
+      change: cambioAtrasadas,
+      positive: ultimoMesAtrasadas <= mesAnteriorAtrasadas,
+      icon: 'warning',
+      iconBg: 'bg-red-600',
     },
     {
       title: 'Tiempo Promedio',
@@ -411,7 +443,7 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           {stats.map((stat, index) => (
             <div
               key={index}
@@ -557,7 +589,7 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                     Evolución de Actividad
                   </h3>
                   <p className="text-sm text-gray-500">
-                    Tendencias mensuales de solicitudes, completadas y pendientes
+                    Tendencias mensuales de solicitudes, completadas, pendientes y atrasadas
                   </p>
                 </div>
                 <button
@@ -568,7 +600,7 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                   <span className="material-symbols-outlined text-xl">open_in_full</span>
                 </button>
               </div>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6 flex-wrap">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-[hsl(243,75%,59%)]" />
                   <span className="text-sm text-gray-600">Solicitudes</span>
@@ -580,6 +612,10 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-[hsl(4,90%,58%)]" />
                   <span className="text-sm text-gray-600">Pendientes</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[hsl(0,90%,40%)]" />
+                  <span className="text-sm text-gray-600">Atrasadas</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-yellow-500" />
@@ -710,20 +746,20 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Solicitudes</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Completadas</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Pendientes</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Atrasadas</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Tasa de Éxito</th>
                 </tr>
               </thead>
               <tbody>
-                {barData.map((item, index) => {
-                  const completed = Math.round(item.solicitudes * 0.85);
-                  const pending = item.solicitudes - completed;
-                  const successRate = ((completed / item.solicitudes) * 100).toFixed(1);
+                {activityData.map((item, index) => {
+                  const successRate = ((item.completadas / item.solicitudes) * 100).toFixed(1);
                   return (
                     <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                       <td className="py-3 px-4 text-sm text-gray-700 font-medium">{item.mes}</td>
                       <td className="py-3 px-4 text-sm text-[#111318]">{item.solicitudes}</td>
-                      <td className="py-3 px-4 text-sm text-emerald-600 font-medium">{completed}</td>
-                      <td className="py-3 px-4 text-sm text-amber-600 font-medium">{pending}</td>
+                      <td className="py-3 px-4 text-sm text-emerald-600 font-medium">{item.completadas}</td>
+                      <td className="py-3 px-4 text-sm text-amber-600 font-medium">{item.pendientes}</td>
+                      <td className="py-3 px-4 text-sm text-red-600 font-medium">{item.atrasadas}</td>
                       <td className="py-3 px-4 text-sm">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-[#111318]">{successRate}%</span>
@@ -760,7 +796,7 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                   <div>
                     <h2 className="text-lg font-bold text-white">Evolución de Actividad</h2>
                     <p className="text-xs text-emerald-100 mt-0.5">
-                      Tendencias mensuales de solicitudes, completadas y pendientes
+                      Tendencias mensuales de solicitudes, completadas, pendientes y atrasadas
                     </p>
                   </div>
                 </div>
@@ -788,6 +824,10 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                   <span className="text-sm text-gray-600 font-medium">Pendientes</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[hsl(0,90%,40%)]" />
+                  <span className="text-sm text-gray-600 font-medium">Atrasadas</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-yellow-500" />
                   <span className="text-sm text-gray-600 font-medium">Cumplimiento</span>
                 </div>
@@ -813,6 +853,10 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                         <linearGradient id="colorPendientesModal" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="hsl(4, 90%, 58%)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorAtrasadasModal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(0, 90%, 40%)" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="hsl(0, 90%, 40%)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid 
@@ -871,6 +915,17 @@ const DashboardView: React.FC<DashboardViewProps> = () => {
                         fill="url(#colorPendientesModal)"
                         dot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 0, r: 0 }}
                         activeDot={{ fill: 'hsl(4, 90%, 58%)', strokeWidth: 4, stroke: 'white', r: 8 }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="atrasadas"
+                        name="Atrasadas"
+                        stroke="hsl(0, 90%, 40%)"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorAtrasadasModal)"
+                        dot={{ fill: 'hsl(0, 90%, 40%)', strokeWidth: 0, r: 0 }}
+                        activeDot={{ fill: 'hsl(0, 90%, 40%)', strokeWidth: 4, stroke: 'white', r: 8 }}
                       />
                       <Line
                         type="monotone"
