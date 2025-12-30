@@ -347,10 +347,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     setDocumentoSeleccionado(null);
   };
 
-  // Función para manejar la selección de documentos (solo uno, y no "Vencida")
-  const handleToggleDocumentoSeleccionado = (documentoId: string, estado: string) => {
-    // No permitir seleccionar documentos en estado "Vencida"
-    if (estado === 'Vencida') {
+  // Función para manejar la selección de documentos (solo uno, y no "Vencida" o "Sin documento")
+  const handleToggleDocumentoSeleccionado = (documentoId: string, estado: string, tieneLink: boolean) => {
+    // No permitir seleccionar documentos en estado "Vencida" o "Sin documento"
+    if (estado === 'Vencida' || estado === 'Sin documento' || !tieneLink) {
       return;
     }
     
@@ -1341,24 +1341,26 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                     <tbody className="divide-y divide-gray-100">
                       {documentosPersona.map((doc) => {
                         const esVencida = doc.status === 'Vencida';
+                        const esSinDocumento = doc.status === 'Sin documento' || !doc.link;
                         const estaSeleccionado = documentoSeleccionado === doc.id;
-                        const puedeSeleccionar = !esVencida;
+                        const puedeSeleccionar = !esVencida && !esSinDocumento;
+                        const estaDeshabilitado = esVencida || esSinDocumento;
                         
                         return (
                         <tr 
                           key={doc.id} 
                           className={`transition-colors ${
-                            estaSeleccionado ? 'bg-blue-50' : esVencida ? 'opacity-50 bg-gray-50' : 'hover:bg-gray-50'
+                            estaSeleccionado ? 'bg-blue-50' : estaDeshabilitado ? 'opacity-50 bg-gray-50' : 'hover:bg-gray-50'
                           } ${puedeSeleccionar ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                          onClick={() => puedeSeleccionar && handleToggleDocumentoSeleccionado(doc.id, doc.status)}
+                          onClick={() => puedeSeleccionar && handleToggleDocumentoSeleccionado(doc.id, doc.status, !!doc.link)}
                         >
                           <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="radio"
                               name="documentoSeleccionado"
                               checked={estaSeleccionado}
-                              onChange={() => puedeSeleccionar && handleToggleDocumentoSeleccionado(doc.id, doc.status)}
-                              disabled={esVencida}
+                              onChange={() => puedeSeleccionar && handleToggleDocumentoSeleccionado(doc.id, doc.status, !!doc.link)}
+                              disabled={estaDeshabilitado}
                               className="w-4 h-4 text-primary border-gray-300 focus:ring-primary cursor-pointer disabled:cursor-not-allowed"
                               onClick={(e) => e.stopPropagation()}
                             />
