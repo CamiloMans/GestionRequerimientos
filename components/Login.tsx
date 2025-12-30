@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -7,34 +8,30 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Manejar el callback de OAuth después de la redirección
-    const handleAuthCallback = async () => {
+    // Verificar si ya hay una sesión activa
+    const checkUser = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error obteniendo sesión:', error);
-          setError('Error al verificar la sesión. Por favor, intente nuevamente.');
-        } else if (session?.user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
           setUser(session.user);
+          // Si ya está autenticado, redirigir a la app
+          navigate('/app', { replace: true });
           if (onLoginSuccess) {
             onLoginSuccess();
           }
         }
-      } catch (err) {
-        console.error('Error en callback de autenticación:', err);
+      } catch (error) {
+        console.error('Error verificando usuario:', error);
       }
     };
 
-    // Verificar si ya hay una sesión activa
     checkUser();
-    
-    // Manejar el callback de OAuth
-    handleAuthCallback();
     
     // Escuchar cambios en la autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -42,6 +39,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       if (session?.user) {
         setUser(session.user);
         setLoading(false);
+        navigate('/app', { replace: true });
         if (onLoginSuccess) {
           onLoginSuccess();
         }
@@ -54,28 +52,15 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [onLoginSuccess]);
-
-  const checkUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user && onLoginSuccess) {
-        onLoginSuccess();
-      }
-    } catch (error) {
-      console.error('Error verificando usuario:', error);
-    }
-  };
+  }, [navigate, onLoginSuccess]);
 
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Obtener la URL de redirección correcta
-      // En producción, usar la URL actual; en desarrollo, usar localhost
-      const redirectUrl = window.location.origin + window.location.pathname;
+      // Redirigir al callback de autenticación después de OAuth
+      const redirectUrl = `${window.location.origin}/auth/callback`;
       
       console.log('🔗 URL de redirección:', redirectUrl);
 
@@ -105,73 +90,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null);
-    } catch (err: any) {
-      console.error('Error al cerrar sesión:', err);
-      setError(err.message || 'Error al cerrar sesión.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // Si el usuario ya está autenticado, mostrar información
+  // Si el usuario ya está autenticado, no mostrar el formulario (será redirigido)
   if (user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50 px-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-          <div className="text-center mb-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-teal-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="material-symbols-outlined text-white text-4xl">check_circle</span>
-            </div>
-            <h2 className="text-2xl font-bold text-[#111318] mb-2">Sesión Iniciada</h2>
-            <p className="text-[#616f89]">Has iniciado sesión correctamente</p>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-3">
-              {user.user_metadata?.avatar_url && (
-                <img
-                  src={user.user_metadata.avatar_url}
-                  alt="Avatar"
-                  className="w-12 h-12 rounded-full"
-                />
-              )}
-              <div className="flex-1">
-                <p className="font-semibold text-[#111318]">
-                  {user.user_metadata?.full_name || user.email}
-                </p>
-                <p className="text-sm text-[#616f89]">{user.email}</p>
-                {user.user_metadata?.hd && (
-                  <p className="text-xs text-teal-600 mt-1">
-                    Organización: {user.user_metadata.hd}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            disabled={loading}
-            className="w-full py-3 px-4 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Cerrando sesión...</span>
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined">logout</span>
-                <span>Cerrar Sesión</span>
-              </>
-            )}
-          </button>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mb-4"></div>
+          <p className="text-gray-600">Redirigiendo...</p>
         </div>
       </div>
     );
