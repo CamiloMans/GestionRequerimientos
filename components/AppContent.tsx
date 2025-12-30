@@ -11,6 +11,8 @@ import {
   fetchPersonaRequerimientos, 
   createPersonaRequerimiento, 
   updatePersonaRequerimiento,
+  deletePersonaRequerimiento,
+  checkUserIsAdmin,
   fetchProjectGalleryItems
 } from '../services/supabaseService';
 
@@ -124,6 +126,35 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!editingItem || !editingItem.id) {
+      return;
+    }
+
+    try {
+      // Verificar si el usuario es admin
+      const isAdmin = await checkUserIsAdmin();
+      
+      if (!isAdmin) {
+        alert('No tienes permisos para eliminar registros. Solo los administradores pueden realizar esta acción.');
+        return;
+      }
+      
+      // Eliminar el registro (solo admin puede hacerlo)
+      await deletePersonaRequerimiento(parseInt(editingItem.id));
+      
+      console.log('✅ Registro eliminado (usuario admin)');
+      
+      // Recargar la lista
+      await loadRequests();
+      setEditingItem(null);
+      navigate('/app/requests');
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      alert('Error al eliminar la solicitud. Por favor, intente nuevamente.');
+    }
+  };
+
   // Determinar la vista activa basada en la ruta
   const getActiveView = (): 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'login' => {
     const path = location.pathname;
@@ -197,7 +228,8 @@ const AppContent: React.FC = () => {
               editingItem ? (
                 <RequestForm 
                   onBack={() => navigate('/app/requests')} 
-                  onSave={handleSave} 
+                  onSave={handleSave}
+                  onDelete={handleDelete}
                   initialData={editingItem}
                 />
               ) : (

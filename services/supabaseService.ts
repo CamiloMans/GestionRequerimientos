@@ -348,7 +348,31 @@ export const updatePersonaRequerimiento = async (
   return data;
 };
 
-// Función para eliminar un registro (opcional)
+// Función para verificar si el usuario actual es admin
+export const checkUserIsAdmin = async (): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Error checking user role:', error);
+      return false;
+    }
+
+    return data?.role === 'admin';
+  } catch (error) {
+    console.error('Error checking if user is admin:', error);
+    return false;
+  }
+};
+
+// Función para eliminar un registro (solo admin puede eliminar)
 export const deletePersonaRequerimiento = async (id: number): Promise<void> => {
   const { error } = await supabase
     .from('persona_requerimientos_sst')
