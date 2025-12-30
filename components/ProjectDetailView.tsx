@@ -23,64 +23,6 @@ interface ProjectDetailViewProps {
 }
 
 const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate, onFilterSidebarChange }) => {
-  // Estado del sidebar de filtros
-  const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
-  
-  // Estado para controlar qué dropdown de columna está abierto
-  const [openFilterDropdown, setOpenFilterDropdown] = useState<string | null>(null);
-
-  // Cerrar dropdowns al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (openFilterDropdown && !(event.target as Element).closest('.filter-dropdown-container')) {
-        setOpenFilterDropdown(null);
-      }
-    };
-
-    if (openFilterDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [openFilterDropdown]);
-
-  // Notificar al componente padre cuando el sidebar de filtros cambie
-  useEffect(() => {
-    if (onFilterSidebarChange) {
-      onFilterSidebarChange(isFilterSidebarOpen);
-    }
-  }, [isFilterSidebarOpen, onFilterSidebarChange]);
-
-  // Limpiar notificación cuando el componente se desmonte
-  useEffect(() => {
-    return () => {
-      if (onFilterSidebarChange) {
-        onFilterSidebarChange(false);
-      }
-    };
-  }, [onFilterSidebarChange]);
-
-  // Bloquear scroll del body cuando el sidebar está abierto
-  useEffect(() => {
-    if (isFilterSidebarOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    // Cleanup: restaurar el scroll cuando el componente se desmonte
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isFilterSidebarOpen]);
-  
-  // Estados de filtros
-  const [filterCargo, setFilterCargo] = useState('');
-  const [filterNombreResponsable, setFilterNombreResponsable] = useState('');
-  const [filterNombreTrabajador, setFilterNombreTrabajador] = useState('');
-  const [filterCategoriaEmpresa, setFilterCategoriaEmpresa] = useState('');
-  const [filterRequerimiento, setFilterRequerimiento] = useState('');
-  const [filterCategoria, setFilterCategoria] = useState('');
-  const [filterRealizado, setFilterRealizado] = useState('');
 
   // Estados para el modal de observaciones
   const [observacionesModalOpen, setObservacionesModalOpen] = useState(false);
@@ -140,57 +82,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     }))
   );
 
-  // Filtrar requerimientos
-  const filteredRequirements = requirements.filter(req => {
-    const matchesCargo = filterCargo ? req.responsable === filterCargo : true;
-    const matchesNombreResponsable = filterNombreResponsable ? req.nombre_responsable === filterNombreResponsable : true;
-    const matchesNombreTrabajador = filterNombreTrabajador ? req.nombre_trabajador === filterNombreTrabajador : true;
-    const matchesCategoriaEmpresa = filterCategoriaEmpresa ? req.categoria_empresa === filterCategoriaEmpresa : true;
-    const matchesRequerimiento = filterRequerimiento ? req.requerimiento.toLowerCase().includes(filterRequerimiento.toLowerCase()) : true;
-    const matchesCategoria = filterCategoria ? req.categoria === filterCategoria : true;
-    const matchesRealizado = filterRealizado === '' ? true : 
-      filterRealizado === 'realizado' ? req.realizado : !req.realizado;
-    
-    return matchesCargo && matchesNombreResponsable && matchesNombreTrabajador && 
-           matchesCategoriaEmpresa && matchesRequerimiento && matchesCategoria && matchesRealizado;
-  });
-
-  // Obtener listas únicas para filtros
-  const cargos = Array.from(new Set(requirements.map(r => r.responsable).filter(Boolean)));
-  const nombresResponsables = Array.from(new Set(requirements.map(r => r.nombre_responsable).filter(Boolean)));
-  const nombresTrabajadores = Array.from(new Set(requirements.map(r => r.nombre_trabajador).filter(Boolean)));
-  const categoriasEmpresa = Array.from(new Set(requirements.map(r => r.categoria_empresa).filter(Boolean)));
-  const categorias = Array.from(new Set(requirements.map(r => r.categoria).filter(Boolean)));
-
-  // Handler para toggle de dropdown de filtro
-  const handleFilterToggle = (column: string) => {
-    setOpenFilterDropdown(openFilterDropdown === column ? null : column);
-  };
-
-  // Handler para aplicar filtro desde dropdown
-  const handleFilterSelect = (column: string, value: string) => {
-    switch (column) {
-      case 'cargo':
-        setFilterCargo(filterCargo === value ? '' : value);
-        break;
-      case 'responsable':
-        setFilterNombreResponsable(filterNombreResponsable === value ? '' : value);
-        break;
-      case 'trabajador':
-        setFilterNombreTrabajador(filterNombreTrabajador === value ? '' : value);
-        break;
-      case 'categoria_empresa':
-        setFilterCategoriaEmpresa(filterCategoriaEmpresa === value ? '' : value);
-        break;
-      case 'categoria':
-        setFilterCategoria(filterCategoria === value ? '' : value);
-        break;
-      case 'realizado':
-        setFilterRealizado(filterRealizado === value ? '' : value);
-        break;
-    }
-    setOpenFilterDropdown(null);
-  };
 
   const handleToggleRealizado = async (e: React.MouseEvent, id: number) => {
     // Detener la propagación para evitar que se active el click del contenedor
@@ -228,22 +119,41 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     }
   };
 
-  const clearFilters = () => {
-    setFilterCargo('');
-    setFilterNombreResponsable('');
-    setFilterNombreTrabajador('');
-    setFilterCategoriaEmpresa('');
-    setFilterRequerimiento('');
-    setFilterCategoria('');
-    setFilterRealizado('');
-  };
-
-  const hasActiveFilters = filterCargo || filterNombreResponsable || filterNombreTrabajador || 
-                          filterCategoriaEmpresa || filterRequerimiento || filterCategoria || filterRealizado;
-
   const completedCount = requirements.filter(r => r.realizado).length;
   const totalCount = requirements.length;
   const progressPercentage = (completedCount / totalCount) * 100;
+
+  // Calcular fechas y días
+  const fechaIngreso = project.fieldStartDate || project.createdAt;
+  const fechaIngresoDate = fechaIngreso ? new Date(fechaIngreso) : null;
+  
+  // Días transcurridos desde el ingreso
+  const diasTranscurridos = fechaIngresoDate 
+    ? Math.max(0, Math.floor((new Date().getTime() - fechaIngresoDate.getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  
+  // Días restantes para finalización (estimado basado en tareas pendientes)
+  // Si todas las tareas están completadas, días restantes = 0
+  // Si no, estimamos basándonos en el progreso
+  const tareasPendientes = totalCount - completedCount;
+  const diasRestantesEstimado = tareasPendientes === 0 
+    ? 0 
+    : null; // Por ahora null hasta tener fecha de finalización real
+  
+  // Formatear fecha de ingreso
+  const formatearFecha = (fecha: string | null) => {
+    if (!fecha) return 'N/A';
+    try {
+      const date = new Date(fecha);
+      return date.toLocaleDateString('es-ES', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+      });
+    } catch {
+      return fecha;
+    }
+  };
 
   // Función para manejar el clic en el icono de información
   const handleInfoClick = async (requerimiento: string) => {
@@ -514,12 +424,12 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               {/* Divisor */}
               <div className="w-px h-10 bg-gray-300 mx-2"></div>
               
-              {/* Empresa Contratista */}
+              {/* Cliente */}
               <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg px-3 py-2">
                 <span className="material-symbols-outlined text-indigo-600 text-[20px]">business</span>
                 <div>
-                  <p className="text-[10px] text-gray-500 uppercase font-semibold leading-none">Empresa Contratista</p>
-                  <p className="text-sm font-bold text-indigo-900">{project.empresa_nombre || 'Sin asignar'}</p>
+                  <p className="text-[10px] text-gray-500 uppercase font-semibold leading-none">Cliente</p>
+                  <p className="text-sm font-bold text-indigo-900">{project.clientName || 'Sin asignar'}</p>
                 </div>
               </div>
               
@@ -576,39 +486,53 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
         </div>
       </div>
 
-      {/* Barra de Filtros y Estadísticas - Ampliada */}
+      {/* Barra de Estadísticas */}
       <div className="bg-gradient-to-r from-white to-gray-50 border-b border-gray-200 px-6 py-5 shadow-sm">
-        {/* Primera fila: Filtros y Estadísticas Generales */}
+        {/* Primera fila: Estadísticas Generales */}
         <div className="flex items-center justify-between gap-4 mb-4">
-          {/* Izquierda: Filtros */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsFilterSidebarOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 text-base font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 hover:border-primary transition-all shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[20px]">filter_alt</span>
-              <span>Filtros</span>
-              {hasActiveFilters && (
-                <span className="px-2 py-0.5 text-xs font-bold text-white bg-primary rounded-full">
-                  {[filterCargo, filterNombreResponsable, filterNombreTrabajador, filterCategoriaEmpresa, filterRequerimiento, filterCategoria, filterRealizado].filter(Boolean).length}
-                </span>
-              )}
-            </button>
+          {/* Izquierda: Información de Fechas */}
+          <div className="flex items-center gap-8">
+            {/* Fecha de Ingreso */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center border-2 border-indigo-300 shadow-sm">
+                <span className="material-symbols-outlined text-indigo-600 text-[24px]">event</span>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-semibold uppercase">Fecha Ingreso</p>
+                <p className="text-sm font-bold text-gray-900">{formatearFecha(fechaIngreso)}</p>
+              </div>
+            </div>
 
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-                <span>Limpiar</span>
-              </button>
-            )}
+            <div className="w-px h-12 bg-gray-300"></div>
 
-            <div className="text-sm text-gray-500 ml-2">
-              Mostrando <span className="font-bold text-gray-900">{filteredRequirements.length}</span> de <span className="font-bold text-gray-900">{totalCount}</span>
+            {/* Días Transcurridos */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center border-2 border-purple-300 shadow-sm">
+                <span className="material-symbols-outlined text-purple-600 text-[24px]">schedule</span>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-semibold uppercase">Días Transcurridos</p>
+                <p className="text-sm font-bold text-gray-900">{diasTranscurridos} días</p>
+              </div>
+            </div>
+
+            <div className="w-px h-12 bg-gray-300"></div>
+
+            {/* Días Restantes */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center border-2 border-teal-300 shadow-sm">
+                <span className="material-symbols-outlined text-teal-600 text-[24px]">event_available</span>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-semibold uppercase">Días Restantes</p>
+                <p className="text-sm font-bold text-gray-900">
+                  {diasRestantesEstimado !== null ? `${diasRestantesEstimado} días` : 'N/A'}
+                </p>
+              </div>
             </div>
           </div>
+
+          <div className="w-px h-12 bg-gray-300"></div>
 
           {/* Derecha: Estadísticas en línea - Más grandes */}
           <div className="flex items-center gap-8">
@@ -744,237 +668,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
         })()}
       </div>
 
-      {/* Sidebar de Filtros */}
-      {isFilterSidebarOpen && (
-        <>
-          {/* Overlay */}
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-all duration-300"
-            onClick={() => setIsFilterSidebarOpen(false)}
-          />
-          
-          {/* Sidebar */}
-          <div className="fixed top-0 left-0 h-full w-[260px] bg-gradient-to-b from-white to-gray-50 shadow-2xl z-50 flex flex-col animate-slide-in-left">
-            {/* Header del Sidebar */}
-            <div className="bg-gradient-to-br from-primary to-emerald-700 text-white px-4 py-3 shadow-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                    <span className="material-symbols-outlined text-white text-2xl">tune</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold">Filtros Avanzados</h3>
-                    <p className="text-xs text-emerald-100 mt-0.5">
-                      {filteredRequirements.length} resultado{filteredRequirements.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsFilterSidebarOpen(false)}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-all"
-                >
-                  <span className="material-symbols-outlined text-xl">close</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Contenido del Sidebar */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              {/* Sección: Personal */}
-              <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px]">group</span>
-                  Personal
-                </h4>
-                <div className="space-y-2.5">
-                  {/* Filtro por Cargo */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[14px]">badge</span>
-                      Cargo
-                    </label>
-                    <select
-                      value={filterCargo}
-                      onChange={(e) => setFilterCargo(e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
-                    >
-                      <option value="">Todos los Cargos</option>
-                      {cargos.map(cargo => (
-                        <option key={cargo} value={cargo}>{cargo}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Filtro por Nombre Responsable */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[14px]">account_circle</span>
-                      Responsable
-                    </label>
-                    <select
-                      value={filterNombreResponsable}
-                      onChange={(e) => setFilterNombreResponsable(e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
-                    >
-                      <option value="">Todos los Responsables</option>
-                      {nombresResponsables.map(nombre => (
-                        <option key={nombre} value={nombre}>{nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Filtro por Nombre Trabajador */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[14px]">person</span>
-                      Trabajador
-                    </label>
-                    <select
-                      value={filterNombreTrabajador}
-                      onChange={(e) => setFilterNombreTrabajador(e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
-                    >
-                      <option value="">Todos los Trabajadores</option>
-                      {nombresTrabajadores.map(nombre => (
-                        <option key={nombre} value={nombre}>{nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sección: Empresa */}
-              <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px]">business</span>
-                  Empresa
-                </h4>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[14px]">business_center</span>
-                    Categoría Empresa
-                  </label>
-                  <select
-                    value={filterCategoriaEmpresa}
-                    onChange={(e) => setFilterCategoriaEmpresa(e.target.value)}
-                    className="w-full px-2 py-1 border border-gray-300 rounded-md text-[10px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
-                  >
-                    <option value="">Todas las Empresas</option>
-                    {categoriasEmpresa.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Sección: Requerimientos */}
-              <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px]">checklist</span>
-                  Requerimientos
-                </h4>
-                <div className="space-y-2.5">
-                  {/* Filtro por Requerimiento (búsqueda) */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[14px]">search</span>
-                      Buscar Requerimiento
-                    </label>
-                    <div className="relative">
-                      <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[14px]">search</span>
-                      <input
-                        type="text"
-                        value={filterRequerimiento}
-                        onChange={(e) => setFilterRequerimiento(e.target.value)}
-                        placeholder="Escribe para buscar..."
-                        className="w-full pl-7 pr-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Filtro por Categoría */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[14px]">category</span>
-                      Categoría
-                    </label>
-                    <select
-                      value={filterCategoria}
-                      onChange={(e) => setFilterCategoria(e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
-                    >
-                      <option value="">Todas las Categorías</option>
-                      {categorias.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Filtro por Estado */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[14px]">task_alt</span>
-                      Estado
-                    </label>
-                    <select
-                      value={filterRealizado}
-                      onChange={(e) => setFilterRealizado(e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded-md text-[9px] focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white hover:border-gray-400 transition-colors cursor-pointer"
-                    >
-                      <option value="">Todos los Estados</option>
-                      <option value="realizado">✅ Realizados</option>
-                      <option value="pendiente">⏳ Pendientes</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Resumen de Filtros Activos */}
-              {hasActiveFilters && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-amber-600 text-[18px]">info</span>
-                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wide">Filtros Activos</span>
-                  </div>
-                  <div className="space-y-1.5 text-xs">
-                    {filterCargo && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Cargo:</span> {filterCargo}</span></div>}
-                    {filterNombreResponsable && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Responsable:</span> {filterNombreResponsable}</span></div>}
-                    {filterNombreTrabajador && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Trabajador:</span> {filterNombreTrabajador}</span></div>}
-                    {filterCategoriaEmpresa && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Empresa:</span> {filterCategoriaEmpresa}</span></div>}
-                    {filterRequerimiento && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Búsqueda:</span> "{filterRequerimiento}"</span></div>}
-                    {filterCategoria && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Categoría:</span> {filterCategoria}</span></div>}
-                    {filterRealizado && <div className="text-gray-700 flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span><span className="font-semibold">Estado:</span> {filterRealizado === 'realizado' ? 'Realizados' : 'Pendientes'}</span></div>}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Footer con Botones de Acción */}
-            <div className="bg-white border-t border-gray-200 px-6 py-4 shadow-lg">
-              <div className="space-y-2">
-                <button
-                  onClick={() => setIsFilterSidebarOpen(false)}
-                  className="w-full px-4 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-hover rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[18px]">done</span>
-                  Aplicar Filtros
-                </button>
-                
-                {hasActiveFilters && (
-                  <button
-                    onClick={clearFilters}
-                    className="w-full px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all border border-gray-300 flex items-center justify-center gap-2"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-                    Limpiar Filtros
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
       {/* Tabla de Requerimientos */}
       <div className="flex-1 overflow-auto px-6 py-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -983,202 +676,25 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center gap-2 relative filter-dropdown-container">
-                      <span>Cargo</span>
-                      <button
-                        onClick={() => handleFilterToggle('cargo')}
-                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterCargo ? 'text-primary' : 'text-gray-400'}`}
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
-                      </button>
-                      {openFilterDropdown === 'cargo' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
-                          <div className="py-0.5">
-                            <button
-                              onClick={() => handleFilterSelect('cargo', '')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterCargo ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              Todos los Cargos
-                            </button>
-                            {cargos.map(cargo => (
-                              <button
-                                key={cargo}
-                                onClick={() => handleFilterSelect('cargo', cargo)}
-                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterCargo === cargo ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                              >
-                                {cargo}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    Cargo
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center gap-2 relative filter-dropdown-container">
-                      <span>Responsable</span>
-                      <button
-                        onClick={() => handleFilterToggle('responsable')}
-                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterNombreResponsable ? 'text-primary' : 'text-gray-400'}`}
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
-                      </button>
-                      {openFilterDropdown === 'responsable' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
-                          <div className="py-0.5">
-                            <button
-                              onClick={() => handleFilterSelect('responsable', '')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterNombreResponsable ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              Todos los Responsables
-                            </button>
-                            {nombresResponsables.map(nombre => (
-                              <button
-                                key={nombre}
-                                onClick={() => handleFilterSelect('responsable', nombre)}
-                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterNombreResponsable === nombre ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                              >
-                                {nombre}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    Responsable
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center gap-2 relative filter-dropdown-container">
-                      <span>Nombre Trabajador</span>
-                      <button
-                        onClick={() => handleFilterToggle('trabajador')}
-                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterNombreTrabajador ? 'text-primary' : 'text-gray-400'}`}
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
-                      </button>
-                      {openFilterDropdown === 'trabajador' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
-                          <div className="py-0.5">
-                            <button
-                              onClick={() => handleFilterSelect('trabajador', '')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterNombreTrabajador ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              Todos los Trabajadores
-                            </button>
-                            {nombresTrabajadores.map(nombre => (
-                              <button
-                                key={nombre}
-                                onClick={() => handleFilterSelect('trabajador', nombre)}
-                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterNombreTrabajador === nombre ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                              >
-                                {nombre}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    Nombre Trabajador
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center gap-2 relative filter-dropdown-container">
-                      <span>Categoría Empresa</span>
-                      <button
-                        onClick={() => handleFilterToggle('categoria_empresa')}
-                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterCategoriaEmpresa ? 'text-primary' : 'text-gray-400'}`}
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
-                      </button>
-                      {openFilterDropdown === 'categoria_empresa' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
-                          <div className="py-0.5">
-                            <button
-                              onClick={() => handleFilterSelect('categoria_empresa', '')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterCategoriaEmpresa ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              Todas las Empresas
-                            </button>
-                            {categoriasEmpresa.map(cat => (
-                              <button
-                                key={cat}
-                                onClick={() => handleFilterSelect('categoria_empresa', cat)}
-                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterCategoriaEmpresa === cat ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                              >
-                                {cat}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    Categoría Empresa
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Requerimiento
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center gap-2 relative filter-dropdown-container">
-                      <span>Categoría</span>
-                      <button
-                        onClick={() => handleFilterToggle('categoria')}
-                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterCategoria ? 'text-primary' : 'text-gray-400'}`}
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
-                      </button>
-                      {openFilterDropdown === 'categoria' && (
-                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
-                          <div className="py-0.5">
-                            <button
-                              onClick={() => handleFilterSelect('categoria', '')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterCategoria ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              Todas las Categorías
-                            </button>
-                            {categorias.map(cat => (
-                              <button
-                                key={cat}
-                                onClick={() => handleFilterSelect('categoria', cat)}
-                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterCategoria === cat ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                              >
-                                {cat}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    Categoría
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    <div className="flex items-center justify-center gap-2 relative filter-dropdown-container">
-                      <span>Realizado</span>
-                      <button
-                        onClick={() => handleFilterToggle('realizado')}
-                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterRealizado ? 'text-primary' : 'text-gray-400'}`}
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
-                      </button>
-                      {openFilterDropdown === 'realizado' && (
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto">
-                          <div className="py-0.5">
-                            <button
-                              onClick={() => handleFilterSelect('realizado', '')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterRealizado ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              Todos los Estados
-                            </button>
-                            <button
-                              onClick={() => handleFilterSelect('realizado', 'realizado')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterRealizado === 'realizado' ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              ✅ Realizados
-                            </button>
-                            <button
-                              onClick={() => handleFilterSelect('realizado', 'pendiente')}
-                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterRealizado === 'pendiente' ? 'bg-blue-50 text-primary font-semibold' : ''}`}
-                            >
-                              ⏳ Pendientes
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    Realizado
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Fecha Finalizada
@@ -1186,8 +702,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredRequirements.length > 0 ? (
-                  filteredRequirements.map((req) => {
+                {requirements.length > 0 ? (
+                  requirements.map((req) => {
                     // Colores según el cargo
                     const cargoColors = {
                       'JPRO': 'bg-blue-100 text-blue-700 border-blue-300',
