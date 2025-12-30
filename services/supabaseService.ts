@@ -445,7 +445,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
       
       // Si no hay tareas en la BD, usar las generadas por defecto
       if (totalTasks === 0) {
-        const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente';
+        const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Por asignar requerimientos';
         projectTasks = generateProjectTasks(
           solicitud.id,
           !!solicitud.jpro_id,
@@ -461,7 +461,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
     } catch (error) {
       console.error('Error cargando requerimientos del proyecto:', error);
       // Si hay error, usar tareas generadas por defecto
-      const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente';
+      const projectStatus = solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Por asignar requerimientos';
       projectTasks = generateProjectTasks(
         solicitud.id,
         !!solicitud.jpro_id,
@@ -484,7 +484,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
       fieldStartDate: solicitud.fecha_inicio_terreno || solicitud.fecha_solicitud,
       totalWorkers: allWorkers.length,
       totalVehicles: totalVehicles,
-      status: solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Pendiente',
+      status: solicitud.estado_solicitud_acreditacion || solicitud.estado || 'Por asignar requerimientos',
       workers: allWorkers,
       createdAt: solicitud.created_at,
       // Progreso de tareas
@@ -1065,12 +1065,25 @@ export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string)
 export const updateRequerimientoEstado = async (
   id: number,
   estado: string
-): Promise<void> => {
+): Promise<{ allCompleted: boolean; codigoProyecto?: string; proyectoEstadoCambio?: string }> => {
   const updateData = {
     estado: estado,
     updated_at: new Date().toISOString()
   };
 
+  // Primero, obtener el requerimiento para saber el código del proyecto
+  const { data: requerimiento, error: fetchError } = await supabase
+    .from('proyecto_requerimientos_acreditacion')
+    .select('codigo_proyecto, id_proyecto')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) {
+    console.error('❌ Error obteniendo requerimiento:', fetchError);
+    throw fetchError;
+  }
+
+  // Actualizar el requerimiento
   const { error } = await supabase
     .from('proyecto_requerimientos_acreditacion')
     .update(updateData)
@@ -1082,6 +1095,86 @@ export const updateRequerimientoEstado = async (
   }
   
   console.log(`✅ Requerimiento ${id} actualizado a ${estado}`);
+
+  // Verificar y actualizar el estado del proyecto según los requerimientos
+  let allCompleted = false;
+  let nuevoEstadoProyecto: string | undefined = undefined;
+  
+  if (requerimiento?.codigo_proyecto && requerimiento.id_proyecto) {
+    try {
+      // Obtener el estado actual del proyecto
+      const { data: proyectoActual, error: proyectoError } = await supabase
+        .from('solicitud_acreditacion')
+        .select('estado_solicitud_acreditacion')
+        .eq('id', requerimiento.id_proyecto)
+        .single();
+
+      if (proyectoError) {
+        console.error('❌ Error obteniendo estado del proyecto:', proyectoError);
+      }
+
+      // Obtener todos los requerimientos del proyecto
+      const { data: todosRequerimientos, error: reqError } = await supabase
+        .from('proyecto_requerimientos_acreditacion')
+        .select('estado')
+        .eq('codigo_proyecto', requerimiento.codigo_proyecto);
+
+      if (reqError) {
+        console.error('❌ Error obteniendo requerimientos del proyecto:', reqError);
+        return { allCompleted: false, codigoProyecto: requerimiento?.codigo_proyecto };
+      }
+
+      // Verificar si todos están completados
+      allCompleted = todosRequerimientos && todosRequerimientos.length > 0 &&
+        todosRequerimientos.every(req => req.estado === 'Completado');
+
+      const estadoProyectoActual = proyectoActual?.estado_solicitud_acreditacion?.toLowerCase() || '';
+
+      // Si todos están completados y el proyecto no está en "Finalizado", actualizar a "Finalizado"
+      if (allCompleted && !estadoProyectoActual.includes('finalizado')) {
+        nuevoEstadoProyecto = 'Finalizado';
+        const { error: updateProyectoError } = await supabase
+          .from('solicitud_acreditacion')
+          .update({ 
+            estado_solicitud_acreditacion: nuevoEstadoProyecto,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', requerimiento.id_proyecto);
+
+        if (updateProyectoError) {
+          console.error('❌ Error actualizando estado del proyecto:', updateProyectoError);
+        } else {
+          console.log(`✅ Proyecto ${requerimiento.codigo_proyecto} actualizado a "Finalizado" - Todos los requerimientos están completados`);
+        }
+      }
+      // Si NO todos están completados y el proyecto está en "Finalizado", cambiar a "En proceso"
+      else if (!allCompleted && estadoProyectoActual.includes('finalizado')) {
+        nuevoEstadoProyecto = 'En proceso';
+        const { error: updateProyectoError } = await supabase
+          .from('solicitud_acreditacion')
+          .update({ 
+            estado_solicitud_acreditacion: nuevoEstadoProyecto,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', requerimiento.id_proyecto);
+
+        if (updateProyectoError) {
+          console.error('❌ Error actualizando estado del proyecto:', updateProyectoError);
+        } else {
+          console.log(`✅ Proyecto ${requerimiento.codigo_proyecto} actualizado a "En proceso" - Ya no todos los requerimientos están completados`);
+        }
+      }
+    } catch (checkError) {
+      console.error('❌ Error verificando estado del proyecto:', checkError);
+      // No fallar la actualización del requerimiento si falla la verificación del proyecto
+    }
+  }
+
+  return { 
+    allCompleted, 
+    codigoProyecto: requerimiento?.codigo_proyecto,
+    proyectoEstadoCambio: nuevoEstadoProyecto
+  };
 };
 
 // Función para actualizar los nombres de responsables en los requerimientos del proyecto

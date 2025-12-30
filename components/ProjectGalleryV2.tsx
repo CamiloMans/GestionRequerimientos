@@ -66,40 +66,46 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
 
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
-    // Pendiente - Amarillo/Ámbar (aún no iniciado)
-    if (statusLower.includes('pendiente')) return 'bg-amber-100 text-amber-700 border-amber-200';
+    // Por asignar requerimientos - Amarillo/Ámbar (aún no iniciado)
+    if (statusLower.includes('por asignar requerimientos')) return 'bg-amber-100 text-amber-700 border-amber-200';
     // En proceso - Azul (trabajo en progreso)
     if (statusLower.includes('proceso')) return 'bg-blue-100 text-blue-700 border-blue-200';
-    // Finalizada/Finalizado - Verde (completado exitosamente)
-    if (statusLower.includes('finalizada') || statusLower.includes('finalizado')) return 'bg-green-100 text-green-700 border-green-200';
-    // Cancelada - Rojo (detenido/cancelado)
-    if (statusLower.includes('cancelada')) return 'bg-red-100 text-red-700 border-red-200';
+    // Finalizado - Verde (completado exitosamente)
+    if (statusLower.includes('finalizado')) return 'bg-green-100 text-green-700 border-green-200';
+    // Cancelado - Rojo (detenido/cancelado)
+    if (statusLower.includes('cancelado')) return 'bg-red-100 text-red-700 border-red-200';
+    // Atrasado - Naranja (proyecto con retraso)
+    if (statusLower.includes('atrasado')) return 'bg-orange-100 text-orange-700 border-orange-200';
     return 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
   const getProjectBorderColor = (status: string) => {
     const statusLower = status.toLowerCase();
-    // Pendiente - Amarillo/Ámbar
-    if (statusLower.includes('pendiente')) return 'border-amber-500 bg-amber-50';
+    // Por asignar requerimientos - Amarillo/Ámbar
+    if (statusLower.includes('por asignar requerimientos')) return 'border-amber-500 bg-amber-50';
     // En proceso - Azul
     if (statusLower.includes('proceso')) return 'border-blue-500 bg-blue-50';
-    // Finalizada/Finalizado - Verde
-    if (statusLower.includes('finalizada') || statusLower.includes('finalizado')) return 'border-green-500 bg-green-50';
-    // Cancelada - Rojo
-    if (statusLower.includes('cancelada')) return 'border-red-500 bg-red-50';
+    // Finalizado - Verde
+    if (statusLower.includes('finalizado')) return 'border-green-500 bg-green-50';
+    // Cancelado - Rojo
+    if (statusLower.includes('cancelado')) return 'border-red-500 bg-red-50';
+    // Atrasado - Naranja
+    if (statusLower.includes('atrasado')) return 'border-orange-500 bg-orange-50';
     return 'border-gray-500 bg-gray-50';
   };
 
   const getLeftBorderColor = (status: string) => {
     const statusLower = status.toLowerCase();
-    // Pendiente - Amarillo/Ámbar
-    if (statusLower.includes('pendiente')) return 'border-l-4 border-l-amber-500';
+    // Por asignar requerimientos - Amarillo/Ámbar
+    if (statusLower.includes('por asignar requerimientos')) return 'border-l-4 border-l-amber-500';
     // En proceso - Azul
     if (statusLower.includes('proceso')) return 'border-l-4 border-l-blue-500';
-    // Finalizada/Finalizado - Verde
-    if (statusLower.includes('finalizada') || statusLower.includes('finalizado')) return 'border-l-4 border-l-green-500';
-    // Cancelada - Rojo
-    if (statusLower.includes('cancelada')) return 'border-l-4 border-l-red-500';
+    // Finalizado - Verde
+    if (statusLower.includes('finalizado')) return 'border-l-4 border-l-green-500';
+    // Cancelado - Rojo
+    if (statusLower.includes('cancelado')) return 'border-l-4 border-l-red-500';
+    // Atrasado - Naranja
+    if (statusLower.includes('atrasado')) return 'border-l-4 border-l-orange-500';
     return 'border-l-4 border-l-gray-500';
   };
 
@@ -125,8 +131,8 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     
     const statusLower = project.status.toLowerCase();
     
-    // Si el proyecto está en estado "Pendiente", abre la vista de selección de empresa
-    if (statusLower.includes('pendiente')) {
+    // Si el proyecto está en estado "Por asignar requerimientos", abre la vista de selección de empresa
+    if (statusLower.includes('por asignar requerimientos')) {
       setShowCompanyView(true);
     }
     // Si el proyecto está en estado "Por asignar responsables", abre el modal de asignación
@@ -341,7 +347,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   // Proyectos activos = todos los que NO estén cancelados ni finalizados
   const activeProjects = projects.filter(p => {
     const statusLower = p.status.toLowerCase();
-    return !statusLower.includes('cancelada') && !statusLower.includes('finalizada');
+    return !statusLower.includes('cancelado') && !statusLower.includes('finalizado');
   }).length;
   
   // Calcular proyectos atrasados: activos, con tareas pendientes, y cuya fecha de inicio ya pasó
@@ -350,7 +356,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const overdueProjects = projects.filter(p => {
     const statusLower = p.status.toLowerCase();
     // No considerar finalizados ni cancelados
-    if (statusLower.includes('cancelada') || statusLower.includes('finalizada')) {
+    if (statusLower.includes('cancelado') || statusLower.includes('finalizado')) {
       return false;
     }
     
@@ -375,7 +381,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   }).length;
   
   // Calcular tiempo promedio de proyectos finalizados (en días)
-  const finishedProjects = projects.filter(p => p.status.toLowerCase().includes('finalizada'));
+  const finishedProjects = projects.filter(p => p.status.toLowerCase().includes('finalizado'));
   const averageDuration = finishedProjects.length > 0
     ? Math.round(
         finishedProjects.reduce((sum, p) => {
@@ -527,11 +533,12 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                 className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
               >
                 <option value="">Todos los estados</option>
-                <option value="Pendiente">Pendiente</option>
+                <option value="Por asignar requerimientos">Por asignar requerimientos</option>
                 <option value="Por asignar responsables">Por asignar responsables</option>
                 <option value="En proceso">En proceso</option>
-                <option value="Finalizada">Finalizada</option>
-                <option value="Cancelada">Cancelada</option>
+                <option value="Finalizado">Finalizado</option>
+                <option value="Cancelado">Cancelado</option>
+                <option value="Atrasado">Atrasado</option>
               </select>
             </div>
 
@@ -567,10 +574,11 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
               // Determinar color de hover según el estado
               const getHoverColor = () => {
                 const statusLower = project.status.toLowerCase();
-                if (statusLower.includes('pendiente')) return 'group-hover:to-amber-50';
+                if (statusLower.includes('por asignar requerimientos')) return 'group-hover:to-amber-50';
                 if (statusLower.includes('proceso')) return 'group-hover:to-blue-50';
-                if (statusLower.includes('finalizada')) return 'group-hover:to-green-50';
-                if (statusLower.includes('cancelada')) return 'group-hover:to-red-50';
+                if (statusLower.includes('finalizado')) return 'group-hover:to-green-50';
+                if (statusLower.includes('cancelado')) return 'group-hover:to-red-50';
+                if (statusLower.includes('atrasado')) return 'group-hover:to-orange-50';
                 return 'group-hover:to-gray-50';
               };
 

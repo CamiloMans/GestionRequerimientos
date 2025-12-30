@@ -186,6 +186,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         aviso_prevencion_riesgo: formData.riskPreventionNotice === 'yes', // ← Convertir a boolean
         requiere_acreditar_empresa: formData.companyAccreditationRequired === 'yes', // ← Convertir a boolean
         admin_contrato_myma: formData.contractAdmin || null,
+        estado_solicitud_acreditacion: 'Por asignar requerimientos', // ← Estado inicial del proyecto
       };
 
       // Agregar campos opcionales solo si tienen valor - Nombres corregidos

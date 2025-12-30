@@ -23,6 +23,9 @@ interface ProjectDetailViewProps {
 }
 
 const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate, onFilterSidebarChange }) => {
+  // Estado local para el status del proyecto (para actualizar sin recargar)
+  const [projectStatus, setProjectStatus] = useState<string>(project.status);
+  
   // Estado para controlar qué dropdown de columna está abierto
   const [openFilterDropdown, setOpenFilterDropdown] = useState<string | null>(null);
 
@@ -61,10 +64,41 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const [personaSeleccionada, setPersonaSeleccionada] = useState<string>('');
   const [documentosPersona, setDocumentosPersona] = useState<RequestItem[]>([]);
   const [loadingDocumentos, setLoadingDocumentos] = useState(false);
-  const [documentosSeleccionados, setDocumentosSeleccionados] = useState<Set<string>>(new Set());
+  const [documentoSeleccionado, setDocumentoSeleccionado] = useState<string | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewLink, setPreviewLink] = useState<string | null>(null);
   const [guardandoDocumentos, setGuardandoDocumentos] = useState(false);
+  
+  // Estado para el modal de completación del proyecto
+  const [proyectoCompletadoModalOpen, setProyectoCompletadoModalOpen] = useState(false);
+
+  // Cerrar automáticamente el modal de proyecto completado después de 2 segundos y luego redirigir
+  useEffect(() => {
+    if (proyectoCompletadoModalOpen) {
+      console.log('⏱️ Popup abierto, se cerrará en 2 segundos...');
+      const timer = setTimeout(() => {
+        console.log('✅ 2 segundos transcurridos, cerrando popup y redirigiendo...');
+        setProyectoCompletadoModalOpen(false);
+        // Redirigir/recargar el proyecto DESPUÉS de cerrar el popup
+        // Usar un pequeño delay para asegurar que el estado se actualizó
+        setTimeout(() => {
+          if (onUpdate) {
+            onUpdate();
+          }
+        }, 100);
+      }, 2000); // 2 segundos
+
+      return () => {
+        console.log('🧹 Limpiando timer del popup');
+        clearTimeout(timer);
+      };
+    }
+  }, [proyectoCompletadoModalOpen]);
+
+  // Sincronizar el estado local del proyecto cuando cambie el prop
+  useEffect(() => {
+    setProjectStatus(project.status);
+  }, [project.status]);
 
   // Cargar requerimientos del proyecto al montar para saber cuáles tienen observaciones
   useEffect(() => {
@@ -168,9 +202,14 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     const newRealizado = !requirement.realizado;
     const newEstado = newRealizado ? 'Completado' : 'Pendiente';
 
+    // Verificar cuántos requerimientos estaban completados antes de la actualización
+    const completedBefore = requirements.filter(r => r.realizado).length;
+    const totalRequerimientos = requirements.length;
+    const wasLastOne = newRealizado && completedBefore === totalRequerimientos - 1;
+
     try {
       // Actualizar en la base de datos
-      await updateRequerimientoEstado(id, newEstado);
+      const result = await updateRequerimientoEstado(id, newEstado);
       
       // Actualizar estado local inmediatamente sin recargar
       setRequirements(prev => prev.map(req => {
@@ -186,8 +225,24 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       
       console.log(`✅ Requerimiento ${id} actualizado a ${newEstado}`);
       
-      // NO llamamos a onUpdate() para evitar navegar/recargar la página
-      // El estado local ya está actualizado y la UI se refresca automáticamente
+      // Si se completó el último requerimiento y todos están completados, mostrar popup
+      // El popup manejará la redirección después de 2 segundos
+      if (wasLastOne && result.allCompleted) {
+        // Actualizar estado local del proyecto
+        setProjectStatus('Finalizado');
+        // Mostrar modal de éxito (se cerrará automáticamente después de 2 segundos y luego se recargará)
+        setProyectoCompletadoModalOpen(true);
+        // NO ejecutar onUpdate aquí, el popup lo manejará después de 2 segundos
+      }
+      // Si el estado del proyecto cambió a "En proceso" (desde Finalizado), solo actualizar el estado local sin redirigir
+      else if (result.proyectoEstadoCambio === 'En proceso') {
+        setProjectStatus('En proceso');
+        // NO recargar, solo actualizar el badge de estado
+      }
+      // Si el estado cambió a "Finalizado" (pero no fue el último requerimiento), actualizar estado local
+      else if (result.proyectoEstadoCambio === 'Finalizado') {
+        setProjectStatus('Finalizado');
+      }
     } catch (error) {
       console.error('❌ Error actualizando requerimiento:', error);
       alert('Error al actualizar el requerimiento. Por favor, intente nuevamente.');
@@ -271,7 +326,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     setLoadingDocumentos(true);
     setDocumentosModalOpen(true);
     setDocumentosPersona([]);
-    setDocumentosSeleccionados(new Set());
+    setDocumentoSeleccionado(null);
 
     try {
       const documentos = await fetchPersonaRequerimientosByNombre(nombreTrabajador);
@@ -289,20 +344,18 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     setDocumentosModalOpen(false);
     setPersonaSeleccionada('');
     setDocumentosPersona([]);
-    setDocumentosSeleccionados(new Set());
+    setDocumentoSeleccionado(null);
   };
 
-  // Función para manejar la selección de documentos
-  const handleToggleDocumentoSeleccionado = (documentoId: string) => {
-    setDocumentosSeleccionados(prev => {
-      const nuevo = new Set(prev);
-      if (nuevo.has(documentoId)) {
-        nuevo.delete(documentoId);
-      } else {
-        nuevo.add(documentoId);
-      }
-      return nuevo;
-    });
+  // Función para manejar la selección de documentos (solo uno, y no "Vencida")
+  const handleToggleDocumentoSeleccionado = (documentoId: string, estado: string) => {
+    // No permitir seleccionar documentos en estado "Vencida"
+    if (estado === 'Vencida') {
+      return;
+    }
+    
+    // Si ya está seleccionado, deseleccionarlo. Si no, seleccionarlo (reemplazando cualquier otro seleccionado)
+    setDocumentoSeleccionado(prev => prev === documentoId ? null : documentoId);
   };
 
   // Función para obtener URLs de Google Drive
@@ -352,10 +405,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     }
   };
 
-  // Función para enviar webhook con los documentos seleccionados
+  // Función para enviar webhook con el documento seleccionado
   const handleGuardarDocumentos = async () => {
-    if (documentosSeleccionados.size === 0) {
-      alert('Por favor, selecciona al menos un documento para guardar.');
+    if (!documentoSeleccionado) {
+      alert('Por favor, selecciona un documento para guardar.');
       return;
     }
 
@@ -384,24 +437,29 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     
     console.log('📋 Valores finales que se enviarán:', { driveFolderId, driveFolderUrl });
 
-    // Obtener los documentos seleccionados con toda su información
-    const documentosParaEnviar = documentosPersona
-      .filter(doc => documentosSeleccionados.has(doc.id))
-      .map(doc => ({
-        id: String(doc.id || ''),
-        nombre: String(doc.name || ''),
-        rut: String(doc.rut || ''),
-        requerimiento: String(doc.requirement || ''),
-        categoria: String(doc.category || ''),
-        estado: String(doc.status || ''),
-        fecha_vigencia: doc.adjudicationDate || '-',
-        fecha_vencimiento: doc.expirationDate || '-',
-        link_drive: doc.link || null,
-        drive_folder_id: driveFolderId, // Usar el valor del proyecto
-        drive_folder_url: driveFolderUrl, // Usar el valor del proyecto
-        persona_id: doc.persona_id ? Number(doc.persona_id) : null,
-        requerimiento_id: doc.requerimiento_id ? Number(doc.requerimiento_id) : null,
-      }));
+    // Obtener el documento seleccionado con toda su información
+    const documentoSeleccionadoData = documentosPersona.find(doc => doc.id === documentoSeleccionado);
+    
+    if (!documentoSeleccionadoData) {
+      alert('Error: No se encontró el documento seleccionado.');
+      return;
+    }
+
+    const documentosParaEnviar = [{
+      id: String(documentoSeleccionadoData.id || ''),
+      nombre: String(documentoSeleccionadoData.name || ''),
+      rut: String(documentoSeleccionadoData.rut || ''),
+      requerimiento: String(documentoSeleccionadoData.requirement || ''),
+      categoria: String(documentoSeleccionadoData.category || ''),
+      estado: String(documentoSeleccionadoData.status || ''),
+      fecha_vigencia: documentoSeleccionadoData.adjudicationDate || '-',
+      fecha_vencimiento: documentoSeleccionadoData.expirationDate || '-',
+      link_drive: documentoSeleccionadoData.link || null,
+      drive_folder_id: driveFolderId,
+      drive_folder_url: driveFolderUrl,
+      persona_id: documentoSeleccionadoData.persona_id ? Number(documentoSeleccionadoData.persona_id) : null,
+      requerimiento_id: documentoSeleccionadoData.requerimiento_id ? Number(documentoSeleccionadoData.requerimiento_id) : null,
+    }];
 
     const payload = {
       persona: personaSeleccionada || '',
@@ -425,7 +483,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }
       
       console.log('✅ Webhook enviado exitosamente:', result.data);
-      alert(`✅ ${documentosSeleccionados.size} documento(s) enviado(s) exitosamente.`);
+      alert('✅ Documento enviado exitosamente.');
       
       // Opcional: cerrar el modal después de guardar
       // handleCloseDocumentosModal();
@@ -549,12 +607,14 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               
               {/* Estado */}
               <span className={`px-4 py-2 rounded-lg text-xs font-bold border-2 ${
-                project.status.toLowerCase().includes('pendiente') ? 'bg-amber-100 text-amber-700 border-amber-300' :
-                project.status.toLowerCase().includes('proceso') ? 'bg-blue-100 text-blue-700 border-blue-300' :
-                project.status.toLowerCase().includes('finalizada') ? 'bg-green-100 text-green-700 border-green-300' :
-                'bg-red-100 text-red-700 border-red-300'
+                projectStatus.toLowerCase().includes('por asignar requerimientos') ? 'bg-amber-100 text-amber-700 border-amber-300' :
+                projectStatus.toLowerCase().includes('proceso') ? 'bg-blue-100 text-blue-700 border-blue-300' :
+                projectStatus.toLowerCase().includes('finalizado') ? 'bg-green-100 text-green-700 border-green-300' :
+                projectStatus.toLowerCase().includes('cancelado') ? 'bg-red-100 text-red-700 border-red-300' :
+                projectStatus.toLowerCase().includes('atrasado') ? 'bg-orange-100 text-orange-700 border-orange-300' :
+                'bg-gray-100 text-gray-700 border-gray-300'
               }`}>
-                {project.status}
+                {projectStatus}
               </span>
             </div>
           </div>
@@ -1209,18 +1269,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                     <thead className="text-xs text-gray-600 uppercase bg-gray-50 border-b border-gray-200">
                       <tr>
                         <th scope="col" className="px-4 py-3 font-semibold w-12">
-                          <input
-                            type="checkbox"
-                            checked={documentosSeleccionados.size === documentosPersona.length && documentosPersona.length > 0}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setDocumentosSeleccionados(new Set(documentosPersona.map(d => d.id)));
-                              } else {
-                                setDocumentosSeleccionados(new Set());
-                              }
-                            }}
-                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-                          />
+                          Seleccionar
                         </th>
                         <th scope="col" className="px-6 py-3 font-semibold">NOMBRE</th>
                         <th scope="col" className="px-6 py-3 font-semibold">Requerimiento</th>
@@ -1230,20 +1279,27 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {documentosPersona.map((doc) => (
+                      {documentosPersona.map((doc) => {
+                        const esVencida = doc.status === 'Vencida';
+                        const estaSeleccionado = documentoSeleccionado === doc.id;
+                        const puedeSeleccionar = !esVencida;
+                        
+                        return (
                         <tr 
                           key={doc.id} 
-                          className={`hover:bg-gray-50 transition-colors cursor-pointer ${
-                            documentosSeleccionados.has(doc.id) ? 'bg-blue-50' : ''
-                          }`}
-                          onClick={() => handleToggleDocumentoSeleccionado(doc.id)}
+                          className={`transition-colors ${
+                            estaSeleccionado ? 'bg-blue-50' : esVencida ? 'opacity-50 bg-gray-50' : 'hover:bg-gray-50'
+                          } ${puedeSeleccionar ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                          onClick={() => puedeSeleccionar && handleToggleDocumentoSeleccionado(doc.id, doc.status)}
                         >
                           <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                             <input
-                              type="checkbox"
-                              checked={documentosSeleccionados.has(doc.id)}
-                              onChange={() => handleToggleDocumentoSeleccionado(doc.id)}
-                              className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                              type="radio"
+                              name="documentoSeleccionado"
+                              checked={estaSeleccionado}
+                              onChange={() => puedeSeleccionar && handleToggleDocumentoSeleccionado(doc.id, doc.status)}
+                              disabled={esVencida}
+                              className="w-4 h-4 text-primary border-gray-300 focus:ring-primary cursor-pointer disabled:cursor-not-allowed"
                               onClick={(e) => e.stopPropagation()}
                             />
                           </td>
@@ -1293,7 +1349,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1308,18 +1365,18 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
             {/* Footer del Modal */}
             <div className="flex items-center justify-between p-6 border-t border-gray-200 flex-shrink-0">
               <div className="text-sm text-gray-600">
-                {documentosSeleccionados.size > 0 && (
+                {documentoSeleccionado && (
                   <span className="font-medium">
-                    {documentosSeleccionados.size} documento{documentosSeleccionados.size !== 1 ? 's' : ''} seleccionado{documentosSeleccionados.size !== 1 ? 's' : ''}
+                    1 documento seleccionado
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleGuardarDocumentos}
-                  disabled={documentosSeleccionados.size === 0 || guardandoDocumentos}
+                  disabled={!documentoSeleccionado || guardandoDocumentos}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                    documentosSeleccionados.size === 0 || guardandoDocumentos
+                    !documentoSeleccionado || guardandoDocumentos
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-primary hover:bg-primary-hover text-white shadow-md hover:shadow-lg'
                   }`}
@@ -1392,6 +1449,58 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                 title="Vista previa del documento"
                 allow="fullscreen"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Proyecto Completado */}
+      {proyectoCompletadoModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={() => setProyectoCompletadoModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header con gradiente verde */}
+            <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-6 flex items-center justify-center flex-col">
+              <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg">
+                <span className="material-symbols-outlined text-green-600 text-5xl">check_circle</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white text-center">¡Proyecto Completado!</h2>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <p className="text-lg text-gray-700 mb-2">
+                  Todos los requerimientos del proyecto
+                </p>
+                <p className="text-xl font-bold text-primary mb-4">
+                  {project.projectCode}
+                </p>
+                <p className="text-gray-600">
+                  han sido completados exitosamente.
+                </p>
+                <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-800 font-medium">
+                    El proyecto ha sido marcado como <span className="font-bold">"Finalizado"</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setProyectoCompletadoModalOpen(false)}
+                  className="flex-1 px-4 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium transition-colors flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-[20px]">check</span>
+                  Entendido
+                </button>
+              </div>
             </div>
           </div>
         </div>
