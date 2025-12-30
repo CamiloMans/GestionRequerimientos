@@ -483,10 +483,70 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }
       
       console.log('✅ Webhook enviado exitosamente:', result.data);
+      
+      // Buscar el requerimiento correspondiente a la persona seleccionada
+      // El requerimiento que se marca como completado es el que tiene el mismo nombre_trabajador
+      const requerimientoEncontrado = requirements.find(req => 
+        req.nombre_trabajador === personaSeleccionada
+      );
+      
+      // Si se encontró el requerimiento y no está completado, marcarlo como "Completado"
+      if (requerimientoEncontrado && !requerimientoEncontrado.realizado) {
+        try {
+          console.log(`🔄 Marcando requerimiento ${requerimientoEncontrado.id} como "Completado" para ${personaSeleccionada}...`);
+          
+          // Verificar cuántos requerimientos estaban completados antes de la actualización
+          const completedBefore = requirements.filter(r => r.realizado).length;
+          const totalRequerimientos = requirements.length;
+          const wasLastOne = completedBefore === totalRequerimientos - 1;
+          
+          console.log(`📊 Estado antes de actualizar: ${completedBefore}/${totalRequerimientos} completados, ¿era el último?: ${wasLastOne}`);
+          
+          const resultEstado = await updateRequerimientoEstado(requerimientoEncontrado.id, 'Completado');
+          
+          console.log(`📊 Resultado de actualización: allCompleted=${resultEstado.allCompleted}, estadoCambio=${resultEstado.proyectoEstadoCambio}`);
+          
+          // Actualizar estado local del requerimiento
+          setRequirements(prev => prev.map(req => {
+            if (req.id === requerimientoEncontrado.id) {
+              return {
+                ...req,
+                realizado: true,
+                fechaFinalizada: new Date().toISOString().split('T')[0]
+              };
+            }
+            return req;
+          }));
+          
+          console.log('✅ Requerimiento marcado como "Completado"');
+          
+          // Si se completó el último requerimiento, mostrar popup
+          if (wasLastOne && resultEstado.allCompleted) {
+            console.log('🎉 Se completó el último requerimiento, mostrando popup...');
+            setProjectStatus('Finalizado');
+            setProyectoCompletadoModalOpen(true);
+          }
+          // Si el estado del proyecto cambió, actualizar el estado local
+          else if (resultEstado.proyectoEstadoCambio === 'En proceso') {
+            setProjectStatus('En proceso');
+          }
+          else if (resultEstado.proyectoEstadoCambio === 'Finalizado') {
+            setProjectStatus('Finalizado');
+          }
+        } catch (errorEstado) {
+          console.error('❌ Error al marcar requerimiento como completado:', errorEstado);
+          // No fallar el guardado del documento si falla la actualización del estado
+        }
+      } else if (requerimientoEncontrado && requerimientoEncontrado.realizado) {
+        console.log(`ℹ️ El requerimiento para ${personaSeleccionada} ya está completado`);
+      } else {
+        console.log(`⚠️ No se encontró requerimiento para ${personaSeleccionada}`);
+      }
+      
       alert('✅ Documento enviado exitosamente.');
       
-      // Opcional: cerrar el modal después de guardar
-      // handleCloseDocumentosModal();
+      // Cerrar el modal de documentos después de guardar exitosamente
+      handleCloseDocumentosModal();
     } catch (error) {
       console.error('❌ Error completo al enviar webhook:', error);
       
