@@ -23,6 +23,30 @@ interface ProjectDetailViewProps {
 }
 
 const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate, onFilterSidebarChange }) => {
+  // Estado para controlar qué dropdown de columna está abierto
+  const [openFilterDropdown, setOpenFilterDropdown] = useState<string | null>(null);
+
+  // Estados de filtros
+  const [filterCargo, setFilterCargo] = useState('');
+  const [filterNombreResponsable, setFilterNombreResponsable] = useState('');
+  const [filterNombreTrabajador, setFilterNombreTrabajador] = useState('');
+  const [filterCategoriaEmpresa, setFilterCategoriaEmpresa] = useState('');
+  const [filterCategoria, setFilterCategoria] = useState('');
+  const [filterRealizado, setFilterRealizado] = useState('');
+
+  // Cerrar dropdowns al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openFilterDropdown && !(event.target as Element).closest('.filter-dropdown-container')) {
+        setOpenFilterDropdown(null);
+      }
+    };
+
+    if (openFilterDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [openFilterDropdown]);
 
   // Estados para el modal de observaciones
   const [observacionesModalOpen, setObservacionesModalOpen] = useState(false);
@@ -82,6 +106,57 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     }))
   );
 
+  // Filtrar requerimientos
+  const filteredRequirements = requirements.filter(req => {
+    const matchesCargo = filterCargo ? req.responsable === filterCargo : true;
+    const matchesNombreResponsable = filterNombreResponsable ? req.nombre_responsable === filterNombreResponsable : true;
+    const matchesNombreTrabajador = filterNombreTrabajador ? req.nombre_trabajador === filterNombreTrabajador : true;
+    const matchesCategoriaEmpresa = filterCategoriaEmpresa ? req.categoria_empresa === filterCategoriaEmpresa : true;
+    const matchesCategoria = filterCategoria ? req.categoria === filterCategoria : true;
+    const matchesRealizado = filterRealizado === '' ? true : 
+      filterRealizado === 'realizado' ? req.realizado : !req.realizado;
+    
+    return matchesCargo && matchesNombreResponsable && matchesNombreTrabajador && 
+           matchesCategoriaEmpresa && matchesCategoria && matchesRealizado;
+  });
+
+  // Obtener listas únicas para filtros
+  const cargos = Array.from(new Set(requirements.map(r => r.responsable).filter(Boolean)));
+  const nombresResponsables = Array.from(new Set(requirements.map(r => r.nombre_responsable).filter(Boolean)));
+  const nombresTrabajadores = Array.from(new Set(requirements.map(r => r.nombre_trabajador).filter(Boolean)));
+  const categoriasEmpresa = Array.from(new Set(requirements.map(r => r.categoria_empresa).filter(Boolean)));
+  const categorias = Array.from(new Set(requirements.map(r => r.categoria).filter(Boolean)));
+
+  // Handler para toggle de dropdown de filtro
+  const handleFilterToggle = (column: string) => {
+    setOpenFilterDropdown(openFilterDropdown === column ? null : column);
+  };
+
+  // Handler para aplicar filtro desde dropdown
+  const handleFilterSelect = (column: string, value: string) => {
+    switch (column) {
+      case 'cargo':
+        setFilterCargo(filterCargo === value ? '' : value);
+        break;
+      case 'responsable':
+        setFilterNombreResponsable(filterNombreResponsable === value ? '' : value);
+        break;
+      case 'trabajador':
+        setFilterNombreTrabajador(filterNombreTrabajador === value ? '' : value);
+        break;
+      case 'categoria_empresa':
+        setFilterCategoriaEmpresa(filterCategoriaEmpresa === value ? '' : value);
+        break;
+      case 'categoria':
+        setFilterCategoria(filterCategoria === value ? '' : value);
+        break;
+      case 'realizado':
+        setFilterRealizado(filterRealizado === value ? '' : value);
+        break;
+    }
+    setOpenFilterDropdown(null);
+  };
+
 
   const handleToggleRealizado = async (e: React.MouseEvent, id: number) => {
     // Detener la propagación para evitar que se active el click del contenedor
@@ -119,8 +194,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     }
   };
 
-  const completedCount = requirements.filter(r => r.realizado).length;
-  const totalCount = requirements.length;
+  const completedCount = filteredRequirements.filter(r => r.realizado).length;
+  const totalCount = filteredRequirements.length;
   const progressPercentage = (completedCount / totalCount) * 100;
 
   // Calcular fechas y días
@@ -676,25 +751,202 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Cargo
+                    <div className="flex items-center gap-2 relative filter-dropdown-container">
+                      <span>Cargo</span>
+                      <button
+                        onClick={() => handleFilterToggle('cargo')}
+                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterCargo ? 'text-primary' : 'text-gray-400'}`}
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                      </button>
+                      {openFilterDropdown === 'cargo' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
+                          <div className="py-0.5">
+                            <button
+                              onClick={() => handleFilterSelect('cargo', '')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterCargo ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              Todos los Cargos
+                            </button>
+                            {cargos.map(cargo => (
+                              <button
+                                key={cargo}
+                                onClick={() => handleFilterSelect('cargo', cargo)}
+                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterCargo === cargo ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                              >
+                                {cargo}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Responsable
+                    <div className="flex items-center gap-2 relative filter-dropdown-container">
+                      <span>Responsable</span>
+                      <button
+                        onClick={() => handleFilterToggle('responsable')}
+                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterNombreResponsable ? 'text-primary' : 'text-gray-400'}`}
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                      </button>
+                      {openFilterDropdown === 'responsable' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
+                          <div className="py-0.5">
+                            <button
+                              onClick={() => handleFilterSelect('responsable', '')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterNombreResponsable ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              Todos los Responsables
+                            </button>
+                            {nombresResponsables.map(nombre => (
+                              <button
+                                key={nombre}
+                                onClick={() => handleFilterSelect('responsable', nombre)}
+                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterNombreResponsable === nombre ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                              >
+                                {nombre}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Nombre Trabajador
+                    <div className="flex items-center gap-2 relative filter-dropdown-container">
+                      <span>Nombre Trabajador</span>
+                      <button
+                        onClick={() => handleFilterToggle('trabajador')}
+                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterNombreTrabajador ? 'text-primary' : 'text-gray-400'}`}
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                      </button>
+                      {openFilterDropdown === 'trabajador' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
+                          <div className="py-0.5">
+                            <button
+                              onClick={() => handleFilterSelect('trabajador', '')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterNombreTrabajador ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              Todos los Trabajadores
+                            </button>
+                            {nombresTrabajadores.map(nombre => (
+                              <button
+                                key={nombre}
+                                onClick={() => handleFilterSelect('trabajador', nombre)}
+                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterNombreTrabajador === nombre ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                              >
+                                {nombre}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Categoría Empresa
+                    <div className="flex items-center gap-2 relative filter-dropdown-container">
+                      <span>Categoría Empresa</span>
+                      <button
+                        onClick={() => handleFilterToggle('categoria_empresa')}
+                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterCategoriaEmpresa ? 'text-primary' : 'text-gray-400'}`}
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                      </button>
+                      {openFilterDropdown === 'categoria_empresa' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
+                          <div className="py-0.5">
+                            <button
+                              onClick={() => handleFilterSelect('categoria_empresa', '')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterCategoriaEmpresa ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              Todas las Empresas
+                            </button>
+                            {categoriasEmpresa.map(cat => (
+                              <button
+                                key={cat}
+                                onClick={() => handleFilterSelect('categoria_empresa', cat)}
+                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterCategoriaEmpresa === cat ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Requerimiento
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Categoría
+                    <div className="flex items-center gap-2 relative filter-dropdown-container">
+                      <span>Categoría</span>
+                      <button
+                        onClick={() => handleFilterToggle('categoria')}
+                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterCategoria ? 'text-primary' : 'text-gray-400'}`}
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                      </button>
+                      {openFilterDropdown === 'categoria' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
+                          <div className="py-0.5">
+                            <button
+                              onClick={() => handleFilterSelect('categoria', '')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterCategoria ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              Todas las Categorías
+                            </button>
+                            {categorias.map(cat => (
+                              <button
+                                key={cat}
+                                onClick={() => handleFilterSelect('categoria', cat)}
+                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterCategoria === cat ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Realizado
+                    <div className="flex items-center justify-center gap-2 relative filter-dropdown-container">
+                      <span>Realizado</span>
+                      <button
+                        onClick={() => handleFilterToggle('realizado')}
+                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterRealizado ? 'text-primary' : 'text-gray-400'}`}
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                      </button>
+                      {openFilterDropdown === 'realizado' && (
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto">
+                          <div className="py-0.5">
+                            <button
+                              onClick={() => handleFilterSelect('realizado', '')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterRealizado ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              Todos los Estados
+                            </button>
+                            <button
+                              onClick={() => handleFilterSelect('realizado', 'realizado')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterRealizado === 'realizado' ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              ✅ Realizados
+                            </button>
+                            <button
+                              onClick={() => handleFilterSelect('realizado', 'pendiente')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterRealizado === 'pendiente' ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              ⏳ Pendientes
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Fecha Finalizada
@@ -702,8 +954,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {requirements.length > 0 ? (
-                  requirements.map((req) => {
+                {filteredRequirements.length > 0 ? (
+                  filteredRequirements.map((req) => {
                     // Colores según el cargo
                     const cargoColors = {
                       'JPRO': 'bg-blue-100 text-blue-700 border-blue-300',
