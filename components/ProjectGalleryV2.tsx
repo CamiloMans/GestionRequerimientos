@@ -350,34 +350,10 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     return !statusLower.includes('cancelado') && !statusLower.includes('finalizado');
   }).length;
   
-  // Calcular proyectos atrasados: activos, con tareas pendientes, y cuya fecha de inicio ya pasó
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Calcular proyectos atrasados: contar solo los que tienen estado "Atrasado"
   const overdueProjects = projects.filter(p => {
     const statusLower = p.status.toLowerCase();
-    // No considerar finalizados ni cancelados
-    if (statusLower.includes('cancelado') || statusLower.includes('finalizado')) {
-      return false;
-    }
-    
-    // Debe tener tareas pendientes
-    const hasPendingTasks = (p.totalTasks || 0) > (p.completedTasks || 0);
-    if (!hasPendingTasks) {
-      return false;
-    }
-    
-    // Si tiene fecha de inicio en terreno, debe haber pasado
-    if (p.fieldStartDate && p.fieldStartDate !== '-') {
-      const startDate = new Date(p.fieldStartDate);
-      startDate.setHours(0, 0, 0, 0);
-      return startDate < today;
-    }
-    
-    // Si no tiene fecha de inicio, considerar atrasado si tiene más de 30 días desde creación
-    const created = new Date(p.createdAt);
-    created.setHours(0, 0, 0, 0);
-    const diffInDays = Math.floor((today.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-    return diffInDays > 30;
+    return statusLower.includes('atrasado');
   }).length;
   
   // Calcular tiempo promedio de proyectos finalizados (en días)
