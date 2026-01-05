@@ -32,7 +32,13 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   const [saving, setSaving] = useState(false);
   const [showAddRequerimiento, setShowAddRequerimiento] = useState(false);
   const [catalogoRequerimientos, setCatalogoRequerimientos] = useState<CatalogoRequerimiento[]>([]);
-  const [newRequerimiento, setNewRequerimiento] = useState({
+  const [newRequerimiento, setNewRequerimiento] = useState<{
+    requerimientoId: string;
+    requerimiento: string;
+    categoria_requerimiento: string;
+    responsable: 'Legal' | 'JPRO' | 'EPR' | 'RRHH';
+    observaciones: string;
+  }>({
     requerimientoId: '',
     requerimiento: '',
     categoria_requerimiento: '',
@@ -147,7 +153,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
         requerimientoId: requerimientoId,
         requerimiento: requerimientoSeleccionado.requerimiento,
         categoria_requerimiento: requerimientoSeleccionado.categoria_requerimiento || '',
-        responsable: requerimientoSeleccionado.responsable || 'JPRO',
+        responsable: (requerimientoSeleccionado.responsable as 'Legal' | 'JPRO' | 'EPR' | 'RRHH') || 'JPRO',
         observaciones: newRequerimiento.observaciones, // Mantener observaciones
       });
       setSearchTerm(requerimientoSeleccionado.requerimiento);
@@ -531,7 +537,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                       </label>
                       <select
                         value={newRequerimiento.responsable}
-                        onChange={(e) => setNewRequerimiento({ ...newRequerimiento, responsable: e.target.value })}
+                        onChange={(e) => setNewRequerimiento({ ...newRequerimiento, responsable: e.target.value as 'Legal' | 'JPRO' | 'EPR' | 'RRHH' })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         disabled={!isOtroSelected && !editingIndex && !newRequerimiento.requerimientoId}
                       >

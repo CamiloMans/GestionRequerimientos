@@ -31,7 +31,7 @@ export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => 
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || supabase.supabaseKey}`,
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1Z2FzZnNuY2tleWl0amVtdmp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4OTM5MTMsImV4cCI6MjA4MTQ2OTkxM30.XDAdVZOenvzsJRxXbDkfuxIUxkGgxKWo6q6jFFPCNjg'}`,
             },
             body: JSON.stringify(payload),
           });
@@ -762,7 +762,7 @@ export const createProyectoRequerimientos = async (
   console.log('\n🔍 Verificando requerimientos existentes...');
   const { data: existingReqs, error: checkError } = await supabase
     .from('proyecto_requerimientos_acreditacion')
-    .select('id, requerimiento, categoria_requerimiento')
+    .select('id, requerimiento, categoria_requerimiento, responsable')
     .eq('codigo_proyecto', codigoProyecto);
   
   if (checkError) {
@@ -1037,7 +1037,7 @@ export const fetchProyectoRequerimientos = async (codigoProyecto: string): Promi
 };
 
 // Función para obtener solicitud_acreditacion por código de proyecto (para obtener drive_folder_id y drive_folder_url)
-export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string): Promise<SolicitudAcreditacion | null> => {
+export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string): Promise<Partial<SolicitudAcreditacion> | null> => {
   console.log('🔍 Buscando solicitud_acreditacion para proyecto:', codigoProyecto);
   
   const { data, error } = await supabase
@@ -1066,10 +1066,18 @@ export const updateRequerimientoEstado = async (
   id: number,
   estado: string
 ): Promise<{ allCompleted: boolean; codigoProyecto?: string; proyectoEstadoCambio?: string }> => {
-  const updateData = {
+  const updateData: any = {
     estado: estado,
     updated_at: new Date().toISOString()
   };
+  
+  // Si el estado es "Completado", guardar la fecha de finalización
+  // Si no es "Completado", establecer fecha_finalizacion como NULL
+  if (estado === 'Completado') {
+    updateData.fecha_finalizacion = new Date().toISOString();
+  } else {
+    updateData.fecha_finalizacion = null;
+  }
 
   // Primero, obtener el requerimiento para saber el código del proyecto
   const { data: requerimiento, error: fetchError } = await supabase
@@ -1137,6 +1145,7 @@ export const updateRequerimientoEstado = async (
           .from('solicitud_acreditacion')
           .update({ 
             estado_solicitud_acreditacion: nuevoEstadoProyecto,
+            fecha_finalizacion: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq('id', requerimiento.id_proyecto);
@@ -1154,6 +1163,7 @@ export const updateRequerimientoEstado = async (
           .from('solicitud_acreditacion')
           .update({ 
             estado_solicitud_acreditacion: nuevoEstadoProyecto,
+            fecha_finalizacion: null,
             updated_at: new Date().toISOString()
           })
           .eq('id', requerimiento.id_proyecto);

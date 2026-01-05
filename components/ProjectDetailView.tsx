@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ProjectGalleryItem, RequestItem } from '../types';
+import { ProjectGalleryItem, RequestItem, RequestStatus } from '../types';
 import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre, sendWebhookViaEdgeFunction, fetchSolicitudAcreditacionByCodigo } from '../services/supabaseService';
 
 interface ProjectRequirement {
@@ -1340,8 +1340,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {documentosPersona.map((doc) => {
-                        const esVencida = doc.status === 'Vencida';
-                        const esSinDocumento = doc.status === 'Sin documento' || !doc.link;
+                        const esVencida = doc.status === RequestStatus.Expired;
+                        const esSinDocumento = !doc.link;
                         const estaSeleccionado = documentoSeleccionado === doc.id;
                         const puedeSeleccionar = !esVencida && !esSinDocumento;
                         const estaDeshabilitado = esVencida || esSinDocumento;

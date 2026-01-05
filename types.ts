@@ -73,7 +73,7 @@ export interface ResponsableRequerimiento {
 }
 
 export interface EmpresaRequerimiento {
-  id: number;
+  id?: number;
   empresa: string;
   requerimiento: string;
   categoria_requerimiento: string;

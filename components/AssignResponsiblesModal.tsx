@@ -22,6 +22,7 @@ export interface ResponsablesData {
   rrhh_nombre?: string;
   legal_id?: number;
   legal_nombre?: string;
+  empresaRequerimientos?: import('../types').EmpresaRequerimiento[];
 }
 
 const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
