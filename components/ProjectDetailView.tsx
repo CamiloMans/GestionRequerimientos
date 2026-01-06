@@ -1033,6 +1033,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                       )}
                     </div>
                   </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Documentos
+                  </th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
                     <div className="flex items-center justify-center gap-2 relative filter-dropdown-container">
                       <span>Realizado</span>
@@ -1162,6 +1165,37 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                           </span>
                         </td>
 
+                        {/* Documentos */}
+                        <td className="px-6 py-4">
+                          <label className="cursor-pointer">
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  console.log('Archivo seleccionado:', file.name, 'para requerimiento:', req.requerimiento);
+                                  // Aquí puedes agregar la lógica para subir el archivo
+                                  alert(`Archivo "${file.name}" seleccionado para ${req.requerimiento}. Funcionalidad de subida pendiente de implementar.`);
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const input = e.currentTarget.parentElement?.querySelector('input[type="file"]') as HTMLInputElement;
+                                input?.click();
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-lg transition-colors text-xs font-semibold"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                              <span>Subir</span>
+                            </button>
+                          </label>
+                        </td>
+
                         {/* Realizado */}
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center">
@@ -1203,7 +1237,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                   })
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={9} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <span className="material-symbols-outlined text-gray-300 text-5xl">search_off</span>
                         <p className="text-gray-500 text-lg">No se encontraron requerimientos</p>

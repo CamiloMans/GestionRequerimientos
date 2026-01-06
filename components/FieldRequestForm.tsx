@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
-import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES } from '../types';
-import { createSolicitudAcreditacion, createProyectoTrabajadores, fetchProveedores } from '../services/supabaseService';
+import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES, Persona } from '../types';
+import { createSolicitudAcreditacion, createProyectoTrabajadores, fetchProveedores, fetchPersonas } from '../services/supabaseService';
 
 interface Horario {
   dias: string;
@@ -71,6 +71,13 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [vehiculosMyma, setVehiculosMyma] = useState<VehiculoMyma[]>([]);
   const [vehiculosContratista, setVehiculosContratista] = useState<VehiculoContratista[]>([]);
   const [proveedores, setProveedores] = useState<string[]>([]);
+  
+  // Estados para el buscador de solicitante
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [filteredPersonasSolicitante, setFilteredPersonasSolicitante] = useState<Persona[]>([]);
+  const [searchQuerySolicitante, setSearchQuerySolicitante] = useState('');
+  const [selectedPersonaSolicitante, setSelectedPersonaSolicitante] = useState<Persona | null>(null);
+  const [showDropdownSolicitante, setShowDropdownSolicitante] = useState(false);
 
   // Cargar proveedores desde la base de datos
   useEffect(() => {
@@ -88,6 +95,52 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
     loadProveedores();
   }, []);
+
+  // Cargar personas para el buscador de solicitante
+  useEffect(() => {
+    const loadPersonas = async () => {
+      try {
+        const data = await fetchPersonas();
+        setPersonas(data);
+        setFilteredPersonasSolicitante(data);
+      } catch (error) {
+        console.error('Error cargando personas:', error);
+      }
+    };
+
+    loadPersonas();
+  }, []);
+
+  // Filtrar personas cuando cambia el término de búsqueda del solicitante
+  useEffect(() => {
+    if (searchQuerySolicitante.trim() === '') {
+      setFilteredPersonasSolicitante(personas);
+    } else {
+      const filtered = personas.filter(persona =>
+        persona.nombre_completo.toLowerCase().includes(searchQuerySolicitante.toLowerCase()) ||
+        persona.rut.toLowerCase().includes(searchQuerySolicitante.toLowerCase())
+      );
+      setFilteredPersonasSolicitante(filtered);
+    }
+  }, [searchQuerySolicitante, personas]);
+
+  // Cerrar dropdown del solicitante al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('#solicitante_search') && !target.closest('.dropdown-results-solicitante')) {
+        setShowDropdownSolicitante(false);
+      }
+    };
+
+    if (showDropdownSolicitante) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdownSolicitante]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -374,14 +427,67 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               </label>
               <label className="flex flex-col gap-2 lg:col-span-2">
                 <span className="text-[#111318] text-sm font-medium">Nombre de Solicitante</span>
-                <input 
-                  type="text" 
-                  name="requesterName"
-                  value={formData.requesterName}
-                  onChange={handleInputChange}
-                  placeholder="Nombre completo"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
+                  <input 
+                    id="solicitante_search"
+                    type="text" 
+                    value={selectedPersonaSolicitante ? `${selectedPersonaSolicitante.nombre_completo} - ${selectedPersonaSolicitante.rut}` : searchQuerySolicitante}
+                    onChange={(e) => {
+                      setSearchQuerySolicitante(e.target.value);
+                      setSelectedPersonaSolicitante(null);
+                      setShowDropdownSolicitante(true);
+                      setFormData(prev => ({ ...prev, requesterName: '' }));
+                    }}
+                    onFocus={() => setShowDropdownSolicitante(true)}
+                    placeholder="Buscar por nombre o RUT..."
+                    autoComplete="off"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
+                  />
+                  {searchQuerySolicitante && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuerySolicitante('');
+                        setSelectedPersonaSolicitante(null);
+                        setShowDropdownSolicitante(true);
+                        setFormData(prev => ({ ...prev, requesterName: '' }));
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  )}
+                  {/* Dropdown de resultados */}
+                  {showDropdownSolicitante && (
+                    <div className="dropdown-results-solicitante absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
+                      {filteredPersonasSolicitante.length > 0 ? (
+                        filteredPersonasSolicitante.map(persona => (
+                          <button
+                            key={persona.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPersonaSolicitante(persona);
+                              setSearchQuerySolicitante(`${persona.nombre_completo} - ${persona.rut}`);
+                              setShowDropdownSolicitante(false);
+                              setFormData(prev => ({ ...prev, requesterName: persona.nombre_completo }));
+                            }}
+                            className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                              selectedPersonaSolicitante?.id === persona.id ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
+                            <div className="text-xs text-gray-500">{persona.rut}</div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                          No se encontraron colaboradores
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </label>
               <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Fecha de Inicio de Terreno</span>
