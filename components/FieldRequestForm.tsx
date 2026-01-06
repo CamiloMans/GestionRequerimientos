@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
 import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES, Persona } from '../types';
-import { createSolicitudAcreditacion, createProyectoTrabajadores, fetchProveedores, fetchPersonas } from '../services/supabaseService';
+import { createSolicitudAcreditacion, createProyectoTrabajadores, createProyectoHorarios, createProyectoConductores, fetchProveedores, fetchPersonas } from '../services/supabaseService';
 
 interface Horario {
   dias: string;
@@ -260,16 +260,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         if (formData.numeroContrato) solicitudData.numero_contrato = formData.numeroContrato;
         if (formData.administradorContrato) solicitudData.administrador_contrato = formData.administradorContrato;
         
-        // Horarios de trabajo (como JSONB)
-        solicitudData.horarios_trabajo = horarios.length > 0 ? horarios : null;
-        
-        // Vehículos - Convertir a array de texto simple (text[])
-        solicitudData.cantidad_vehiculos = parseInt(formData.cantidadVehiculos) || 0;
-        // Extraer solo las placas como array de texto
-        const placasMyma = vehiculosMyma
-          .filter(v => v.placa && v.placa.trim() !== '')
-          .map(v => v.placa.trim());
-        solicitudData.placas_patente = placasMyma.length > 0 ? placasMyma : null;
+        // Horarios de trabajo ya no se guardan aquí, se guardarán en proyecto_horarios después de crear la solicitud
+        // Vehículos ya no se guardan aquí, se guardarán en proyecto_conductores después de crear la solicitud
       }
 
       // Información de Contratista
@@ -283,13 +275,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           if (formData.telefonoResponsableContratista) solicitudData.telefono_responsable_contratista = formData.telefonoResponsableContratista; // ← Nombre corregido
           if (formData.emailResponsableContratista) solicitudData.email_responsable_contratista = formData.emailResponsableContratista; // ← Nombre corregido
           
-          // Vehículos Contratista - Convertir a array de texto simple (text[])
-          solicitudData.cantidad_vehiculos_contratista = parseInt(formData.cantidadVehiculosContratista) || 0;
-          // Extraer solo las placas como array de texto
-          const placasContratista = vehiculosContratista
-            .filter(v => v.placa && v.placa.trim() !== '')
-            .map(v => v.placa.trim());
-          solicitudData.placas_vehiculos_contratista = placasContratista.length > 0 ? placasContratista : null;
+          // Vehículos Contratista ya no se guardan aquí, se guardarán en proyecto_conductores después de crear la solicitud
           
           // SST - Convertir a boolean
           solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes'; // ← Convertir a boolean
@@ -317,6 +303,57 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         } catch (trabajadorError) {
           console.error('❌ Error al guardar trabajadores:', trabajadorError);
           alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los trabajadores.');
+        }
+      }
+      
+      // Guardar horarios en proyecto_horarios
+      if (result.id && result.codigo_proyecto && horarios.length > 0 && formData.companyAccreditationRequired === 'yes') {
+        try {
+          console.log('⏰ Guardando horarios del proyecto...');
+          await createProyectoHorarios(
+            result.id,
+            result.codigo_proyecto,
+            horarios,
+            'MyMA' // Los horarios son de la empresa MyMA
+          );
+          console.log('✅ Horarios guardados exitosamente');
+        } catch (horarioError) {
+          console.error('❌ Error al guardar horarios:', horarioError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los horarios.');
+        }
+      }
+      
+      // Guardar vehículos MYMA en proyecto_conductores
+      if (result.id && result.codigo_proyecto && vehiculosMyma.length > 0 && formData.companyAccreditationRequired === 'yes') {
+        try {
+          console.log('🚗 Guardando vehículos MYMA del proyecto...');
+          await createProyectoConductores(
+            result.id,
+            result.codigo_proyecto,
+            vehiculosMyma,
+            'MyMA'
+          );
+          console.log('✅ Vehículos MYMA guardados exitosamente');
+        } catch (vehiculoMymaError) {
+          console.error('❌ Error al guardar vehículos MYMA:', vehiculoMymaError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los vehículos MYMA.');
+        }
+      }
+      
+      // Guardar vehículos Contratista en proyecto_conductores
+      if (result.id && result.codigo_proyecto && vehiculosContratista.length > 0 && formData.requiereAcreditarContratista === 'yes') {
+        try {
+          console.log('🚗 Guardando vehículos Contratista del proyecto...');
+          await createProyectoConductores(
+            result.id,
+            result.codigo_proyecto,
+            vehiculosContratista,
+            'Contratista'
+          );
+          console.log('✅ Vehículos Contratista guardados exitosamente');
+        } catch (vehiculoContratistaError) {
+          console.error('❌ Error al guardar vehículos Contratista:', vehiculoContratistaError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los vehículos Contratista.');
         }
       }
       

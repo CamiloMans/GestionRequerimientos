@@ -1325,3 +1325,83 @@ export const createProyectoTrabajadores = async (
   console.log(`✅ ${data?.length || 0} trabajadores guardados exitosamente`);
 };
 
+// Función para guardar horarios del proyecto
+export const createProyectoHorarios = async (
+  idProyecto: number,
+  codigoProyecto: string,
+  horarios: Array<{ dias: string; horario: string }>,
+  categoriaEmpresa: string = 'MyMA'
+): Promise<void> => {
+  console.log('⏰ Guardando horarios del proyecto:', codigoProyecto);
+  console.log(`  - Total: ${horarios.length} horarios`);
+  console.log(`  - Categoría: ${categoriaEmpresa}`);
+
+  if (!horarios || horarios.length === 0) {
+    console.log('⚠️ No hay horarios para guardar');
+    return;
+  }
+
+  // Guardar todos los horarios sin restricciones
+  const horariosData = horarios.map(horario => ({
+    id_proyecto: idProyecto,
+    codigo_proyecto: codigoProyecto,
+    dias: horario.dias || '',
+    horario: horario.horario || '',
+    categoria_empresa: categoriaEmpresa
+  }));
+
+  console.log(`📦 Insertando ${horariosData.length} horarios`);
+
+  const { data, error } = await supabase
+    .from('proyecto_horarios')
+    .insert(horariosData)
+    .select();
+
+  if (error) {
+    console.error('❌ Error guardando horarios del proyecto:', error);
+    throw error;
+  }
+
+  console.log(`✅ ${horariosData.length} horarios guardados exitosamente`);
+};
+
+// Función para guardar conductores del proyecto
+export const createProyectoConductores = async (
+  idProyecto: number,
+  codigoProyecto: string,
+  vehiculos: Array<{ placa: string; conductor: string }>,
+  categoriaEmpresa: 'MyMA' | 'Contratista'
+): Promise<void> => {
+  console.log('🚗 Guardando conductores del proyecto:', codigoProyecto);
+  console.log(`  - Total: ${vehiculos.length} vehículos`);
+  console.log(`  - Categoría: ${categoriaEmpresa}`);
+
+  if (!vehiculos || vehiculos.length === 0) {
+    console.log('⚠️ No hay vehículos para guardar');
+    return;
+  }
+
+  // Guardar todos los vehículos sin restricciones
+  const conductoresData = vehiculos.map(vehiculo => ({
+    id_proyecto: idProyecto,
+    codigo_proyecto: codigoProyecto,
+    patente: vehiculo.placa || '',
+    nombre_conductor: vehiculo.conductor || '',
+    categoria_empresa: categoriaEmpresa
+  }));
+
+  console.log(`📦 Insertando ${conductoresData.length} conductores`);
+
+  const { data, error } = await supabase
+    .from('proyecto_conductores')
+    .insert(conductoresData)
+    .select();
+
+  if (error) {
+    console.error('❌ Error guardando conductores del proyecto:', error);
+    throw error;
+  }
+
+  console.log(`✅ ${conductoresData.length} conductores guardados exitosamente`);
+};
+
