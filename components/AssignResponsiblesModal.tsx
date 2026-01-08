@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPersonas, fetchClientes } from '../services/supabaseService';
-import { Persona, Cliente } from '../types';
+import { fetchResponsablesRequerimiento } from '../services/supabaseService';
+import { ResponsableRequerimiento } from '../types';
 
 interface AssignResponsiblesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (responsables: ResponsablesData) => void;
   projectName: string;
+  projectCode?: string;
   currentResponsables?: ResponsablesData;
 }
 
@@ -21,6 +22,7 @@ export interface ResponsablesData {
   rrhh_nombre?: string;
   legal_id?: number;
   legal_nombre?: string;
+  empresaRequerimientos?: import('../types').EmpresaRequerimiento[];
 }
 
 const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
@@ -28,10 +30,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
   onClose,
   onSave,
   projectName,
+  projectCode,
   currentResponsables,
 }) => {
-  const [personas, setPersonas] = useState<Persona[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [responsables, setResponsables] = useState<ResponsableRequerimiento[]>([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<ResponsablesData>({
     empresa_id: currentResponsables?.empresa_id,
@@ -64,12 +66,8 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [personasData, clientesData] = await Promise.all([
-        fetchPersonas(),
-        fetchClientes()
-      ]);
-      setPersonas(personasData);
-      setClientes(clientesData);
+      const responsablesData = await fetchResponsablesRequerimiento();
+      setResponsables(responsablesData);
     } catch (error) {
       console.error('Error cargando datos:', error);
     } finally {
@@ -77,24 +75,15 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
     }
   };
 
-  const handleEmpresaChange = (empresaId: string) => {
-    const selectedCliente = clientes.find(c => c.id.toString() === empresaId);
-    setFormData(prev => ({
-      ...prev,
-      empresa_id: empresaId || undefined,
-      empresa_nombre: selectedCliente ? selectedCliente.nombre : undefined,
-    }));
-  };
-
-  const handleSelectChange = (role: keyof ResponsablesData, personaId: string) => {
-    const selectedPersona = personas.find(p => p.id === parseInt(personaId));
+  const handleSelectChange = (role: keyof ResponsablesData, responsableId: string) => {
+    const selectedResponsable = responsables.find(r => r.id === parseInt(responsableId));
     const idKey = role;
     const nombreKey = role.replace('_id', '_nombre') as keyof ResponsablesData;
     
     setFormData(prev => ({
       ...prev,
-      [idKey]: personaId ? parseInt(personaId) : undefined,
-      [nombreKey]: selectedPersona ? selectedPersona.nombre_completo : undefined,
+      [idKey]: responsableId ? parseInt(responsableId) : undefined,
+      [nombreKey]: selectedResponsable ? selectedResponsable.nombre_responsable : undefined,
     }));
   };
 
@@ -103,20 +92,20 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
     const dataToSave: ResponsablesData = { ...formData };
     
     if (formData.jpro_id) {
-      const persona = personas.find(p => p.id === formData.jpro_id);
-      dataToSave.jpro_nombre = persona?.nombre_completo;
+      const responsable = responsables.find(r => r.id === formData.jpro_id);
+      dataToSave.jpro_nombre = responsable?.nombre_responsable;
     }
     if (formData.epr_id) {
-      const persona = personas.find(p => p.id === formData.epr_id);
-      dataToSave.epr_nombre = persona?.nombre_completo;
+      const responsable = responsables.find(r => r.id === formData.epr_id);
+      dataToSave.epr_nombre = responsable?.nombre_responsable;
     }
     if (formData.rrhh_id) {
-      const persona = personas.find(p => p.id === formData.rrhh_id);
-      dataToSave.rrhh_nombre = persona?.nombre_completo;
+      const responsable = responsables.find(r => r.id === formData.rrhh_id);
+      dataToSave.rrhh_nombre = responsable?.nombre_responsable;
     }
     if (formData.legal_id) {
-      const persona = personas.find(p => p.id === formData.legal_id);
-      dataToSave.legal_nombre = persona?.nombre_completo;
+      const responsable = responsables.find(r => r.id === formData.legal_id);
+      dataToSave.legal_nombre = responsable?.nombre_responsable;
     }
 
     onSave(dataToSave);
@@ -156,43 +145,6 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Selector de Empresa */}
-              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-                    <span className="material-symbols-outlined text-white text-2xl">business</span>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#111318]">
-                      Empresa Contratista
-                    </label>
-                    <p className="text-xs text-[#616f89]">Selecciona la empresa responsable del proyecto</p>
-                  </div>
-                </div>
-                <select
-                  value={formData.empresa_id || ''}
-                  onChange={(e) => handleEmpresaChange(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white text-[#111318] font-medium"
-                >
-                  <option value="">Seleccionar empresa...</option>
-                  {clientes.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Divisor */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500 font-medium">Responsables del Proyecto</span>
-                </div>
-              </div>
-
               {/* JPRO - Jefe de Proyecto */}
               <div className="bg-gray-50/50 border border-[#e5e7eb] rounded-xl p-5 hover:border-blue-300 hover:shadow-sm transition-all">
                 <div className="flex items-center gap-3 mb-3">
@@ -211,10 +163,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                   onChange={(e) => handleSelectChange('jpro_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-[#111318]"
                 >
-                  <option value="">Seleccionar persona...</option>
-                  {personas.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.nombre_completo} - {persona.rut}
+                  <option value="">Seleccionar responsable...</option>
+                  {responsables.map((responsable) => (
+                    <option key={responsable.id} value={responsable.id}>
+                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
                     </option>
                   ))}
                 </select>
@@ -238,10 +190,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                   onChange={(e) => handleSelectChange('epr_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white text-[#111318]"
                 >
-                  <option value="">Seleccionar persona...</option>
-                  {personas.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.nombre_completo} - {persona.rut}
+                  <option value="">Seleccionar responsable...</option>
+                  {responsables.map((responsable) => (
+                    <option key={responsable.id} value={responsable.id}>
+                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
                     </option>
                   ))}
                 </select>
@@ -265,10 +217,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                   onChange={(e) => handleSelectChange('rrhh_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all bg-white text-[#111318]"
                 >
-                  <option value="">Seleccionar persona...</option>
-                  {personas.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.nombre_completo} - {persona.rut}
+                  <option value="">Seleccionar responsable...</option>
+                  {responsables.map((responsable) => (
+                    <option key={responsable.id} value={responsable.id}>
+                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
                     </option>
                   ))}
                 </select>
@@ -292,10 +244,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                   onChange={(e) => handleSelectChange('legal_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-white text-[#111318]"
                 >
-                  <option value="">Seleccionar persona...</option>
-                  {personas.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.nombre_completo} - {persona.rut}
+                  <option value="">Seleccionar responsable...</option>
+                  {responsables.map((responsable) => (
+                    <option key={responsable.id} value={responsable.id}>
+                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
                     </option>
                   ))}
                 </select>

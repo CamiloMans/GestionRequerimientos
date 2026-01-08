@@ -24,5 +24,16 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+        },
+      },
+    },
+    preview: {
+      port: 3000,
+      host: '0.0.0.0',
+    },
   };
 });
