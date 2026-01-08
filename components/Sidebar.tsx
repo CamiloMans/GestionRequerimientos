@@ -23,7 +23,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   const isRequestsActive = activeView === 'list' || activeView === 'create';
   const isFieldRequestActive = activeView === 'fieldRequest';
   const isReportsActive = activeView === 'reports';
-  const isLoginActive = activeView === 'login';
   const isDashboardsActive = activeView === 'dashboards';
 
   // Obtener información del usuario
@@ -97,14 +96,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
     onClose();
   };
 
-  const handleSettingsClick = () => {
-    console.log('🖱️ Click en Configuración detectado!');
-    if (onNavigateToLogin) {
-      onNavigateToLogin();
-    }
-    onClose();
-  };
-
   const handleLogoutClick = () => {
     setShowUserMenu(!showUserMenu);
   };
@@ -164,17 +155,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
             
             {/* Navigation */}
             <nav className="flex flex-col gap-3 w-full px-3">
-              {/* Inicio */}
-              <button 
-                className="group flex items-center justify-center p-3 rounded-lg text-[#616f89] hover:bg-gray-100 w-full aspect-square transition-colors relative" 
-                title="Dashboard"
-              >
-                <span className="material-symbols-outlined text-2xl pointer-events-none">dashboard</span>
-                <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity duration-200">
-                  Dashboard
-                </span>
-              </button>
-              
               {/* Solicitudes */}
               <button 
                 onClick={handleRequestsClick}
@@ -252,26 +232,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
                 }`}>
                   Gráficos
-                </span>
-              </button>
-              
-              {/* Configuración */}
-              <button 
-                onClick={handleSettingsClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isLoginActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Configuración"
-              >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isLoginActive ? 'fill' : ''}`}>settings</span>
-                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                  isLoginActive 
-                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
-                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                }`}>
-                  Configuración
                 </span>
               </button>
             </nav>
