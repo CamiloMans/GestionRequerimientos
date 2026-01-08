@@ -1,9 +1,19 @@
 services:
   - type: web
-    name: rrs1
+    name: gestion-solicitudes-myma
     env: node
+    region: oregon
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 3000
+      # Variables opcionales - si necesitas usar variables diferentes a las por defecto
+      # - key: VITE_SUPABASE_URL
+      #   value: your-supabase-url
+      # - key: VITE_SUPABASE_ANON_KEY
+      #   value: your-supabase-anon-key
