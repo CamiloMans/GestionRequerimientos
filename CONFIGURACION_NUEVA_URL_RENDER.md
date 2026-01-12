@@ -183,3 +183,4 @@ Antes de considerar que está resuelto, verifica:
 
 Una vez que hayas configurado ambos lugares (Supabase y Google Cloud Console), el login debería funcionar correctamente. Si aún tienes problemas, verifica los logs en Supabase Dashboard y la consola del navegador para más detalles.
 
+

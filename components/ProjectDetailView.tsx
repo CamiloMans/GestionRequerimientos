@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem, RequestItem, RequestStatus } from '../types';
-import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre, sendWebhookViaEdgeFunction, fetchSolicitudAcreditacionByCodigo } from '../services/supabaseService';
+import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre, sendWebhookViaEdgeFunction, fetchSolicitudAcreditacionByCodigo, enviarIdProyectoN8n } from '../services/supabaseService';
 
 interface ProjectRequirement {
   id: number;
@@ -71,6 +71,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   
   // Estado para el modal de completación del proyecto
   const [proyectoCompletadoModalOpen, setProyectoCompletadoModalOpen] = useState(false);
+
+  // Estados para el botón de enviar ID del proyecto
+  const [enviandoProyecto, setEnviandoProyecto] = useState(false);
+  const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null);
 
   // Cerrar automáticamente el modal de proyecto completado después de 2 segundos y luego redirigir
   useEffect(() => {
@@ -402,6 +406,47 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
         return 'bg-red-100 text-red-700 border-red-200';
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  // Función para enviar el ID del proyecto a n8n
+  const handleEnviarIdProyecto = async () => {
+    if (!project.id) {
+      alert('Error: No se pudo obtener el ID del proyecto.');
+      return;
+    }
+
+    setEnviandoProyecto(true);
+    setMensajeEnvio(null);
+
+    try {
+      const result = await enviarIdProyectoN8n(project.id);
+      
+      console.log('✅ ID del proyecto enviado exitosamente:', result);
+      
+      setMensajeEnvio({
+        tipo: 'success',
+        texto: 'La información de la solicitud de acreditación se envió correctamente.'
+      });
+
+      // Ocultar el mensaje después de 5 segundos
+      setTimeout(() => {
+        setMensajeEnvio(null);
+      }, 5000);
+    } catch (error: any) {
+      console.error('❌ Error al enviar ID del proyecto:', error);
+      
+      setMensajeEnvio({
+        tipo: 'error',
+        texto: `Error al enviar detalle del proyecto: ${error.message || 'Error desconocido'}`
+      });
+
+      // Ocultar el mensaje después de 5 segundos
+      setTimeout(() => {
+        setMensajeEnvio(null);
+      }, 5000);
+    } finally {
+      setEnviandoProyecto(false);
     }
   };
 
@@ -767,8 +812,57 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                 <p className="text-xs text-gray-500 font-semibold uppercase">Progreso</p>
               </div>
             </div>
+
+            <div className="w-px h-12 bg-gray-300"></div>
+
+            {/* Botón Enviar ID Proyecto */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleEnviarIdProyecto}
+                disabled={enviandoProyecto}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all shadow-sm ${
+                  enviandoProyecto
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white hover:shadow-md'
+                }`}
+              >
+                {enviandoProyecto ? (
+                  <>
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Enviando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">send</span>
+                    <span>Enviar detalle</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mensaje de éxito/error */}
+        {mensajeEnvio && (
+          <div className={`mt-4 p-4 rounded-lg border-2 flex items-center gap-3 ${
+            mensajeEnvio.tipo === 'success'
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <span className={`material-symbols-outlined text-[24px] ${
+              mensajeEnvio.tipo === 'success' ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {mensajeEnvio.tipo === 'success' ? 'check_circle' : 'error'}
+            </span>
+            <p className="text-sm font-medium flex-1">{mensajeEnvio.texto}</p>
+            <button
+              onClick={() => setMensajeEnvio(null)}
+              className="p-1 rounded hover:bg-black/10 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          </div>
+        )}
 
         {/* Segunda fila: Cumplimiento por Responsables */}
         {(() => {

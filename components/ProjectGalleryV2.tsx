@@ -21,6 +21,8 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const [showDetailView, setShowDetailView] = useState(false);
   const [showCompanyView, setShowCompanyView] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState<{ title: string; message: string; details?: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Obtener lista única de clientes
   const uniqueClients = Array.from(new Set(projects.map(p => p.clientName))).sort();
@@ -265,13 +267,9 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
           console.error('═══════════════════════════════════════════════════\n');
           console.warn('⚠️ Los responsables se guardaron, pero hubo un problema con los requerimientos');
           
-          // Mostrar alerta al usuario con el error
-          alert('⚠️ Advertencia\n\n' +
-                'Los responsables se guardaron correctamente,\n' +
-                'pero hubo un error al crear los requerimientos:\n\n' +
-                (reqError instanceof Error ? reqError.message : String(reqError)) + '\n\n' +
-                'Verifica la consola del navegador (F12) para más detalles.'
-          );
+          // Mostrar error al usuario
+          setError(`Los responsables se guardaron correctamente, pero hubo un error al crear los requerimientos: ${reqError instanceof Error ? reqError.message : String(reqError)}`);
+          setTimeout(() => setError(null), 10000);
         }
       } else {
         console.log('\n⚠️ No hay requerimientos para guardar');
@@ -285,54 +283,54 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         onProjectUpdate();
       }
       
-      // 4. Mostrar mensaje de éxito
-      let successMsg = '✅ Guardado Exitoso\n\n';
-      successMsg += `Proyecto: ${selectedProject.projectCode}\n`;
-      
+      // 4. Preparar mensaje de éxito con detalles
+      const responsablesDetails: string[] = [];
+      if (responsables.jpro_nombre) responsablesDetails.push(`JPRO: ${responsables.jpro_nombre}`);
+      if (responsables.epr_nombre) responsablesDetails.push(`EPR: ${responsables.epr_nombre}`);
+      if (responsables.rrhh_nombre) responsablesDetails.push(`RRHH: ${responsables.rrhh_nombre}`);
+      if (responsables.legal_nombre) responsablesDetails.push(`Legal: ${responsables.legal_nombre}`);
+
+      let message = `Proyecto: ${selectedProject.projectCode}`;
       if (responsables.empresa_nombre) {
-        successMsg += `Empresa: ${responsables.empresa_nombre}\n\n`;
+        message += `\nEmpresa: ${responsables.empresa_nombre}`;
       }
-      
-      successMsg += '👥 Responsables Asignados:\n';
-      successMsg += (responsables.jpro_nombre ? `  • JPRO: ${responsables.jpro_nombre}\n` : '  • JPRO: Sin asignar\n');
-      successMsg += (responsables.epr_nombre ? `  • EPR: ${responsables.epr_nombre}\n` : '  • EPR: Sin asignar\n');
-      successMsg += (responsables.rrhh_nombre ? `  • RRHH: ${responsables.rrhh_nombre}\n` : '  • RRHH: Sin asignar\n');
-      successMsg += (responsables.legal_nombre ? `  • Legal: ${responsables.legal_nombre}\n` : '  • Legal: Sin asignar\n');
-      
       if (responsables.empresaRequerimientos && responsables.empresaRequerimientos.length > 0) {
-        successMsg += `\n📋 Requerimientos Creados: ${responsables.empresaRequerimientos.length}`;
+        message += `\nRequerimientos creados: ${responsables.empresaRequerimientos.length}`;
       }
+
+      setSuccess({
+        title: 'Guardado Exitoso',
+        message: message,
+        details: responsablesDetails.length > 0 ? responsablesDetails : undefined
+      });
       
-      alert(successMsg);
-      
-      handleCloseModal();
+      // Cerrar modal después de un breve delay
+      setTimeout(() => {
+        handleCloseModal();
+        // Ocultar mensaje de éxito después de 5 segundos
+        setTimeout(() => setSuccess(null), 5000);
+      }, 500);
     } catch (error) {
       console.error('❌ Error guardando responsables:', error);
       
       // Mostrar error detallado
-      let errorMsg = '❌ Error al guardar los responsables\n\n';
+      let errorMsg = 'Error al guardar los responsables.';
       
       if (error instanceof Error) {
-        errorMsg += `Detalle: ${error.message}\n\n`;
+        errorMsg = `Error al guardar: ${error.message}`;
         
         // Ayuda específica según el error
         if (error.message.includes('column') || error.message.includes('does not exist')) {
-          errorMsg += '💡 Solución: Las columnas de responsables no existen en la base de datos.\n';
-          errorMsg += 'Ejecuta el script: sql/add_responsables_columns.sql en Supabase SQL Editor';
+          errorMsg += ' Las columnas de responsables no existen en la base de datos. Ejecuta el script sql/add_responsables_columns.sql en Supabase SQL Editor.';
         } else if (error.message.includes('table') || error.message.includes('relation')) {
-          errorMsg += '💡 Solución: La tabla solicitud_acreditacion no existe.\n';
-          errorMsg += 'Verifica tu configuración de Supabase';
-        } else {
-          errorMsg += 'Por favor, verifica:\n';
-          errorMsg += '1. Que ejecutaste sql/add_responsables_columns.sql\n';
-          errorMsg += '2. Que la conexión a Supabase está activa\n';
-          errorMsg += '3. Los logs en la consola del navegador (F12)';
+          errorMsg += ' La tabla solicitud_acreditacion no existe. Verifica tu configuración de Supabase.';
         }
       } else {
-        errorMsg += 'Error desconocido. Revisa la consola del navegador (F12)';
+        errorMsg = 'Error desconocido. Revisa la consola del navegador (F12)';
       }
       
-      alert(errorMsg);
+      setError(errorMsg);
+      setTimeout(() => setError(null), 10000);
     } finally {
       setSaving(false);
     }
@@ -844,6 +842,61 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
             legal_nombre: (selectedProject as any).legal_nombre,
           }}
         />
+      )}
+
+      {/* Mensaje de éxito */}
+      {success && (
+        <div className="fixed top-4 right-4 z-[60] bg-green-50 border-2 border-green-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-green-900 mb-1">{success.title}</h4>
+              <p className="text-sm text-green-700 whitespace-pre-line mb-2">{success.message}</p>
+              {success.details && success.details.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-green-200">
+                  <p className="text-xs font-medium text-green-800 mb-1">Responsables Asignados:</p>
+                  <ul className="text-xs text-green-700 space-y-1">
+                    {success.details.map((detail, index) => (
+                      <li key={index} className="flex items-center gap-1">
+                        <span className="text-green-600">•</span>
+                        {detail}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setSuccess(null)}
+              className="flex-shrink-0 text-green-600 hover:text-green-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de error */}
+      {error && (
+        <div className="fixed top-4 right-4 z-[60] bg-red-50 border-2 border-red-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-red-600 text-2xl">error</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-red-900 mb-1">Error al guardar</h4>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="flex-shrink-0 text-red-600 hover:text-red-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

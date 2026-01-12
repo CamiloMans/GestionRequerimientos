@@ -56,6 +56,10 @@ body {
   animation: slideInFromRight 0.3s ease-out;
 }
 
+.animate-slide-in {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
 .animate-in {
   animation: fadeIn 0.2s ease-in-out;
 }

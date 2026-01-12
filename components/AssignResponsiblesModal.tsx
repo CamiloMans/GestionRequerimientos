@@ -35,6 +35,9 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
 }) => {
   const [responsables, setResponsables] = useState<ResponsableRequerimiento[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState<ResponsablesData>({
     empresa_id: currentResponsables?.empresa_id,
     empresa_nombre: currentResponsables?.empresa_nombre,
@@ -87,36 +90,128 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
     }));
   };
 
-  const handleSubmit = () => {
-    // Agregar nombres completos antes de guardar
-    const dataToSave: ResponsablesData = { ...formData };
-    
-    if (formData.jpro_id) {
-      const responsable = responsables.find(r => r.id === formData.jpro_id);
-      dataToSave.jpro_nombre = responsable?.nombre_responsable;
-    }
-    if (formData.epr_id) {
-      const responsable = responsables.find(r => r.id === formData.epr_id);
-      dataToSave.epr_nombre = responsable?.nombre_responsable;
-    }
-    if (formData.rrhh_id) {
-      const responsable = responsables.find(r => r.id === formData.rrhh_id);
-      dataToSave.rrhh_nombre = responsable?.nombre_responsable;
-    }
-    if (formData.legal_id) {
-      const responsable = responsables.find(r => r.id === formData.legal_id);
-      dataToSave.legal_nombre = responsable?.nombre_responsable;
-    }
+  const handleSubmit = async () => {
+    // Limpiar errores y mensajes previos
+    setError(null);
+    setSuccess(null);
 
-    onSave(dataToSave);
-    onClose();
+    try {
+      setIsLoading(true);
+
+      // Simular un pequeño delay para mejor UX (opcional)
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Agregar nombres completos antes de guardar
+      const dataToSave: ResponsablesData = { ...formData };
+      
+      if (formData.jpro_id) {
+        const responsable = responsables.find(r => r.id === formData.jpro_id);
+        dataToSave.jpro_nombre = responsable?.nombre_responsable;
+      }
+      if (formData.epr_id) {
+        const responsable = responsables.find(r => r.id === formData.epr_id);
+        dataToSave.epr_nombre = responsable?.nombre_responsable;
+      }
+      if (formData.rrhh_id) {
+        const responsable = responsables.find(r => r.id === formData.rrhh_id);
+        dataToSave.rrhh_nombre = responsable?.nombre_responsable;
+      }
+      if (formData.legal_id) {
+        const responsable = responsables.find(r => r.id === formData.legal_id);
+        dataToSave.legal_nombre = responsable?.nombre_responsable;
+      }
+
+      // Ejecutar onSave (puede ser async)
+      if (onSave) {
+        await Promise.resolve(onSave(dataToSave));
+      }
+
+      // Mostrar mensaje de éxito
+      setSuccess('Responsables asignados exitosamente.');
+      
+      // Esperar un momento para que el usuario vea el mensaje
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      onClose();
+    } catch (error: any) {
+      console.error('Error guardando responsables:', error);
+      const errorMessage = error?.message || 'Error al guardar responsables. Por favor intenta nuevamente.';
+      setError(errorMessage);
+      
+      // El error se ocultará automáticamente después de 8 segundos
+      setTimeout(() => setError(null), 8000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      {/* Overlay de carga - bloquea toda interacción */}
+      {isLoading && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center"
+          style={{ pointerEvents: 'auto' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-4"></div>
+            <h3 className="text-lg font-semibold text-[#111318] mb-2">Guardando responsables...</h3>
+            <p className="text-sm text-[#616f89] text-center">
+              Por favor espera mientras se guardan los responsables asignados.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de error */}
+      {error && (
+        <div className="fixed top-4 right-4 z-[60] bg-red-50 border-2 border-red-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-red-600 text-2xl">error</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-red-900 mb-1">Error al guardar</h4>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="flex-shrink-0 text-red-600 hover:text-red-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de éxito */}
+      {success && (
+        <div className="fixed top-4 right-4 z-[60] bg-green-50 border-2 border-green-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-green-900 mb-1">Guardado exitoso</h4>
+              <p className="text-sm text-green-700">{success}</p>
+            </div>
+            <button
+              onClick={() => setSuccess(null)}
+              className="flex-shrink-0 text-green-600 hover:text-green-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col ${isLoading ? 'pointer-events-none opacity-75' : ''}`}>
         {/* Header */}
         <div className="bg-primary px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-2xl">
           <div className="flex items-center gap-3">
@@ -266,11 +361,20 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || isLoading}
             className="px-6 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-xl">save</span>
-            Guardar Responsables
+            {isLoading ? (
+              <>
+                <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Guardando...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-xl">save</span>
+                Guardar Responsables
+              </>
+            )}
           </button>
         </div>
       </div>

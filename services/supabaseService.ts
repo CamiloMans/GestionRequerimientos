@@ -58,6 +58,86 @@ export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => 
     throw err;
   }
 };
+
+// Función para enviar el ID del proyecto a la edge function de n8n
+export const enviarIdProyectoN8n = async (idProyecto: number): Promise<any> => {
+  console.log('🔗 Invocando función edge: Enviar_id_proyecto_n8n');
+  console.log('📦 ID Proyecto:', idProyecto);
+  
+  // Obtener el correo del usuario autenticado
+  let userEmail: string | null = null;
+  
+  // Intentar primero con getSession (más confiable)
+  try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (session?.user?.email && !sessionError) {
+      userEmail = session.user.email;
+      console.log('👤 Correo obtenido desde session:', userEmail);
+    } else {
+      // Si no funciona con getSession, intentar con getUser
+      console.log('⚠️ No se obtuvo correo desde session, intentando getUser...');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (user?.email && !userError) {
+        userEmail = user.email;
+        console.log('👤 Correo obtenido desde getUser:', userEmail);
+      } else {
+        console.warn('⚠️ No se pudo obtener el correo del usuario:', userError || sessionError);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error al obtener usuario:', error);
+  }
+  
+  if (!userEmail) {
+    console.error('❌ No se pudo obtener el correo del usuario autenticado');
+  }
+
+  // Preparar el payload
+  const payload = { 
+    id_proyecto: idProyecto,
+    email_usuario: userEmail,
+  };
+  
+  console.log('📤 Payload completo a enviar a edge function:', payload);
+  
+  try {
+    // Usar el método invoke de Supabase que maneja CORS automáticamente
+    const { data, error } = await supabase.functions.invoke('Enviar_id_proyecto_n8n', {
+      body: payload,
+    });
+
+    if (error) {
+      console.error('❌ Error al invocar función edge:', error);
+      console.error('❌ Detalles del error:', {
+        message: error.message,
+        name: error.name,
+        context: (error as any).context,
+      });
+      
+      // Si el error indica que la función no existe, dar un mensaje más claro
+      if (error.message?.includes('not found') || error.message?.includes('404') || (error as any).status === 404) {
+        throw new Error('La función edge "Enviar_id_proyecto_n8n" no está desplegada. Por favor, despliega la función en Supabase usando: supabase functions deploy Enviar_id_proyecto_n8n');
+      }
+      
+      throw error;
+    }
+
+    console.log('✅ Respuesta de función edge:', data);
+    return data;
+  } catch (err: any) {
+    console.error('❌ Error completo al enviar ID del proyecto:', err);
+    
+    // Proporcionar un mensaje más amigable
+    let errorMessage = 'Error al enviar ID del proyecto';
+    if (err.message) {
+      errorMessage += `: ${err.message}`;
+    } else if (err.toString) {
+      errorMessage += `: ${err.toString()}`;
+    }
+    
+    throw new Error(errorMessage);
+  }
+};
 import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento, ProyectoTrabajador } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 

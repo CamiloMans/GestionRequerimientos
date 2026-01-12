@@ -30,6 +30,9 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   const [loading, setLoading] = useState(true);
   const [loadingRequerimientos, setLoadingRequerimientos] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [showAddRequerimiento, setShowAddRequerimiento] = useState(false);
   const [catalogoRequerimientos, setCatalogoRequerimientos] = useState<CatalogoRequerimiento[]>([]);
   const [newRequerimiento, setNewRequerimiento] = useState<{
@@ -257,7 +260,8 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
 
   const handleSave = async () => {
     if (!selectedEmpresaId || !selectedEmpresaNombre) {
-      alert('Por favor selecciona una empresa contratista');
+      setError('Por favor selecciona una empresa contratista');
+      setTimeout(() => setError(null), 5000);
       return;
     }
 
@@ -268,8 +272,16 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       if (!confirmar) return;
     }
 
+    // Limpiar errores y mensajes previos
+    setError(null);
+    setSuccess(null);
+    
     try {
+      setIsLoading(true);
       setSaving(true);
+
+      // Simular un pequeño delay para mejor UX (opcional, puedes removerlo)
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Actualizar la solicitud con la empresa seleccionada y cambiar estado a "Por asignar responsables"
       await updateSolicitudAcreditacion(project.id, {
@@ -295,16 +307,25 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
         );
       }
 
-      alert('✅ Empresa y requerimientos guardados exitosamente\n\nEl proyecto ahora está en estado "Por asignar responsables"');
+      // Éxito - mostrar mensaje y redirigir
+      setSuccess('Empresa y requerimientos guardados exitosamente. El proyecto ahora está en estado "Por asignar responsables".');
+      
+      // Esperar un momento para que el usuario vea el mensaje de éxito
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       if (onUpdate) {
         onUpdate();
       }
       onBack();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error guardando:', error);
-      alert('❌ Error al guardar. Por favor intenta nuevamente.');
+      const errorMessage = error?.message || 'Error al guardar. Por favor intenta nuevamente.';
+      setError(errorMessage);
+      
+      // El error se ocultará automáticamente después de 8 segundos
+      setTimeout(() => setError(null), 8000);
     } finally {
+      setIsLoading(false);
       setSaving(false);
     }
   };
@@ -321,8 +342,70 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   }
 
   return (
-    <div className="layout-container flex h-full grow flex-col">
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12">
+    <div className="layout-container flex h-full grow flex-col relative">
+      {/* Overlay de carga - bloquea toda interacción */}
+      {isLoading && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+          style={{ pointerEvents: 'auto' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-4"></div>
+            <h3 className="text-lg font-semibold text-[#111318] mb-2">Guardando datos...</h3>
+            <p className="text-sm text-[#616f89] text-center">
+              Por favor espera mientras se guardan la empresa y los requerimientos.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de error */}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-50 border-2 border-red-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-red-600 text-2xl">error</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-red-900 mb-1">Error al guardar</h4>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="flex-shrink-0 text-red-600 hover:text-red-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de éxito */}
+      {success && (
+        <div className="fixed top-4 right-4 z-50 bg-green-50 border-2 border-green-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-green-900 mb-1">Guardado exitoso</h4>
+              <p className="text-sm text-green-700">{success}</p>
+            </div>
+            <button
+              onClick={() => setSuccess(null)}
+              className="flex-shrink-0 text-green-600 hover:text-green-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12 ${isLoading ? 'pointer-events-none' : ''}`}>
         {/* Header */}
         <div className="mb-6 flex items-center justify-between border-b border-[#e5e7eb] pb-4">
           <div className="flex items-center gap-3">
@@ -676,10 +759,10 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || !selectedEmpresaId}
+              disabled={isLoading || saving || !selectedEmpresaId}
               className="px-6 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {saving ? (
+              {isLoading || saving ? (
                 <>
                   <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   Guardando...
