@@ -329,7 +329,7 @@ export const createPersonaRequerimiento = async (
   fechaVencimiento: string,
   linkDrive?: string
 ): Promise<PersonaRequerimientoSST> => {
-  // Obtener información de persona y requerimiento
+  // Obtener información de persona y requerimiento (incluyendo dias_anticipacion_notificacion)
   const [personaResult, requerimientoResult] = await Promise.all([
     supabase.from('persona').select('*').eq('id', personaId).single(),
     supabase.from('requerimientos').select('*').eq('id', requerimientoId).single()
@@ -341,11 +341,17 @@ export const createPersonaRequerimiento = async (
   const persona = personaResult.data as Persona;
   const requerimiento = requerimientoResult.data as Requerimiento;
   
-  // Calcular días de anticipación
-  const fechaVenc = new Date(fechaVencimiento);
-  const hoy = new Date();
-  const diffTime = fechaVenc.getTime() - hoy.getTime();
-  const diasAnticipacion = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Usar dias_anticipacion_notificacion de la tabla requerimientos
+  // Si no existe, usar 60 como valor por defecto
+  let diasAnticipacion: number;
+  if (requerimiento.dias_anticipacion_notificacion !== undefined && requerimiento.dias_anticipacion_notificacion !== null) {
+    diasAnticipacion = requerimiento.dias_anticipacion_notificacion;
+    console.log('✅ Usando dias_anticipacion_notificacion del requerimiento:', diasAnticipacion);
+  } else {
+    // Fallback: usar 60 como valor por defecto
+    diasAnticipacion = 60;
+    console.log('⚠️ dias_anticipacion_notificacion no disponible, usando valor por defecto: 60');
+  }
   
   // Insertar nuevo registro
   const insertData: any = {
@@ -392,11 +398,36 @@ export const updatePersonaRequerimiento = async (
   console.log('  - Tipo de estado:', typeof estado);
   console.log('  - Estado === undefined?', estado === undefined);
   
-  // Calcular días de anticipación
-  const fechaVenc = new Date(fechaVencimiento);
-  const hoy = new Date();
-  const diffTime = fechaVenc.getTime() - hoy.getTime();
-  const diasAnticipacion = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Obtener el requerimiento_id del registro existente para obtener dias_anticipacion_notificacion
+  const { data: registroExistente, error: fetchError } = await supabase
+    .from('persona_requerimientos_sst')
+    .select('requerimiento_id')
+    .eq('id', id)
+    .single();
+  
+  let diasAnticipacion: number;
+  
+  if (!fetchError && registroExistente?.requerimiento_id) {
+    // Obtener el requerimiento para obtener dias_anticipacion_notificacion
+    const { data: requerimiento, error: reqError } = await supabase
+      .from('requerimientos')
+      .select('dias_anticipacion_notificacion')
+      .eq('id', registroExistente.requerimiento_id)
+      .single();
+    
+    if (!reqError && requerimiento?.dias_anticipacion_notificacion !== undefined && requerimiento.dias_anticipacion_notificacion !== null) {
+      diasAnticipacion = requerimiento.dias_anticipacion_notificacion;
+      console.log('✅ Usando dias_anticipacion_notificacion del requerimiento:', diasAnticipacion);
+    } else {
+      // Fallback: usar 60 como valor por defecto
+      diasAnticipacion = 60;
+      console.log('⚠️ dias_anticipacion_notificacion no disponible, usando valor por defecto: 60');
+    }
+  } else {
+    // Fallback: usar 60 como valor por defecto si no se puede obtener el requerimiento
+    diasAnticipacion = 60;
+    console.log('⚠️ No se pudo obtener requerimiento_id, usando valor por defecto: 60');
+  }
   
   const updateData: any = {
     fecha_vigencia: fechaVigencia,

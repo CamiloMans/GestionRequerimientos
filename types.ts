@@ -48,6 +48,7 @@ export interface Requerimiento {
   categoria_requerimiento: string;
   fe_inicio: string;
   fe_vencimiento: string;
+  dias_anticipacion_notificacion?: number;
   created_at: string;
   updated_at: string;
 }
