@@ -547,7 +547,8 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
           requerimiento: req.requerimiento,
           categoria: req.categoria_requerimiento,
           realizado: req.estado === 'Completado',
-          fechaFinalizada: req.estado === 'Completado' ? req.updated_at?.split('T')[0] : undefined
+          fechaFinalizada: req.estado === 'Completado' ? req.updated_at?.split('T')[0] : undefined,
+          drive_doc_url: req.drive_doc_url
         }));
         
         completedTasks = projectTasks.filter(t => t.realizado).length;

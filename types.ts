@@ -101,6 +101,7 @@ export interface ProyectoRequerimientoAcreditacion {
   nombre_trabajador?: string; // Nombre del trabajador asignado a este requerimiento
   categoria_empresa?: string; // MyMA o Contratista
   id_proyecto_trabajador?: number; // ID del trabajador en proyecto_trabajadores
+  drive_doc_url?: string; // URL del documento en Google Drive
 }
 
 // Tipo para las tareas del proyecto en la galería
@@ -115,6 +116,7 @@ export interface ProjectTask {
   categoria: string;
   realizado: boolean;
   fechaFinalizada?: string;
+  drive_doc_url?: string;
 }
 
 export interface ProyectoTrabajador {

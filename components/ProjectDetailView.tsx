@@ -13,6 +13,7 @@ interface ProjectRequirement {
   categoria: string;
   realizado: boolean;
   fechaFinalizada?: string;
+  drive_doc_url?: string;
 }
 
 interface ProjectDetailViewProps {
@@ -68,6 +69,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewLink, setPreviewLink] = useState<string | null>(null);
   const [guardandoDocumentos, setGuardandoDocumentos] = useState(false);
+  const [subiendoDocumento, setSubiendoDocumento] = useState<number | null>(null); // ID del requerimiento que está subiendo documento
   
   // Estado para el modal de completación del proyecto
   const [proyectoCompletadoModalOpen, setProyectoCompletadoModalOpen] = useState(false);
@@ -140,7 +142,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       requerimiento: task.requerimiento,
       categoria: task.categoria,
       realizado: task.realizado,
-      fechaFinalizada: task.fechaFinalizada
+      fechaFinalizada: task.fechaFinalizada,
+      drive_doc_url: task.drive_doc_url
     }))
   );
 
@@ -394,6 +397,23 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     };
   };
 
+  // Función para manejar la visualización del documento de un requerimiento
+  const handleVerDocumentoRequerimiento = (driveDocUrl: string) => {
+    if (!driveDocUrl) return;
+
+    const urls = getDriveUrls(driveDocUrl);
+    setPreviewLink(urls.preview);
+    setIsPreviewModalOpen(true);
+  };
+
+  // Función para abrir el documento en Google Drive
+  const handleAbrirDocumentoRequerimiento = (driveDocUrl: string) => {
+    if (!driveDocUrl) return;
+
+    const urls = getDriveUrls(driveDocUrl);
+    window.open(urls.drive, '_blank', 'noopener,noreferrer');
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Vigente':
@@ -490,6 +510,12 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       return;
     }
 
+    // Buscar el requerimiento correspondiente a la persona seleccionada
+    // El requerimiento que se marca como completado es el que tiene el mismo nombre_trabajador
+    const requerimientoEncontrado = requirements.find(req => 
+      req.nombre_trabajador === personaSeleccionada
+    );
+
     const documentosParaEnviar = [{
       id: String(documentoSeleccionadoData.id || ''),
       nombre: String(documentoSeleccionadoData.name || ''),
@@ -510,6 +536,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       persona: personaSeleccionada || '',
       proyecto: project.projectCode || '',
       fecha_envio: new Date().toISOString(),
+      id_solicitud: project.id,
+      requerimiento_id: requerimientoEncontrado?.id || null,
+      tipo_documento: 'documento_vinculado',
       documentos: documentosParaEnviar,
     };
 
@@ -528,12 +557,6 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }
       
       console.log('✅ Webhook enviado exitosamente:', result.data);
-      
-      // Buscar el requerimiento correspondiente a la persona seleccionada
-      // El requerimiento que se marca como completado es el que tiene el mismo nombre_trabajador
-      const requerimientoEncontrado = requirements.find(req => 
-        req.nombre_trabajador === personaSeleccionada
-      );
       
       // Si se encontró el requerimiento y no está completado, marcarlo como "Completado"
       if (requerimientoEncontrado && !requerimientoEncontrado.realizado) {
@@ -627,6 +650,169 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }
     } finally {
       setGuardandoDocumentos(false);
+    }
+  };
+
+  // Función para convertir archivo a base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = (reader.result as string).split(',')[1]; // Remover el prefijo data:type;base64,
+        resolve(base64String);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // Función para manejar la subida de un documento
+  const handleSubirDocumento = async (file: File, requerimiento: ProjectRequirement) => {
+    if (!file) {
+      alert('Por favor, selecciona un archivo para subir.');
+      return;
+    }
+
+    setSubiendoDocumento(requerimiento.id);
+
+    // Obtener drive_folder_id y drive_folder_url del proyecto desde solicitud_acreditacion
+    let driveFolderId = null;
+    let driveFolderUrl = null;
+    
+    console.log('🔍 Obteniendo datos de carpeta para proyecto:', project.projectCode);
+    
+    try {
+      const solicitud = await fetchSolicitudAcreditacionByCodigo(project.projectCode || '');
+      if (solicitud) {
+        driveFolderId = solicitud.drive_folder_id || null;
+        driveFolderUrl = solicitud.drive_folder_url || null;
+        console.log('📁 Datos de carpeta del proyecto obtenidos:', { 
+          driveFolderId, 
+          driveFolderUrl,
+          proyecto: project.projectCode 
+        });
+      } else {
+        console.warn('⚠️ No se encontró solicitud_acreditacion para el proyecto:', project.projectCode);
+      }
+    } catch (error) {
+      console.error('❌ Error al obtener datos del proyecto:', error);
+    }
+
+    try {
+      // Convertir archivo a base64
+      const fileBase64 = await fileToBase64(file);
+      
+      const documentosParaEnviar = [{
+        id: '',
+        nombre: requerimiento.nombre_trabajador || '',
+        rut: '',
+        requerimiento: requerimiento.requerimiento,
+        categoria: requerimiento.categoria,
+        estado: '',
+        fecha_vigencia: '-',
+        fecha_vencimiento: '-',
+        link_drive: null,
+        drive_folder_id: driveFolderId,
+        drive_folder_url: driveFolderUrl,
+        persona_id: null,
+        requerimiento_id: requerimiento.id,
+        file_name: file.name,
+        file_base64: fileBase64,
+      }];
+
+      const payload = {
+        persona: requerimiento.nombre_trabajador || '',
+        proyecto: project.projectCode || '',
+        fecha_envio: new Date().toISOString(),
+        id_solicitud: project.id,
+        requerimiento_id: requerimiento.id,
+        tipo_documento: 'documento_cargado',
+        documentos: documentosParaEnviar,
+      };
+
+      console.log('📤 Enviando webhook con documento subido, payload:', { ...payload, documentos: [{ ...documentosParaEnviar[0], file_base64: '[BASE64_DATA]' }] });
+
+      // Usar la función edge de Supabase como proxy para evitar CORS
+      const result = await sendWebhookViaEdgeFunction(payload);
+
+      console.log('📥 Respuesta del webhook:', result);
+
+      if (!result.success) {
+        throw new Error(result.error || `Error ${result.status || 'desconocido'}`);
+      }
+      
+      console.log('✅ Webhook enviado exitosamente:', result.data);
+      
+      // Si el requerimiento no está completado, marcarlo como "Completado"
+      if (!requerimiento.realizado) {
+        try {
+          console.log(`🔄 Marcando requerimiento ${requerimiento.id} como "Completado" después de subir documento...`);
+          
+          // Verificar cuántos requerimientos estaban completados antes de la actualización
+          const completedBefore = requirements.filter(r => r.realizado).length;
+          const totalRequerimientos = requirements.length;
+          const wasLastOne = completedBefore === totalRequerimientos - 1;
+          
+          console.log(`📊 Estado antes de actualizar: ${completedBefore}/${totalRequerimientos} completados, ¿era el último?: ${wasLastOne}`);
+          
+          const resultEstado = await updateRequerimientoEstado(requerimiento.id, 'Completado');
+          
+          console.log(`📊 Resultado de actualización: allCompleted=${resultEstado.allCompleted}, estadoCambio=${resultEstado.proyectoEstadoCambio}`);
+          
+          // Actualizar estado local del requerimiento
+          setRequirements(prev => prev.map(req => {
+            if (req.id === requerimiento.id) {
+              return {
+                ...req,
+                realizado: true,
+                fechaFinalizada: new Date().toISOString().split('T')[0]
+              };
+            }
+            return req;
+          }));
+          
+          console.log('✅ Requerimiento marcado como "Completado"');
+          
+          // Si se completó el último requerimiento, mostrar popup
+          if (wasLastOne && resultEstado.allCompleted) {
+            console.log('🎉 Se completó el último requerimiento, mostrando popup...');
+            setProjectStatus('Finalizado');
+            setProyectoCompletadoModalOpen(true);
+          }
+          // Si el estado del proyecto cambió, actualizar el estado local
+          else if (resultEstado.proyectoEstadoCambio === 'En proceso') {
+            setProjectStatus('En proceso');
+          }
+          else if (resultEstado.proyectoEstadoCambio === 'Finalizado') {
+            setProjectStatus('Finalizado');
+          }
+        } catch (errorEstado) {
+          console.error('❌ Error al marcar requerimiento como completado:', errorEstado);
+          // No fallar el guardado del documento si falla la actualización del estado
+        }
+      } else {
+        console.log(`ℹ️ El requerimiento ${requerimiento.id} ya está completado`);
+      }
+      
+      alert('✅ Documento subido y enviado exitosamente.');
+    } catch (error) {
+      console.error('❌ Error completo al enviar webhook:', error);
+      
+      let errorMessage = 'Error desconocido';
+      
+      if (error instanceof TypeError) {
+        if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+          errorMessage = 'Error de conexión. Verifica tu conexión a internet o si el servidor está disponible.';
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      alert(`❌ Error al subir el documento: ${errorMessage}`);
+    } finally {
+      setSubiendoDocumento(null);
     }
   };
 
@@ -1131,6 +1317,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                     Documentos
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Documento
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
                     <div className="flex items-center justify-center gap-2 relative filter-dropdown-container">
                       <span>Realizado</span>
                       <button
@@ -1266,12 +1455,13 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                               type="file"
                               className="hidden"
                               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  console.log('Archivo seleccionado:', file.name, 'para requerimiento:', req.requerimiento);
-                                  // Aquí puedes agregar la lógica para subir el archivo
-                                  alert(`Archivo "${file.name}" seleccionado para ${req.requerimiento}. Funcionalidad de subida pendiente de implementar.`);
+                                  e.stopPropagation();
+                                  await handleSubirDocumento(file, req);
+                                  // Resetear el input para permitir subir el mismo archivo de nuevo
+                                  e.target.value = '';
                                 }
                               }}
                             />
@@ -1282,12 +1472,58 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                                 const input = e.currentTarget.parentElement?.querySelector('input[type="file"]') as HTMLInputElement;
                                 input?.click();
                               }}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-lg transition-colors text-xs font-semibold"
+                              disabled={subiendoDocumento === req.id}
+                              className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg transition-colors text-xs font-semibold ${
+                                subiendoDocumento === req.id
+                                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300'
+                              }`}
                             >
-                              <span className="material-symbols-outlined text-[18px]">upload_file</span>
-                              <span>Subir</span>
+                              {subiendoDocumento === req.id ? (
+                                <>
+                                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                                  <span>Subiendo...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                                  <span>Subir</span>
+                                </>
+                              )}
                             </button>
                           </label>
+                        </td>
+
+                        {/* Documento */}
+                        <td className="px-6 py-4 text-center">
+                          {req.drive_doc_url ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleVerDocumentoRequerimiento(req.drive_doc_url!);
+                                }}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
+                                title="Visualizar documento"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAbrirDocumentoRequerimiento(req.drive_doc_url!);
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                                title="Abrir en Google Drive"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
                         </td>
 
                         {/* Realizado */}
@@ -1331,7 +1567,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                   })
                 ) : (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center">
+                    <td colSpan={10} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <span className="material-symbols-outlined text-gray-300 text-5xl">search_off</span>
                         <p className="text-gray-500 text-lg">No se encontraron requerimientos</p>
