@@ -75,6 +75,11 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   // Estado para el modal de completación del proyecto
   const [proyectoCompletadoModalOpen, setProyectoCompletadoModalOpen] = useState(false);
 
+  // Estados para el modal de confirmación de eliminación de documento
+  const [eliminarDocumentoModalOpen, setEliminarDocumentoModalOpen] = useState(false);
+  const [requerimientoAEliminar, setRequerimientoAEliminar] = useState<number | null>(null);
+  const [enviandoEliminacion, setEnviandoEliminacion] = useState(false);
+
   // Estados para el botón de enviar ID del proyecto
   const [enviandoProyecto, setEnviandoProyecto] = useState(false);
   const [mensajeEnvio, setMensajeEnvio] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null);
@@ -449,39 +454,128 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     window.open(urls.drive, '_blank', 'noopener,noreferrer');
   };
 
-  // Función para eliminar el documento de un requerimiento
-  const handleEliminarDocumentoRequerimiento = async (requerimientoId: number) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este documento?')) {
+  // Función para abrir el popup de confirmación de eliminación
+  const handleEliminarDocumentoRequerimiento = (requerimientoId: number) => {
+    const requerimiento = requirements.find(req => req.id === requerimientoId);
+    
+    if (!requerimiento || !requerimiento.drive_doc_url) {
+      alert('Error: No se encontró el documento.');
       return;
     }
 
+    setRequerimientoAEliminar(requerimientoId);
+    setEliminarDocumentoModalOpen(true);
+  };
+
+  // Función para cerrar el popup de confirmación
+  const handleCerrarEliminarDocumentoModal = () => {
+    setEliminarDocumentoModalOpen(false);
+    setRequerimientoAEliminar(null);
+    setEnviandoEliminacion(false);
+  };
+
+  // Función para confirmar y enviar webhook de eliminación de documento (no elimina, solo envía información)
+  const confirmarEliminacionDocumento = async () => {
+    if (!requerimientoAEliminar) return;
+
+    // Obtener el requerimiento del estado local para tener todos los datos
+    const requerimiento = requirements.find(req => req.id === requerimientoAEliminar);
+    
+    if (!requerimiento || !requerimiento.drive_doc_url) {
+      alert('Error: No se encontró el documento.');
+      handleCerrarEliminarDocumentoModal();
+      return;
+    }
+
+    setEnviandoEliminacion(true);
+
+    // Obtener drive_folder_id y drive_folder_url del proyecto desde solicitud_acreditacion
+    let driveFolderId = null;
+    let driveFolderUrl = null;
+    
+    console.log('🔍 Obteniendo datos de carpeta para proyecto:', project.projectCode);
+    
     try {
-      const { error } = await supabase
-        .from('proyecto_requerimientos_acreditacion')
-        .update({ drive_doc_url: null, updated_at: new Date().toISOString() })
-        .eq('id', requerimientoId);
-
-      if (error) {
-        console.error('Error al eliminar documento:', error);
-        alert('Error al eliminar el documento. Por favor, intenta nuevamente.');
-        return;
+      const solicitud = await fetchSolicitudAcreditacionByCodigo(project.projectCode || '');
+      if (solicitud) {
+        driveFolderId = solicitud.drive_folder_id || null;
+        driveFolderUrl = solicitud.drive_folder_url || null;
+        console.log('📁 Datos de carpeta del proyecto obtenidos:', { 
+          driveFolderId, 
+          driveFolderUrl,
+          proyecto: project.projectCode 
+        });
+      } else {
+        console.warn('⚠️ No se encontró solicitud_acreditacion para el proyecto:', project.projectCode);
       }
-
-      // Actualizar estado local
-      setRequirements(prev => prev.map(req => {
-        if (req.id === requerimientoId) {
-          return {
-            ...req,
-            drive_doc_url: undefined
-          };
-        }
-        return req;
-      }));
-
-      alert('✅ Documento eliminado exitosamente.');
     } catch (error) {
-      console.error('Error al eliminar documento:', error);
-      alert('Error al eliminar el documento. Por favor, intenta nuevamente.');
+      console.error('❌ Error al obtener datos del proyecto:', error);
+    }
+
+    // Extraer drive_doc_id del drive_doc_url
+    const driveDocId = getFileIdFromDriveLink(requerimiento.drive_doc_url);
+
+    try {
+      // Construir el payload del webhook
+      const documentosParaEnviar = [{
+        id: '',
+        nombre: requerimiento.nombre_trabajador || '',
+        rut: '',
+        requerimiento: requerimiento.requerimiento,
+        categoria: requerimiento.categoria,
+        estado: '',
+        fecha_vigencia: '-',
+        fecha_vencimiento: '-',
+        link_drive: requerimiento.drive_doc_url,
+        drive_folder_id: driveFolderId,
+        drive_folder_url: driveFolderUrl,
+        persona_id: null,
+        requerimiento_id: requerimiento.id,
+        drive_doc_url: requerimiento.drive_doc_url,
+        drive_doc_id: driveDocId,
+      }];
+
+      const payload = {
+        persona: requerimiento.nombre_trabajador || '',
+        proyecto: project.projectCode || '',
+        fecha_envio: new Date().toISOString(),
+        id_solicitud: project.id,
+        requerimiento_id: requerimiento.id,
+        tipo_documento: 'documento_eliminado',
+        documentos: documentosParaEnviar,
+      };
+
+      console.log('📤 Enviando webhook de eliminación con payload:', payload);
+
+      // Enviar webhook
+      const result = await sendWebhookViaEdgeFunction(payload);
+
+      console.log('📥 Respuesta del webhook:', result);
+
+      if (!result.success) {
+        throw new Error(result.error || `Error ${result.status || 'desconocido'}`);
+      }
+      
+      console.log('✅ Webhook enviado exitosamente:', result.data);
+      alert('✅ Información de eliminación enviada exitosamente.');
+      handleCerrarEliminarDocumentoModal();
+    } catch (error) {
+      console.error('❌ Error al enviar webhook:', error);
+      
+      let errorMessage = 'Error desconocido';
+      
+      if (error instanceof TypeError) {
+        if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+          errorMessage = 'Error de conexión. Verifica tu conexión a internet o si el servidor está disponible.';
+        } else {
+          errorMessage = error.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      alert(`❌ Error al enviar la información: ${errorMessage}`);
+      setEnviandoEliminacion(false);
     }
   };
 
@@ -2007,6 +2101,93 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                 >
                   <span className="material-symbols-outlined text-[20px]">check</span>
                   Entendido
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Eliminación de Documento */}
+      {eliminarDocumentoModalOpen && requerimientoAEliminar && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={handleCerrarEliminarDocumentoModal}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header con gradiente rojo */}
+            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-6 flex items-center justify-center flex-col">
+              <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg">
+                <span className="material-symbols-outlined text-red-600 text-5xl">delete</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white text-center">Confirmar Eliminación</h2>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <p className="text-lg text-gray-700 mb-4">
+                  ¿Estás seguro de que deseas enviar la información para eliminar este documento?
+                </p>
+                {(() => {
+                  const requerimiento = requirements.find(req => req.id === requerimientoAEliminar);
+                  if (requerimiento) {
+                    return (
+                      <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                        {requerimiento.nombre_trabajador && (
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="font-semibold">Persona:</span> {requerimiento.nombre_trabajador}
+                          </p>
+                        )}
+                        <p className={`text-sm text-gray-600 ${requerimiento.nombre_trabajador ? '' : 'mb-0'}`}>
+                          <span className="font-semibold">Requerimiento:</span> {requerimiento.requerimiento}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <p className="text-sm text-gray-500">
+                  Se eliminará el documento de la carpeta del Drive asociada al proyecto.
+                </p>
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleCerrarEliminarDocumentoModal}
+                  disabled={enviandoEliminacion}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    enviandoEliminacion
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarEliminacionDocumento}
+                  disabled={enviandoEliminacion}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                    enviandoEliminacion
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg'
+                  }`}
+                >
+                  {enviandoEliminacion ? (
+                    <>
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">check</span>
+                      <span>Confirmar</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
