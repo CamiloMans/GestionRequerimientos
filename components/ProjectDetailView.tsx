@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem, RequestItem, RequestStatus } from '../types';
 import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre, sendWebhookViaEdgeFunction, fetchSolicitudAcreditacionByCodigo, enviarIdProyectoN8n } from '../services/supabaseService';
+import { supabase } from '../config/supabase';
 
 interface ProjectRequirement {
   id: number;
@@ -128,6 +129,40 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     };
 
     loadRequerimientosConObservaciones();
+  }, [project.projectCode]);
+
+  // Actualizar drive_doc_url cada 10 segundos
+  useEffect(() => {
+    if (!project.projectCode) return;
+
+    const actualizarDriveDocUrls = async () => {
+      try {
+        const proyectoRequerimientos = await fetchProyectoRequerimientos(project.projectCode);
+        
+        // Actualizar solo el campo drive_doc_url de los requerimientos existentes
+        setRequirements(prev => prev.map(req => {
+          const requerimientoActualizado = proyectoRequerimientos.find(r => r.id === req.id);
+          if (requerimientoActualizado) {
+            return {
+              ...req,
+              drive_doc_url: requerimientoActualizado.drive_doc_url
+            };
+          }
+          return req;
+        }));
+      } catch (error) {
+        console.error('Error al actualizar drive_doc_url de requerimientos:', error);
+      }
+    };
+
+    // Ejecutar inmediatamente al montar
+    actualizarDriveDocUrls();
+
+    // Configurar intervalo para ejecutar cada 10 segundos
+    const interval = setInterval(actualizarDriveDocUrls, 10000);
+
+    // Limpiar el intervalo al desmontar
+    return () => clearInterval(interval);
   }, [project.projectCode]);
 
   // Usar las tareas del proyecto (vienen de ProjectGalleryItem)
@@ -412,6 +447,42 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
     const urls = getDriveUrls(driveDocUrl);
     window.open(urls.drive, '_blank', 'noopener,noreferrer');
+  };
+
+  // Función para eliminar el documento de un requerimiento
+  const handleEliminarDocumentoRequerimiento = async (requerimientoId: number) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este documento?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('proyecto_requerimientos_acreditacion')
+        .update({ drive_doc_url: null, updated_at: new Date().toISOString() })
+        .eq('id', requerimientoId);
+
+      if (error) {
+        console.error('Error al eliminar documento:', error);
+        alert('Error al eliminar el documento. Por favor, intenta nuevamente.');
+        return;
+      }
+
+      // Actualizar estado local
+      setRequirements(prev => prev.map(req => {
+        if (req.id === requerimientoId) {
+          return {
+            ...req,
+            drive_doc_url: undefined
+          };
+        }
+        return req;
+      }));
+
+      alert('✅ Documento eliminado exitosamente.');
+    } catch (error) {
+      console.error('Error al eliminar documento:', error);
+      alert('Error al eliminar el documento. Por favor, intenta nuevamente.');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -1519,6 +1590,17 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                                 title="Abrir en Google Drive"
                               >
                                 <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEliminarDocumentoRequerimiento(req.id);
+                                }}
+                                className="text-gray-600 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                                title="Eliminar documento"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">delete</span>
                               </button>
                             </div>
                           ) : (
