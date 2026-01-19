@@ -121,3 +121,5 @@ CREATE TRIGGER update_user_areas_updated_at
 -- 4. Las políticas RLS pueden necesitar ajustes según tus necesidades de seguridad
 
 
+
+

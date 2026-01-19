@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedorById, ProveedorResponse } from '../services/proveedoresService';
+import { fetchProveedorById, ProveedorResponse, fetchEspecialidades } from '../services/proveedoresService';
 import { Clasificacion } from '../types';
 
 interface Servicio {
@@ -12,6 +12,8 @@ interface Servicio {
   categoria: string;
   tarifaRef: number;
   estado: 'Vigente' | 'En revisión' | 'Inactivo';
+  clasificacion?: 'A' | 'B' | 'C' | 'D' | null;
+  documentacionUrl?: string;
 }
 
 // Datos mock de servicios (luego se conectarán con Supabase)
@@ -24,6 +26,8 @@ const MOCK_SERVICIOS: Servicio[] = [
     categoria: 'Laboratorio',
     tarifaRef: 45000,
     estado: 'Vigente',
+    clasificacion: 'A',
+    documentacionUrl: 'https://ejemplo.com/documentacion/lab-001',
   },
   {
     id: 2,
@@ -33,6 +37,8 @@ const MOCK_SERVICIOS: Servicio[] = [
     categoria: 'Aire',
     tarifaRef: 320000,
     estado: 'Vigente',
+    clasificacion: 'B',
+    documentacionUrl: 'https://ejemplo.com/documentacion/air-023',
   },
   {
     id: 3,
@@ -42,6 +48,8 @@ const MOCK_SERVICIOS: Servicio[] = [
     categoria: 'Laboratorio',
     tarifaRef: 85000,
     estado: 'En revisión',
+    clasificacion: 'C',
+    documentacionUrl: 'https://ejemplo.com/documentacion/lab-045',
   },
   {
     id: 4,
@@ -51,6 +59,8 @@ const MOCK_SERVICIOS: Servicio[] = [
     categoria: 'Laboratorio',
     tarifaRef: 120000,
     estado: 'Vigente',
+    clasificacion: 'A',
+    documentacionUrl: 'https://ejemplo.com/documentacion/lab-012',
   },
   {
     id: 5,
@@ -60,6 +70,8 @@ const MOCK_SERVICIOS: Servicio[] = [
     categoria: 'Aire',
     tarifaRef: 95000,
     estado: 'Vigente',
+    clasificacion: 'B',
+    documentacionUrl: 'https://ejemplo.com/documentacion/air-015',
   },
 ];
 
@@ -71,12 +83,31 @@ const ProveedorDetalle: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState<string>('Todas las categorías');
+  const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([]);
+  const [loadingCategorias, setLoadingCategorias] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
   };
+
+  // Cargar categorías (especialidades)
+  useEffect(() => {
+    const loadCategorias = async () => {
+      try {
+        setLoadingCategorias(true);
+        const data = await fetchEspecialidades();
+        setCategorias(data);
+      } catch (err) {
+        console.error('Error al cargar categorías:', err);
+      } finally {
+        setLoadingCategorias(false);
+      }
+    };
+
+    loadCategorias();
+  }, []);
 
   // Cargar datos del proveedor
   useEffect(() => {
@@ -123,8 +154,6 @@ const ProveedorDetalle: React.FC = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedServicios = filteredServicios.slice(startIndex, endIndex);
 
-  // Obtener categorías únicas
-  const categorias = Array.from(new Set(MOCK_SERVICIOS.map((s) => s.categoria)));
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -290,13 +319,6 @@ const ProveedorDetalle: React.FC = () => {
                 Listado de servicios disponibles o contratados con este proveedor.
               </p>
             </div>
-            <button
-              onClick={() => navigate(getAreaPath(`actuales/${id}/servicios/nuevo`))}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium"
-            >
-              <span className="material-symbols-outlined text-lg">add</span>
-              <span>Nuevo Servicio</span>
-            </button>
           </div>
 
           {/* Filtros */}
@@ -323,11 +345,12 @@ const ProveedorDetalle: React.FC = () => {
                   value={filterCategoria}
                   onChange={(e) => setFilterCategoria(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                  disabled={loadingCategorias}
                 >
                   <option value="Todas las categorías">Todas las categorías</option>
                   {categorias.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
+                    <option key={cat.id} value={cat.nombre}>
+                      {cat.nombre}
                     </option>
                   ))}
                 </select>
@@ -346,6 +369,8 @@ const ProveedorDetalle: React.FC = () => {
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CATEGORÍA</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">TARIFA REF.</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CALIFICACIÓN</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DOCUMENTACIÓN</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
                   </tr>
                 </thead>
@@ -386,11 +411,40 @@ const ProveedorDetalle: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-4 px-6">
+                        {servicio.clasificacion ? (
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${getClasificacionColor(
+                              servicio.clasificacion
+                            )}`}
+                          >
+                            {servicio.clasificacion}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        {servicio.documentacionUrl ? (
+                          <a
+                            href={servicio.documentacionUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors inline-flex items-center justify-center"
+                            title="Ver documentación"
+                          >
+                            <span className="material-symbols-outlined text-lg">description</span>
+                          </a>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
                         <button
+                          onClick={() => navigate(getAreaPath('evaluacion'))}
                           className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                          title="Ver detalles"
+                          title="Editar"
                         >
-                          <span className="material-symbols-outlined text-lg">visibility</span>
+                          <span className="material-symbols-outlined text-lg">edit</span>
                         </button>
                       </td>
                     </tr>

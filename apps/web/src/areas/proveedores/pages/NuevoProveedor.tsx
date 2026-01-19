@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { createProveedor, updateProveedor, fetchProveedorById, ProveedorData, calcularClasificacion } from '../services/proveedoresService';
+import { createProveedor, updateProveedor, fetchProveedorById, ProveedorData, calcularClasificacion, fetchEspecialidades, fetchEspecialidadesByProveedorId, saveProveedorEspecialidades } from '../services/proveedoresService';
 
 const NuevoProveedor: React.FC = () => {
   const navigate = useNavigate();
@@ -10,6 +10,9 @@ const NuevoProveedor: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(isEditMode);
   const [error, setError] = useState<string | null>(null);
+  const [especialidades, setEspecialidades] = useState<{ id: number; nombre: string }[]>([]);
+  const [especialidadesSeleccionadas, setEspecialidadesSeleccionadas] = useState<number[]>([]);
+  const [loadingEspecialidades, setLoadingEspecialidades] = useState(true);
   const [formData, setFormData] = useState<ProveedorData>({
     nombre_proveedor: '',
     rut: '',
@@ -34,6 +37,23 @@ const NuevoProveedor: React.FC = () => {
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
   };
+
+  // Cargar especialidades
+  useEffect(() => {
+    const loadEspecialidades = async () => {
+      try {
+        setLoadingEspecialidades(true);
+        const data = await fetchEspecialidades();
+        setEspecialidades(data);
+      } catch (err) {
+        console.error('Error al cargar especialidades:', err);
+      } finally {
+        setLoadingEspecialidades(false);
+      }
+    };
+
+    loadEspecialidades();
+  }, []);
 
   // Cargar datos del proveedor si está en modo edición
   useEffect(() => {
@@ -70,6 +90,10 @@ const NuevoProveedor: React.FC = () => {
           evaluacion: evaluacionValue,
           clasificacion: clasificacionValue,
         });
+
+        // Cargar especialidades del proveedor
+        const especialidadesIds = await fetchEspecialidadesByProveedorId(Number(id));
+        setEspecialidadesSeleccionadas(especialidadesIds);
       } catch (err: any) {
         console.error('Error al cargar proveedor:', err);
         setError('Error al cargar los datos del proveedor');
@@ -106,6 +130,16 @@ const NuevoProveedor: React.FC = () => {
     setError(null);
   };
 
+  const handleEspecialidadChange = (especialidadId: number) => {
+    setEspecialidadesSeleccionadas((prev) => {
+      if (prev.includes(especialidadId)) {
+        return prev.filter((id) => id !== especialidadId);
+      } else {
+        return [...prev, especialidadId];
+      }
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -130,11 +164,17 @@ const NuevoProveedor: React.FC = () => {
         clasificacion: clasificacionCalculada,
       };
 
+      let proveedorId: number;
       if (isEditMode && id) {
-        await updateProveedor(Number(id), dataToSend);
+        const updated = await updateProveedor(Number(id), dataToSend);
+        proveedorId = updated.id;
       } else {
-        await createProveedor(dataToSend);
+        const created = await createProveedor(dataToSend);
+        proveedorId = created.id;
       }
+
+      // Guardar las especialidades seleccionadas
+      await saveProveedorEspecialidades(proveedorId, especialidadesSeleccionadas);
 
       // Redirigir a la lista de proveedores actuales
       navigate(getAreaPath('actuales'));
@@ -272,7 +312,45 @@ const NuevoProveedor: React.FC = () => {
               />
             </div>
 
-            {/* Cuarta fila: Evaluación y Clasificación */}
+            {/* Cuarta fila: Especialidades */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Especialidades
+              </label>
+              {loadingEspecialidades ? (
+                <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  <span className="text-sm text-gray-500">Cargando especialidades...</span>
+                </div>
+              ) : (
+                <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 max-h-48 overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {especialidades.map((esp) => (
+                      <label
+                        key={esp.id}
+                        className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-white transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={especialidadesSeleccionadas.includes(esp.id)}
+                          onChange={() => handleEspecialidadChange(esp.id)}
+                          className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary focus:ring-2"
+                        />
+                        <span className="text-sm text-gray-700">{esp.nombre}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {especialidadesSeleccionadas.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-xs text-gray-500">
+                        {especialidadesSeleccionadas.length} especialidad{especialidadesSeleccionadas.length !== 1 ? 'es' : ''} seleccionada{especialidadesSeleccionadas.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Quinta fila: Evaluación y Clasificación */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Porcentaje de Evaluación */}
               <div>

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import RequestList from './pages/RequestList';
 import RequestForm from './pages/RequestForm';
 import FieldRequestForm from './pages/FieldRequestForm';
 import ProjectGalleryV2 from './pages/ProjectGalleryV2';
 import DashboardView from './pages/DashboardView';
 import { RequestItem, NewRequestPayload, ProjectGalleryItem } from './types';
+import { ACREDITACION_ROUTES } from './utils/routes';
 import {
   fetchPersonaRequerimientos,
   createPersonaRequerimiento,
@@ -19,6 +20,7 @@ import {
  * Componente que maneja las rutas del área de Acreditaciones
  */
 const AcreditacionRoutes: React.FC = () => {
+  const navigate = useNavigate();
   const [editingItem, setEditingItem] = React.useState<RequestItem | null>(null);
   const [requests, setRequests] = React.useState<RequestItem[]>([]);
   const [projects, setProjects] = React.useState<ProjectGalleryItem[]>([]);
@@ -42,7 +44,7 @@ const AcreditacionRoutes: React.FC = () => {
     loadRequests();
   }, [loadRequests]);
 
-  const loadProjects = async () => {
+  const loadProjects = React.useCallback(async () => {
     try {
       setLoadingProjects(true);
       const data = await fetchProjectGalleryItems();
@@ -53,14 +55,20 @@ const AcreditacionRoutes: React.FC = () => {
     } finally {
       setLoadingProjects(false);
     }
-  };
+  }, []);
+
+  React.useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const handleEdit = (item: RequestItem) => {
     setEditingItem(item);
+    navigate(ACREDITACION_ROUTES.requestsEdit);
   };
 
   const handleCreateNew = () => {
     setEditingItem(null);
+    navigate(ACREDITACION_ROUTES.requestsCreate);
   };
 
   const handleSave = async (data: NewRequestPayload) => {
@@ -89,6 +97,8 @@ const AcreditacionRoutes: React.FC = () => {
 
       await loadRequests();
       setEditingItem(null);
+      // Navegar de vuelta a la lista después de guardar
+      navigate(ACREDITACION_ROUTES.requests);
     } catch (error) {
       console.error('Error saving request:', error);
       alert('Error al guardar la solicitud. Por favor, intente nuevamente.');
@@ -197,12 +207,14 @@ const AcreditacionRoutes: React.FC = () => {
         path="dashboards"
         element={<DashboardView />}
       />
-      <Route path="/" element={<Navigate to="requests" replace />} />
-      <Route path="*" element={<Navigate to="requests" replace />} />
+      <Route path="/" element={<Navigate to="dashboards" replace />} />
+      <Route path="*" element={<Navigate to="dashboards" replace />} />
     </Routes>
   );
 };
 
 export default AcreditacionRoutes;
+
+
 
 

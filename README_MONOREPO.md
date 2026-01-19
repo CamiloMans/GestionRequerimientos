@@ -164,3 +164,5 @@ pnpm clean
 - ⚠️ Permisos en Supabase (pendiente ejecutar SQL)
 
 
+
+

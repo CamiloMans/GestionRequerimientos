@@ -152,3 +152,112 @@ export const fetchEspecialidades = async (): Promise<{ id: number; nombre: strin
   }));
 };
 
+/**
+ * Obtener las especialidades de un proveedor desde brg_core_proveedor_especialidad
+ */
+export const fetchEspecialidadesByNombreProveedor = async (nombreProveedor: string): Promise<string[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('brg_core_proveedor_especialidad')
+      .select('especialidad')
+      .eq('nombre_proveedor', nombreProveedor);
+
+    if (error) {
+      // Si la tabla no existe, retornar array vacío
+      if (error.code === '42P01') {
+        console.warn('Tabla brg_core_proveedor_especialidad no existe aún');
+        return [];
+      }
+      console.error('Error fetching especialidades del proveedor:', error);
+      throw error;
+    }
+
+    // Extraer los valores únicos de especialidad
+    const especialidades = (data || []).map((item) => item.especialidad).filter(Boolean);
+    return [...new Set(especialidades)]; // Eliminar duplicados
+  } catch (err: any) {
+    // Si hay cualquier error, retornar array vacío
+    console.warn('No se pudieron cargar las especialidades del proveedor:', err);
+    return [];
+  }
+};
+
+/**
+ * Obtener las especialidades de un proveedor
+ */
+export const fetchEspecialidadesByProveedorId = async (proveedorId: number): Promise<number[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('proveedor_especialidad')
+      .select('especialidad_id')
+      .eq('proveedor_id', proveedorId);
+
+    if (error) {
+      // Si la tabla no existe, retornar array vacío
+      if (error.code === '42P01') {
+        console.warn('Tabla proveedor_especialidad no existe aún');
+        return [];
+      }
+      console.error('Error fetching especialidades del proveedor:', error);
+      throw error;
+    }
+
+    return (data || []).map((item) => item.especialidad_id);
+  } catch (err: any) {
+    // Si hay cualquier error (tabla no existe, etc.), retornar array vacío
+    console.warn('No se pudieron cargar las especialidades del proveedor:', err);
+    return [];
+  }
+};
+
+/**
+ * Guardar las especialidades de un proveedor
+ * Elimina las relaciones existentes y crea las nuevas
+ */
+export const saveProveedorEspecialidades = async (
+  proveedorId: number,
+  especialidadIds: number[]
+): Promise<void> => {
+  try {
+    // Eliminar todas las relaciones existentes
+    const { error: deleteError } = await supabase
+      .from('proveedor_especialidad')
+      .delete()
+      .eq('proveedor_id', proveedorId);
+
+    if (deleteError && deleteError.code !== '42P01') {
+      // Si el error no es "tabla no existe", lanzar el error
+      console.error('Error eliminando especialidades del proveedor:', deleteError);
+      throw deleteError;
+    }
+
+    // Si no hay especialidades para guardar, terminar aquí
+    if (especialidadIds.length === 0) {
+      return;
+    }
+
+    // Crear las nuevas relaciones
+    const relaciones = especialidadIds.map((especialidadId) => ({
+      proveedor_id: proveedorId,
+      especialidad_id: especialidadId,
+    }));
+
+    const { error: insertError } = await supabase
+      .from('proveedor_especialidad')
+      .insert(relaciones);
+
+    if (insertError) {
+      // Si la tabla no existe, solo loguear un warning
+      if (insertError.code === '42P01') {
+        console.warn('Tabla proveedor_especialidad no existe aún. Las especialidades no se guardaron.');
+        return;
+      }
+      console.error('Error guardando especialidades del proveedor:', insertError);
+      throw insertError;
+    }
+  } catch (err: any) {
+    // Si hay cualquier error, solo loguear un warning pero no fallar
+    console.warn('No se pudieron guardar las especialidades del proveedor:', err);
+  }
+};
+

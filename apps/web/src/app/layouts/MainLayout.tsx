@@ -36,7 +36,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="size-10 rounded-full bg-gradient-to-br from-teal-700 to-teal-900 flex items-center justify-center shadow-md border-2 border-teal-600">
                 <span className="text-white font-bold text-sm tracking-tight">MyMA</span>
               </div>
-              <h1 className="text-xl font-bold text-[#111318]">MyMA</h1>
             </div>
           </div>
           <div className="flex items-center gap-4">

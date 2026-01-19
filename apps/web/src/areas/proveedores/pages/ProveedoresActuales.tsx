@@ -1,23 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Proveedor, TipoProveedor, Especialidad, Clasificacion } from '../types';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
 
 const ProveedoresActuales: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('Todos');
+  const [filterCategoria, setFilterCategoria] = useState<string>('Todas');
   const [filterEspecialidad, setFilterEspecialidad] = useState<string>('Todas');
   const [filterClasificacion, setFilterClasificacion] = useState<string>('Todas');
+  const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([]);
+  const [loadingCategorias, setLoadingCategorias] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
   // Mapear ProveedorResponse a Proveedor
-  const mapProveedorResponseToProveedor = (response: ProveedorResponse): Proveedor => {
+  const mapProveedorResponseToProveedor = async (response: ProveedorResponse): Promise<Proveedor> => {
     // Mapear tipo_proveedor a TipoProveedor enum
     let tipo: TipoProveedor = TipoProveedor.EMPRESA;
     if (response.tipo_proveedor === 'Persona natural') {
@@ -51,22 +55,55 @@ const ProveedoresActuales: React.FC = () => {
       else clasificacion = Clasificacion.D;
     }
 
+    // Obtener especialidades desde brg_core_proveedor_especialidad
+    const especialidades = await fetchEspecialidadesByNombreProveedor(response.nombre_proveedor);
+
+    // Generar dato dummy para tieneServiciosEjecutados
+    // Si tiene evaluación, asumimos que tiene servicios ejecutados
+    // Si no tiene evaluación, 70% de probabilidad de tener servicios ejecutados (para datos dummy)
+    const tieneEvaluacion = response.evaluacion !== null && response.evaluacion !== undefined && response.evaluacion > 0;
+    const tieneServiciosEjecutados = tieneEvaluacion 
+      ? true 
+      : (response.id % 10 < 7); // 70% de probabilidad basado en el ID
+
+    // Si no tiene servicios ejecutados, no debería tener evaluación ni clasificación
+    const evaluacionFinal = tieneServiciosEjecutados ? (response.evaluacion ?? 0) : 0;
+    const clasificacionFinal = tieneServiciosEjecutados ? clasificacion : Clasificacion.A; // Mantener tipo pero no se mostrará
+
     return {
       id: response.id,
       nombre: response.nombre_proveedor,
       razonSocial: response.razon_social || undefined,
       rut: response.rut || '',
       tipo,
-      especialidad: Especialidad.OTROS, // Por defecto, ya que no está en la BD
+      especialidad: especialidades.length > 0 ? especialidades : [], // Array de especialidades
       email: response.correo_contacto || undefined,
       contacto: response.correo_contacto || undefined,
-      evaluacion: response.evaluacion ?? 0,
-      clasificacion,
+      evaluacion: evaluacionFinal,
+      clasificacion: clasificacionFinal,
       activo: true,
+      tieneServiciosEjecutados,
       created_at: response.created_at,
       updated_at: response.updated_at,
     };
   };
+
+  // Cargar categorías desde Supabase
+  useEffect(() => {
+    const loadCategorias = async () => {
+      try {
+        setLoadingCategorias(true);
+        const data = await fetchEspecialidades();
+        setCategorias(data);
+      } catch (err) {
+        console.error('Error al cargar categorías:', err);
+      } finally {
+        setLoadingCategorias(false);
+      }
+    };
+
+    loadCategorias();
+  }, []);
 
   // Cargar proveedores desde Supabase
   useEffect(() => {
@@ -75,7 +112,10 @@ const ProveedoresActuales: React.FC = () => {
         setLoading(true);
         setError(null);
         const data = await fetchProveedores();
-        const mappedProveedores = data.map(mapProveedorResponseToProveedor);
+        // Mapear proveedores de forma asíncrona para cargar especialidades
+        const mappedProveedores = await Promise.all(
+          data.map((proveedor) => mapProveedorResponseToProveedor(proveedor))
+        );
         setProveedores(mappedProveedores);
       } catch (err: any) {
         console.error('Error al cargar proveedores:', err);
@@ -87,6 +127,37 @@ const ProveedoresActuales: React.FC = () => {
 
     loadProveedores();
   }, []);
+
+  const [filterEvaluacionMenor60, setFilterEvaluacionMenor60] = useState(false);
+
+  // Leer parámetro de especialidad de la URL y aplicar filtro
+  useEffect(() => {
+    const especialidadParam = searchParams.get('especialidad');
+    if (especialidadParam && proveedores.length > 0) {
+      // Buscar si existe una especialidad que coincida con el parámetro
+      const especialidadesUnicas = Array.from(new Set(proveedores.flatMap((p) => p.especialidad)));
+      const especialidadEncontrada = especialidadesUnicas.find(esp => 
+        esp.toLowerCase().includes(especialidadParam.toLowerCase()) ||
+        especialidadParam.toLowerCase().includes(esp.toLowerCase())
+      );
+      
+      if (especialidadEncontrada) {
+        setFilterEspecialidad(especialidadEncontrada);
+        // Limpiar el parámetro de la URL después de aplicarlo
+        searchParams.delete('especialidad');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+
+    // Leer parámetro de evaluación menor a 60%
+    const evaluacionMenor60Param = searchParams.get('evaluacionMenor60');
+    if (evaluacionMenor60Param === 'true') {
+      setFilterEvaluacionMenor60(true);
+      // Limpiar el parámetro de la URL después de aplicarlo
+      searchParams.delete('evaluacionMenor60');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, proveedores, setSearchParams]);
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
@@ -101,10 +172,17 @@ const ProveedoresActuales: React.FC = () => {
       proveedor.email?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesTipo = filterTipo === 'Todos' || proveedor.tipo === filterTipo;
-    const matchesEspecialidad = filterEspecialidad === 'Todas' || proveedor.especialidad === filterEspecialidad;
+    const matchesCategoria = filterCategoria === 'Todas' || proveedor.especialidad.some(esp => {
+      const categoriaSeleccionada = categorias.find(cat => cat.nombre === filterCategoria);
+      if (!categoriaSeleccionada) return false;
+      // Verificar si la especialidad contiene el nombre de la categoría (case insensitive)
+      return esp.toLowerCase().includes(categoriaSeleccionada.nombre.toLowerCase());
+    });
+    const matchesEspecialidad = filterEspecialidad === 'Todas' || proveedor.especialidad.includes(filterEspecialidad);
     const matchesClasificacion = filterClasificacion === 'Todas' || proveedor.clasificacion === filterClasificacion;
+    const matchesEvaluacionMenor60 = !filterEvaluacionMenor60 || (proveedor.tieneServiciosEjecutados && proveedor.evaluacion < 60);
 
-    return matchesSearch && matchesTipo && matchesEspecialidad && matchesClasificacion;
+    return matchesSearch && matchesTipo && matchesCategoria && matchesEspecialidad && matchesClasificacion && matchesEvaluacionMenor60;
   });
 
   // Paginación
@@ -113,18 +191,42 @@ const ProveedoresActuales: React.FC = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedProveedores = filteredProveedores.slice(startIndex, endIndex);
 
-  const getEspecialidadColor = (especialidad: Especialidad) => {
-    const colors: Record<Especialidad, string> = {
-      [Especialidad.LABORATORIO]: 'bg-blue-100 text-blue-700 border-blue-200',
-      [Especialidad.ARQUITECTURA]: 'bg-purple-100 text-purple-700 border-purple-200',
-      [Especialidad.RECURSOS_HIDRICOS]: 'bg-teal-100 text-teal-700 border-teal-200',
-      [Especialidad.INGENIERIA]: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-      [Especialidad.CONSTRUCCION]: 'bg-orange-100 text-orange-700 border-orange-200',
-      [Especialidad.SUMINISTROS_TI]: 'bg-blue-100 text-blue-700 border-blue-200',
-      [Especialidad.CONSULTORIA_AMBIENTAL]: 'bg-green-100 text-green-700 border-green-200',
-      [Especialidad.OTROS]: 'bg-gray-100 text-gray-700 border-gray-200',
+  const getEspecialidadColor = (especialidad: string) => {
+    // Paleta de colores para especialidades
+    const colorPalette = [
+      'bg-blue-100 text-blue-700 border-blue-200',
+      'bg-purple-100 text-purple-700 border-purple-200',
+      'bg-cyan-100 text-cyan-700 border-cyan-200',
+      'bg-indigo-100 text-indigo-700 border-indigo-200',
+      'bg-orange-100 text-orange-700 border-orange-200',
+      'bg-teal-100 text-teal-700 border-teal-200',
+      'bg-green-100 text-green-700 border-green-200',
+      'bg-pink-100 text-pink-700 border-pink-200',
+      'bg-rose-100 text-rose-700 border-rose-200',
+      'bg-amber-100 text-amber-700 border-amber-200',
+      'bg-lime-100 text-lime-700 border-lime-200',
+      'bg-emerald-100 text-emerald-700 border-emerald-200',
+      'bg-sky-100 text-sky-700 border-sky-200',
+      'bg-violet-100 text-violet-700 border-violet-200',
+      'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+      'bg-stone-100 text-stone-700 border-stone-200',
+    ];
+
+    // Función hash simple para asignar color de forma consistente
+    const hashString = (str: string): number => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
     };
-    return colors[especialidad] || colors[Especialidad.OTROS];
+
+    // Asignar color basado en el hash del nombre de la especialidad
+    const hash = hashString(especialidad.toLowerCase());
+    const colorIndex = hash % colorPalette.length;
+    return colorPalette[colorIndex];
   };
 
   const getClasificacionColor = (clasificacion: Clasificacion) => {
@@ -176,9 +278,12 @@ const ProveedoresActuales: React.FC = () => {
 
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Búsqueda */}
             <div className="lg:col-span-1">
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                BUSCAR
+              </label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl">
                   search
@@ -195,41 +300,77 @@ const ProveedoresActuales: React.FC = () => {
 
             {/* Tipo de Proveedor */}
             <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                TIPO DE PROVEEDOR
+              </label>
               <select
                 value={filterTipo}
                 onChange={(e) => setFilterTipo(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
               >
-                <option value="Todos">Todos</option>
+                <option value="Todos">Todos los tipos</option>
                 <option value={TipoProveedor.EMPRESA}>Empresa</option>
                 <option value={TipoProveedor.PERSONA}>Persona</option>
               </select>
             </div>
 
+            {/* Categoría */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                CATEGORÍA
+              </label>
+              {loadingCategorias ? (
+                <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  <span className="text-sm text-gray-500">Cargando...</span>
+                </div>
+              ) : (
+                <select
+                  value={filterCategoria}
+                  onChange={(e) => setFilterCategoria(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                >
+                  <option value="Todas">Todas las categorías</option>
+                  {categorias.map((cat) => (
+                    <option key={cat.id} value={cat.nombre}>
+                      {cat.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             {/* Especialidad */}
             <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                ESPECIALIDAD
+              </label>
               <select
                 value={filterEspecialidad}
                 onChange={(e) => setFilterEspecialidad(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
               >
-                <option value="Todas">Todas</option>
-                {Object.values(Especialidad).map((esp) => (
-                  <option key={esp} value={esp}>
-                    {esp}
-                  </option>
-                ))}
+                <option value="Todas">Todas las especialidades</option>
+                {Array.from(new Set(proveedores.flatMap((p) => p.especialidad)))
+                  .sort()
+                  .map((esp) => (
+                    <option key={esp} value={esp}>
+                      {esp}
+                    </option>
+                  ))}
               </select>
             </div>
 
             {/* Clasificación */}
             <div>
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                CLASIFICACIÓN
+              </label>
               <select
                 value={filterClasificacion}
                 onChange={(e) => setFilterClasificacion(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
               >
-                <option value="Todas">Todas</option>
+                <option value="Todas">Todas las clasificaciones</option>
                 {Object.values(Clasificacion).map((clas) => (
                   <option key={clas} value={clas}>
                     {clas}
@@ -261,21 +402,22 @@ const ProveedoresActuales: React.FC = () => {
               <p>No se encontraron proveedores.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
-                  <tr>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">NOMBRE / RAZÓN SOCIAL</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">RUT / TIPO</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CONTACTO</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CLASIFICACIÓN</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedProveedores.map((proveedor) => (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
+                <tr>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">NOMBRE / RAZÓN SOCIAL</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">RUT / TIPO</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CONTACTO</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CLASIFICACIÓN</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedProveedores.map((proveedor) => (
                   <tr
                     key={proveedor.id}
                     onClick={() => navigate(getAreaPath(`actuales/${proveedor.id}`))}
@@ -296,13 +438,20 @@ const ProveedoresActuales: React.FC = () => {
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getEspecialidadColor(
-                          proveedor.especialidad
-                        )}`}
-                      >
-                        {proveedor.especialidad}
-                      </span>
+                      {proveedor.especialidad.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {proveedor.especialidad.map((esp, index) => (
+                            <span
+                              key={index}
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getEspecialidadColor(esp)}`}
+                            >
+                              {esp}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       {proveedor.contacto && (
@@ -313,26 +462,45 @@ const ProveedoresActuales: React.FC = () => {
                       )}
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-100 rounded-full h-2 max-w-[100px]">
-                          <div
-                            className={`h-2 rounded-full transition-all ${getEvaluacionColor(proveedor.evaluacion)}`}
-                            style={{ width: `${proveedor.evaluacion}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium text-[#111318] min-w-[40px]">
-                          {proveedor.evaluacion}%
-                        </span>
-                      </div>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                          proveedor.tieneServiciosEjecutados
+                            ? 'bg-green-100 text-green-700 border-green-200'
+                            : 'bg-gray-100 text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {proveedor.tieneServiciosEjecutados ? 'Con servicios ejecutados' : 'Sin servicios ejecutados'}
+                      </span>
                     </td>
                     <td className="py-4 px-6">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${getClasificacionColor(
-                          proveedor.clasificacion
-                        )}`}
-                      >
-                        {proveedor.clasificacion}
-                      </div>
+                      {proveedor.tieneServiciosEjecutados ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-gray-100 rounded-full h-2 max-w-[100px]">
+                            <div
+                              className={`h-2 rounded-full transition-all ${getEvaluacionColor(proveedor.evaluacion)}`}
+                              style={{ width: `${proveedor.evaluacion}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-medium text-[#111318] min-w-[40px]">
+                            {proveedor.evaluacion}%
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6">
+                      {proveedor.tieneServiciosEjecutados ? (
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${getClasificacionColor(
+                            proveedor.clasificacion
+                          )}`}
+                        >
+                          {proveedor.clasificacion}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       <button
@@ -347,59 +515,59 @@ const ProveedoresActuales: React.FC = () => {
                       </button>
                     </td>
                   </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
           )}
 
           {/* Paginación */}
           {!loading && !error && filteredProveedores.length > 0 && (
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-                Mostrando {startIndex + 1} a {Math.min(endIndex, filteredProveedores.length)} de{' '}
-                {filteredProveedores.length} resultados
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">chevron_left</span>
-                </button>
-                {Array.from({ length: Math.min(totalPages, 8) }, (_, i) => {
-                  const page = i + 1;
-                  if (totalPages > 8 && page === 8) {
-                    return (
-                      <span key="ellipsis" className="px-2 text-gray-500">
-                        ...
-                      </span>
-                    );
-                  }
+          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Mostrando {startIndex + 1} a {Math.min(endIndex, filteredProveedores.length)} de{' '}
+              {filteredProveedores.length} resultados
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg">chevron_left</span>
+              </button>
+              {Array.from({ length: Math.min(totalPages, 8) }, (_, i) => {
+                const page = i + 1;
+                if (totalPages > 8 && page === 8) {
                   return (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                        currentPage === page
-                          ? 'bg-primary text-white'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {page}
-                    </button>
+                    <span key="ellipsis" className="px-2 text-gray-500">
+                      ...
+                    </span>
                   );
-                })}
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">chevron_right</span>
-                </button>
-              </div>
+                }
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      currentPage === page
+                        ? 'bg-primary text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg">chevron_right</span>
+              </button>
             </div>
+          </div>
           )}
         </div>
 

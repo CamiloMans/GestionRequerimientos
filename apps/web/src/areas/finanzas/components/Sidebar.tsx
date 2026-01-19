@@ -180,3 +180,5 @@ const FinanzasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
 export default FinanzasSidebar;
 
 
+
+

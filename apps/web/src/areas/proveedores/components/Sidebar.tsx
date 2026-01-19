@@ -7,7 +7,7 @@ import { AreaId } from '@contracts/areas';
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  activeView?: 'dashboard' | 'actuales' | 'potenciales' | 'evaluacion' | 'reportes';
+  activeView?: 'dashboard' | 'actuales' | 'evaluacion';
   hideOnDesktop?: boolean;
 }
 
@@ -21,9 +21,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 
   const isDashboardActive = activeView === 'dashboard';
   const isActualesActive = activeView === 'actuales';
-  const isPotencialesActive = activeView === 'potenciales';
   const isEvaluacionActive = activeView === 'evaluacion';
-  const isReportesActive = activeView === 'reportes';
 
   // Construir rutas del área
   const getAreaPath = (path: string) => {
@@ -80,18 +78,8 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
     onClose();
   };
 
-  const handlePotencialesClick = () => {
-    navigate(getAreaPath('potenciales'));
-    onClose();
-  };
-
   const handleEvaluacionClick = () => {
     navigate(getAreaPath('evaluacion'));
-    onClose();
-  };
-
-  const handleReportesClick = () => {
-    navigate(getAreaPath('reportes'));
     onClose();
   };
 
@@ -203,30 +191,6 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
                 </span>
               </button>
 
-              {/* Proveedores Potenciales */}
-              <button
-                onClick={handlePotencialesClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isPotencialesActive
-                    ? 'bg-primary text-white hover:bg-primary-hover'
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Proveedores Potenciales"
-              >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isPotencialesActive ? 'fill' : ''}`}>
-                  person_add
-                </span>
-                <span
-                  className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                    isPotencialesActive
-                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100'
-                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                  }`}
-                >
-                  Proveedores Potenciales
-                </span>
-              </button>
-
               {/* Evaluación de Servicios */}
               <button
                 onClick={handleEvaluacionClick}
@@ -248,30 +212,6 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
                   }`}
                 >
                   Evaluación
-                </span>
-              </button>
-
-              {/* Reportes */}
-              <button
-                onClick={handleReportesClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isReportesActive
-                    ? 'bg-primary text-white hover:bg-primary-hover'
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Reportes"
-              >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isReportesActive ? 'fill' : ''}`}>
-                  bar_chart
-                </span>
-                <span
-                  className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                    isReportesActive
-                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100'
-                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                  }`}
-                >
-                  Reportes
                 </span>
               </button>
             </nav>
@@ -363,5 +303,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 };
 
 export default ProveedoresSidebar;
+
+
 
 

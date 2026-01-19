@@ -411,20 +411,6 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                       <p className="text-sm font-medium text-gray-900">{initialData.category}</p>
                     </div>
                   </div>
-                  
-                  {/* Botón Eliminar (debajo de la información del registro) */}
-                  {onDelete && (
-                    <div className="mt-4 flex justify-start">
-                      <button 
-                        type="button" 
-                        onClick={() => setShowDeleteModal(true)}
-                        className="px-5 py-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-400 font-medium transition-colors text-sm flex items-center justify-center gap-2"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">delete</span>
-                        Eliminar Registro
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 <hr className="border-gray-100" />
@@ -565,8 +551,21 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
               </div>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
-              {/* Botones de acción */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-6 border-t border-gray-100 mt-2">
+              {/* Botón Eliminar a la izquierda */}
+              <div className="flex items-center gap-3">
+                {onDelete && isEditing && (
+                  <button 
+                    type="button" 
+                    onClick={() => setShowDeleteModal(true)}
+                    className="px-5 py-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-400 font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                    Eliminar Registro
+                  </button>
+                )}
+              </div>
+              {/* Botones de acción a la derecha */}
               <div className="flex flex-col-reverse sm:flex-row items-center gap-3 w-full sm:w-auto">
                 <button 
                   type="button" 

@@ -182,3 +182,5 @@ Ver `apps/web/src/areas/finanzas/` para un ejemplo completo de implementación.
 - Los servicios deben usar `@shared/api-client/supabase` para el cliente de Supabase
 
 
+
+

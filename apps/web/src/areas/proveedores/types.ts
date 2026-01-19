@@ -31,13 +31,14 @@ export interface Proveedor {
   razonSocial?: string;
   rut: string;
   tipo: TipoProveedor;
-  especialidad: Especialidad;
+  especialidad: string[]; // Array de especialidades desde brg_core_proveedor_especialidad
   email?: string;
   telefono?: string;
   contacto?: string;
   evaluacion: number; // Porcentaje 0-100
   clasificacion: Clasificacion;
   activo: boolean;
+  tieneServiciosEjecutados?: boolean; // Indica si el proveedor tiene servicios ejecutados
   created_at?: string;
   updated_at?: string;
 }

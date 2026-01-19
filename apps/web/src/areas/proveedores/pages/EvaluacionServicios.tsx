@@ -19,6 +19,8 @@ interface EvaluacionData {
   precioServicio: number;
   evaluadorResponsable: string;
   descripcionServicio: string;
+  linkServicioEjecutado: string;
+  vaTerreno: boolean;
   criterios: CriterioEvaluacion[];
   observaciones: string;
 }
@@ -37,6 +39,8 @@ const EvaluacionServicios: React.FC = () => {
     precioServicio: 0,
     evaluadorResponsable: '',
     descripcionServicio: '',
+    linkServicioEjecutado: '',
+    vaTerreno: false,
     criterios: [
       { id: 'calidad', nombre: 'Calidad', peso: 30, valor: null },
       { id: 'disponibilidad', nombre: 'Disponibilidad', peso: 20, valor: null },
@@ -91,6 +95,7 @@ const EvaluacionServicios: React.FC = () => {
     return Math.round(totalPonderado / totalPeso);
   }, [formData.criterios]);
 
+
   // Calcular clasificación
   const clasificacion = useMemo(() => {
     if (evaluacionTotal === null) return null;
@@ -108,11 +113,68 @@ const EvaluacionServicios: React.FC = () => {
   }, [clasificacion]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    
+    // Si se cambia el proveedor, actualizar automáticamente los campos de contacto
+    if (name === 'proveedorId') {
+      const proveedorSeleccionado = proveedores.find((p) => p.id.toString() === value);
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        nombreContacto: proveedorSeleccionado?.nombre_proveedor || '',
+        correoContacto: proveedorSeleccionado?.correo_contacto || '',
+      }));
+    } else if (name === 'vaTerreno') {
+      // Si se marca "va a terreno", agregar el criterio de terreno y ajustar pesos
+      // Si se desmarca, remover el criterio de terreno y restaurar pesos
+      setFormData((prev) => {
+        const criteriosBase = prev.criterios.filter(c => c.id !== 'terreno');
+        const pesosOriginales: Record<string, number> = {
+          calidad: 30,
+          disponibilidad: 20,
+          cumplimiento: 30,
+          precio: 20,
+        };
+        
+        if (checked) {
+          // Agregar criterio de terreno y ajustar pesos proporcionalmente
+          const pesoTerreno = 15;
+          const pesoRestante = 100 - pesoTerreno;
+          const pesoActual = criteriosBase.reduce((sum, c) => sum + c.peso, 0);
+          
+          if (pesoActual > 0) {
+            const factor = pesoRestante / pesoActual;
+            return {
+              ...prev,
+              vaTerreno: checked,
+              criterios: [
+                ...criteriosBase.map(c => ({ ...c, peso: Math.round(c.peso * factor) })),
+                { id: 'terreno', nombre: 'Terreno', peso: pesoTerreno, valor: null },
+              ],
+            };
+          } else {
+            return {
+              ...prev,
+              vaTerreno: checked,
+              criterios: [...criteriosBase, { id: 'terreno', nombre: 'Terreno', peso: pesoTerreno, valor: null }],
+            };
+          }
+        } else {
+          // Remover criterio de terreno y restaurar pesos originales
+          return {
+            ...prev,
+            vaTerreno: checked,
+            criterios: criteriosBase.map(c => ({ ...c, peso: pesosOriginales[c.id] || c.peso })),
+          };
+        }
+      });
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value,
+      }));
+    }
   };
 
   const handleCriterioChange = (criterioId: string, valor: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO') => {
@@ -166,6 +228,12 @@ const EvaluacionServicios: React.FC = () => {
         MEDIO: 'Gral. igual precio',
         BAJO: 'Gral. mayor precio',
         MUY_BAJO: 'No existe competencia',
+      },
+      terreno: {
+        ALTO: 'Excelente',
+        MEDIO: 'Bueno',
+        BAJO: 'Regular',
+        MUY_BAJO: 'Deficiente',
       },
     };
     return opciones[criterioId] || opciones.calidad;
@@ -382,6 +450,28 @@ const EvaluacionServicios: React.FC = () => {
                       placeholder="Breve descripción del alcance del servicio evaluado..."
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                      LINK DEL SERVICIO EJECUTADO
+                    </label>
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        link
+                      </span>
+                      <input
+                        type="url"
+                        name="linkServicioEjecutado"
+                        value={formData.linkServicioEjecutado}
+                        onChange={handleChange}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        placeholder="https://ejemplo.com/servicio-ejecutado"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ingrese el enlace donde se detalla el servicio ejecutado
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -434,6 +524,25 @@ const EvaluacionServicios: React.FC = () => {
                       </div>
                     );
                   })}
+                  
+                  {/* Checkbox "¿Va a terreno?" */}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="vaTerreno"
+                        checked={formData.vaTerreno}
+                        onChange={handleChange}
+                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        ¿Va a terreno?
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-2 ml-6">
+                      Marque esta opción si el servicio requiere trabajo en terreno. Se agregará un criterio adicional de evaluación.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -526,7 +635,7 @@ const EvaluacionServicios: React.FC = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>© 2024 MyMALAB. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>

@@ -97,3 +97,5 @@ Similarmente, usa la función RPC `has_permission` para verificar permisos espec
 - Asegúrate de que `SECURITY DEFINER` esté configurado correctamente
 
 
+
+

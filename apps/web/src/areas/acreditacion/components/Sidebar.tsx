@@ -175,6 +175,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
             
             {/* Navigation */}
             <nav className="flex flex-col gap-3 w-full px-3">
+              {/* Dashboard */}
+              <button 
+                onClick={handleDashboardsClick}
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                  isDashboardsActive 
+                    ? 'bg-primary text-white hover:bg-primary-hover' 
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
+                title="Dashboard"
+              >
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isDashboardsActive ? 'fill' : ''}`}>dashboard</span>
+                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                  isDashboardsActive 
+                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                }`}>
+                  Dashboard
+                </span>
+              </button>
+              
               {/* Solicitudes */}
               <button 
                 onClick={handleRequestsClick}
@@ -232,26 +252,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
                 }`}>
                   Reportes
-                </span>
-              </button>
-              
-              {/* Gráficos */}
-              <button 
-                onClick={handleDashboardsClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isDashboardsActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Gráficos"
-              >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isDashboardsActive ? 'fill' : ''}`}>bar_chart</span>
-                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                  isDashboardsActive 
-                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
-                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                }`}>
-                  Gráficos
                 </span>
               </button>
             </nav>
