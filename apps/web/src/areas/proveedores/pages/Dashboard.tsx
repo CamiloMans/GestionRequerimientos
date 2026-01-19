@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
 import { Proveedor, Clasificacion, TipoProveedor } from '../types';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [especialidades, setEspecialidades] = useState<{ id: number; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const getAreaPath = (path: string) => {
@@ -56,6 +57,20 @@ const Dashboard: React.FC = () => {
     };
   };
 
+  // Cargar especialidades
+  useEffect(() => {
+    const loadEspecialidades = async () => {
+      try {
+        const data = await fetchEspecialidades();
+        setEspecialidades(data);
+      } catch (err) {
+        console.error('Error al cargar especialidades:', err);
+      }
+    };
+
+    loadEspecialidades();
+  }, []);
+
   // Cargar proveedores
   useEffect(() => {
     const loadProveedores = async () => {
@@ -101,51 +116,24 @@ const Dashboard: React.FC = () => {
     };
   }, [proveedores]);
 
-  // Proveedores por componente (categorías específicas - 17 categorías de la imagen)
+  // Proveedores por componente (usando nombres reales de la tabla especialidad)
   const proveedoresPorComponente = useMemo(() => {
-    // Categorías fijas a mostrar (17 categorías según la imagen)
-    const categoriasFijas = [
-      'Calidad del Aire',
-      'Hidrología',
-      'Ruido',
-      'Geología',
-      'Lumínica',
-      'Medio Humano',
-      'Antropología',
-      'Topografía',
-      'Arquitectura',
-      'Cartografía',
-      'Paisaje',
-      'Turismo',
-      'Hidrogeología',
-      'Calidad del Agua',
-      'Laboratorio',
-      'Glaciares',
-      'Olores',
-    ];
-
-    // Calcular conteos para cada categoría
-    const componentes = categoriasFijas.map(categoria => {
+    // Usar las especialidades reales de la base de datos
+    const componentes = especialidades.map(especialidad => {
       const cantidad = proveedores.filter(proveedor => 
-        proveedor.especialidad.some(esp => {
-          const espLower = esp.toLowerCase();
-          const catLower = categoria.toLowerCase();
-          // Búsqueda más flexible para coincidencias
-          return espLower.includes(catLower) || 
-                 catLower.includes(espLower) ||
-                 // Mapeos específicos
-                 (categoria === 'Calidad del Aire' && (espLower.includes('aire') || espLower === 'aire')) ||
-                 (categoria === 'Hidrología' && (espLower.includes('hidrología') || espLower.includes('hidrologia'))) ||
-                 (categoria === 'Calidad del Agua' && (espLower.includes('agua') && !espLower.includes('hidrogeología'))) ||
-                 (categoria === 'Hidrogeología' && espLower.includes('hidrogeología'));
-        })
+        proveedor.especialidad.includes(especialidad.nombre)
       ).length;
-      return { nombre: categoria, cantidad };
+      return { nombre: especialidad.nombre, cantidad };
     });
 
-    // Mostrar todas las categorías, incluso si tienen 0 (para mantener el orden de la imagen)
-    return componentes;
-  }, [proveedores]);
+    // Ordenar por cantidad (mayor a menor) y luego por nombre alfabéticamente
+    return componentes.sort((a, b) => {
+      if (b.cantidad !== a.cantidad) {
+        return b.cantidad - a.cantidad;
+      }
+      return a.nombre.localeCompare(b.nombre);
+    });
+  }, [proveedores, especialidades]);
 
   // Distribución por clasificación
   const distribucionClasificacion = useMemo(() => {
@@ -176,28 +164,38 @@ const Dashboard: React.FC = () => {
       .slice(0, 2);
   }, [proveedores]);
 
-  // Iconos para componentes (según la imagen con 17 categorías)
+  // Iconos para componentes (mapeo basado en palabras clave del nombre)
   const getComponentIcon = (nombre: string) => {
-    const iconMap: Record<string, string> = {
-      'Calidad del Aire': 'air', // tres líneas horizontales onduladas (viento)
-      'Hidrología': 'water_drop', // gota de agua
-      'Ruido': 'hearing', // altavoz con ondas
-      'Geología': 'terrain', // montaña/pico
-      'Lumínica': 'lightbulb', // bombilla
-      'Medio Humano': 'people', // tres figuras humanas
-      'Antropología': 'account_circle', // figura estilizada
-      'Topografía': 'map', // mapa o documento plegado
-      'Arquitectura': 'architecture', // compás de dibujo
-      'Cartografía': 'public', // globo o tierra
-      'Paisaje': 'landscape', // montaña/pico
-      'Turismo': 'explore', // lupa sobre globo
-      'Hidrogeología': 'waves', // tres líneas horizontales onduladas (agua)
-      'Calidad del Agua': 'water_drop', // gota de agua
-      'Laboratorio': 'science', // microscopio
-      'Glaciares': 'ac_unit', // cono de helado/glaciar
-      'Olores': 'mood', // cara emoji triste
-    };
-    return iconMap[nombre] || 'category';
+    const nombreLower = nombre.toLowerCase();
+    
+    // Mapeo basado en palabras clave
+    if (nombreLower.includes('aire') || nombreLower.includes('calidad del aire')) return 'air';
+    if (nombreLower.includes('agua') && !nombreLower.includes('hidrogeología')) return 'water_drop';
+    if (nombreLower.includes('hidrogeología')) return 'waves';
+    if (nombreLower.includes('hidrología') || nombreLower.includes('hidrologia')) return 'water_drop';
+    if (nombreLower.includes('ruido') || nombreLower.includes('acústica') || nombreLower.includes('acustica')) return 'hearing';
+    if (nombreLower.includes('geología') || nombreLower.includes('geologia')) return 'terrain';
+    if (nombreLower.includes('lumínica') || nombreLower.includes('luminica') || nombreLower.includes('luminotecnia')) return 'lightbulb';
+    if (nombreLower.includes('medio humano')) return 'people';
+    if (nombreLower.includes('antropología') || nombreLower.includes('antropologia')) return 'account_circle';
+    if (nombreLower.includes('topografía') || nombreLower.includes('topografia')) return 'map';
+    if (nombreLower.includes('arquitectura')) return 'architecture';
+    if (nombreLower.includes('cartografía') || nombreLower.includes('cartografia')) return 'public';
+    if (nombreLower.includes('paisaje') || nombreLower.includes('paisajismo')) return 'landscape';
+    if (nombreLower.includes('turismo')) return 'explore';
+    if (nombreLower.includes('laboratorio')) return 'science';
+    if (nombreLower.includes('glaciares')) return 'ac_unit';
+    if (nombreLower.includes('olores')) return 'mood';
+    if (nombreLower.includes('fauna') || nombreLower.includes('vegetación') || nombreLower.includes('vegetacion') || nombreLower.includes('flora')) return 'category';
+    if (nombreLower.includes('suelo') || nombreLower.includes('suelos')) return 'terrain';
+    if (nombreLower.includes('difusión') || nombreLower.includes('difusion')) return 'campaign';
+    if (nombreLower.includes('erosión') || nombreLower.includes('erosion')) return 'terrain';
+    if (nombreLower.includes('eólica') || nombreLower.includes('eolica')) return 'air';
+    if (nombreLower.includes('campo electromagnético') || nombreLower.includes('campo electromagnetico')) return 'bolt';
+    if (nombreLower.includes('hongos') || nombreLower.includes('líquenes') || nombreLower.includes('liquenes')) return 'eco';
+    
+    // Por defecto
+    return 'category';
   };
 
   if (loading) {
@@ -292,7 +290,7 @@ const Dashboard: React.FC = () => {
                 <span className="material-symbols-outlined text-primary">groups</span>
                 <h2 className="text-lg font-bold text-[#111318]">Proveedores por Componente</h2>
               </div>
-              <span className="text-sm text-gray-500">{proveedoresPorComponente.length} Especialidades</span>
+               <span className="text-sm text-gray-500">{especialidades.length} Especialidades</span>
             </div>
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {proveedoresPorComponente.map((componente, index) => (
@@ -437,7 +435,7 @@ const Dashboard: React.FC = () => {
               <div className="text-center py-4">
                 <p className="text-sm text-gray-500 mb-2">No hay proveedores inhabilitados</p>
                 <button
-                  onClick={() => navigate(getAreaPath('actuales?evaluacionMenor60=true'))}
+                  onClick={() => navigate(`${getAreaPath('actuales')}?evaluacionMenor60=true`)}
                   className="text-sm text-primary hover:underline font-medium"
                 >
                   Ver todos los proveedores inhabilitados

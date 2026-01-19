@@ -7,7 +7,7 @@ interface CriterioEvaluacion {
   id: string;
   nombre: string;
   peso: number;
-  valor: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO' | null;
+  valor: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO' | 'A' | 'B' | 'C' | null;
 }
 
 interface EvaluacionData {
@@ -71,21 +71,27 @@ const EvaluacionServicios: React.FC = () => {
     loadProveedores();
   }, []);
 
-  // Calcular evaluación total
+  // Calcular evaluación total (excluyendo criterio terreno que no tiene peso)
   const evaluacionTotal = useMemo(() => {
     const valores = {
       ALTO: 100,
       MEDIO: 60,
       BAJO: 30,
       MUY_BAJO: 0,
+      A: 100, // Para terreno, pero no se usa en el cálculo
+      B: 60,
+      C: 0,
     };
 
     let totalPonderado = 0;
     let totalPeso = 0;
 
     formData.criterios.forEach((criterio) => {
-      if (criterio.valor) {
-        const valorNumerico = valores[criterio.valor];
+      // Excluir criterio terreno del cálculo (peso 0)
+      if (criterio.id === 'terreno') return;
+      
+      if (criterio.valor && criterio.peso > 0) {
+        const valorNumerico = valores[criterio.valor as keyof typeof valores] || 0;
         totalPonderado += valorNumerico * criterio.peso;
         totalPeso += criterio.peso;
       }
@@ -96,13 +102,49 @@ const EvaluacionServicios: React.FC = () => {
   }, [formData.criterios]);
 
 
-  // Calcular clasificación
-  const clasificacion = useMemo(() => {
+  // Calcular clasificación basada en criterios normales
+  const clasificacionCriterios = useMemo(() => {
     if (evaluacionTotal === null) return null;
     if (evaluacionTotal >= 80) return 'A';
     if (evaluacionTotal >= 60) return 'B';
     return 'C';
   }, [evaluacionTotal]);
+
+  // Obtener valor de terreno si existe
+  const valorTerreno = useMemo(() => {
+    const criterioTerreno = formData.criterios.find(c => c.id === 'terreno');
+    if (criterioTerreno && criterioTerreno.valor && 
+        (criterioTerreno.valor === 'A' || criterioTerreno.valor === 'B' || criterioTerreno.valor === 'C')) {
+      return criterioTerreno.valor;
+    }
+    return null;
+  }, [formData.criterios]);
+
+  // Calcular clasificación final considerando terreno
+  const clasificacion = useMemo(() => {
+    if (!clasificacionCriterios) return null;
+
+    // Si no hay valor de terreno, usar la clasificación de criterios
+    if (!valorTerreno) return clasificacionCriterios;
+
+    // Mapear clasificaciones a valores numéricos para comparar (mayor = mejor)
+    const valorClasificacion: Record<string, number> = {
+      'A': 3,
+      'B': 2,
+      'C': 1,
+    };
+
+    const valorCriterios = valorClasificacion[clasificacionCriterios] || 0;
+    const valorTerrenoNum = valorClasificacion[valorTerreno] || 0;
+
+    // Si terreno es inferior (menor valor numérico), usar terreno
+    // Si terreno es igual o superior, usar criterios
+    if (valorTerrenoNum < valorCriterios) {
+      return valorTerreno;
+    } else {
+      return clasificacionCriterios;
+    }
+  }, [clasificacionCriterios, valorTerreno]);
 
   // Obtener estatus final
   const estatusFinal = useMemo(() => {
@@ -138,28 +180,15 @@ const EvaluacionServicios: React.FC = () => {
         };
         
         if (checked) {
-          // Agregar criterio de terreno y ajustar pesos proporcionalmente
-          const pesoTerreno = 15;
-          const pesoRestante = 100 - pesoTerreno;
-          const pesoActual = criteriosBase.reduce((sum, c) => sum + c.peso, 0);
-          
-          if (pesoActual > 0) {
-            const factor = pesoRestante / pesoActual;
-            return {
-              ...prev,
-              vaTerreno: checked,
-              criterios: [
-                ...criteriosBase.map(c => ({ ...c, peso: Math.round(c.peso * factor) })),
-                { id: 'terreno', nombre: 'Terreno', peso: pesoTerreno, valor: null },
-              ],
-            };
-          } else {
-            return {
-              ...prev,
-              vaTerreno: checked,
-              criterios: [...criteriosBase, { id: 'terreno', nombre: 'Terreno', peso: pesoTerreno, valor: null }],
-            };
-          }
+          // Agregar criterio de terreno sin peso (no afecta el cálculo total)
+          return {
+            ...prev,
+            vaTerreno: checked,
+            criterios: [
+              ...criteriosBase,
+              { id: 'terreno', nombre: 'Terreno', peso: 0, valor: null },
+            ],
+          };
         } else {
           // Remover criterio de terreno y restaurar pesos originales
           return {
@@ -177,7 +206,7 @@ const EvaluacionServicios: React.FC = () => {
     }
   };
 
-  const handleCriterioChange = (criterioId: string, valor: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO') => {
+  const handleCriterioChange = (criterioId: string, valor: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO' | 'A' | 'B' | 'C') => {
     setFormData((prev) => ({
       ...prev,
       criterios: prev.criterios.map((c) => (c.id === criterioId ? { ...c, valor } : c)),
@@ -230,10 +259,10 @@ const EvaluacionServicios: React.FC = () => {
         MUY_BAJO: 'No existe competencia',
       },
       terreno: {
-        ALTO: 'Excelente',
-        MEDIO: 'Bueno',
-        BAJO: 'Regular',
-        MUY_BAJO: 'Deficiente',
+        ALTO: 'A',
+        MEDIO: 'B',
+        BAJO: 'C',
+        MUY_BAJO: 'C',
       },
     };
     return opciones[criterioId] || opciones.calidad;
@@ -291,10 +320,6 @@ const EvaluacionServicios: React.FC = () => {
               <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium">
                 <span className="material-symbols-outlined text-lg">download</span>
                 <span>Exportar</span>
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium">
-                <span className="material-symbols-outlined text-lg">send</span>
-                <span>Enviar a proveedor</span>
               </button>
             </div>
           </div>
@@ -478,11 +503,19 @@ const EvaluacionServicios: React.FC = () => {
               {/* 2. Evaluación de Criterios */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
                 <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">
-                      2
-                    </span>
-                    <h2 className="text-lg font-bold text-[#111318]">Evaluación de Criterios</h2>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">
+                        2
+                      </span>
+                      <h2 className="text-lg font-bold text-[#111318]">Evaluación de Criterios</h2>
+                    </div>
+                    {evaluacionTotal !== null && (
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-primary">{evaluacionTotal}%</div>
+                        <div className="text-xs text-gray-500">Resultado</div>
+                      </div>
+                    )}
                   </div>
                   <p className="text-sm text-gray-500 ml-10">
                     Criterios detallados según la clasificación de desempeño
@@ -492,35 +525,94 @@ const EvaluacionServicios: React.FC = () => {
                 <div className="space-y-4">
                   {formData.criterios.map((criterio) => {
                     const opciones = getCriterioOpciones(criterio.id);
+                    const isTerreno = criterio.id === 'terreno';
+                    
+                    // Descripciones para terreno (solo la parte después de los dos puntos)
+                    const descripcionesTerreno: Record<string, string> = {
+                      'A': 'Cumple íntegramente las medidas de seguridad exigidas para salidas a terreno. No se identifican desviaciones ni prácticas inseguras.',
+                      'B': 'Presenta incumplimientos puntuales o desviaciones menores respecto de las medidas de seguridad exigidas, sin exposición inmediata a riesgos críticos. Las brechas detectadas son corregibles en el corto plazo mediante acciones correctivas formales.',
+                      'C': 'Se expone a situaciones de riesgo significativo derivadas del incumplimiento de medidas de seguridad, con potencial de generar accidentes graves, afectación a personas, activos o al mandante. Esta condición constituye un incumplimiento grave y puede derivar en la suspensión de actividades, término anticipado del contrato o exclusión de futuros procesos de contratación.',
+                    };
+                    
+                    // Títulos para terreno (la parte antes de los dos puntos)
+                    const titulosTerreno: Record<string, string> = {
+                      'A': 'Cumplimiento Adecuado',
+                      'B': 'Cumplimiento Parcial / Desviaciones Controlables',
+                      'C': 'Incumplimiento Crítico / Exposición a Riesgo Inaceptable',
+                    };
+                    
                     return (
                       <div key={criterio.id} className="border border-gray-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <div>
+                          <div className="flex items-center gap-2">
                             <span className="font-medium text-[#111318]">{criterio.nombre}</span>
-                            <span className="ml-2 text-sm text-gray-500">PESO: {criterio.peso}%</span>
+                            {!isTerreno && (
+                              <span className="ml-2 text-sm text-gray-500">PESO: {criterio.peso}%</span>
+                            )}
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {(['ALTO', 'MEDIO', 'BAJO', 'MUY_BAJO'] as const).map((nivel) => (
-                            <label
-                              key={nivel}
-                              className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                                criterio.valor === nivel
-                                  ? 'border-primary bg-primary/5'
-                                  : 'border-gray-200 hover:border-gray-300'
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name={`criterio-${criterio.id}`}
-                                checked={criterio.valor === nivel}
-                                onChange={() => handleCriterioChange(criterio.id, nivel)}
-                                className="text-primary focus:ring-primary"
-                              />
-                              <span className="text-sm text-[#111318]">{opciones[nivel]}</span>
-                            </label>
-                          ))}
-                        </div>
+                        {isTerreno ? (
+                          // Renderizado especial para terreno con A, B, C
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {(['A', 'B', 'C'] as const).map((nivel) => {
+                              const estaSeleccionado = criterio.valor === nivel;
+                              
+                              return (
+                                <label
+                                  key={nivel}
+                                  className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                                    estaSeleccionado
+                                      ? 'border-primary bg-primary/5'
+                                      : 'border-gray-200 hover:border-gray-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`criterio-${criterio.id}`}
+                                    checked={estaSeleccionado}
+                                    onChange={() => handleCriterioChange(criterio.id, nivel)}
+                                    className="text-primary focus:ring-primary mt-1"
+                                  />
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-sm font-semibold text-[#111318]">{nivel}</span>
+                                      <div className="relative group">
+                                        <span className="material-symbols-outlined text-green-600 text-base cursor-help">info</span>
+                                        <div className="absolute left-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                                          {descripcionesTerreno[nivel]}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-gray-600 mt-1">{titulosTerreno[nivel]}</p>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          // Renderizado normal para otros criterios
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {(['ALTO', 'MEDIO', 'BAJO', 'MUY_BAJO'] as const).map((nivel) => (
+                              <label
+                                key={nivel}
+                                className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                                  criterio.valor === nivel
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`criterio-${criterio.id}`}
+                                  checked={criterio.valor === nivel}
+                                  onChange={() => handleCriterioChange(criterio.id, nivel)}
+                                  className="text-primary focus:ring-primary"
+                                />
+                                <span className="text-sm text-[#111318]">{opciones[nivel]}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -576,7 +668,16 @@ const EvaluacionServicios: React.FC = () => {
           <div className="space-y-6">
             {/* Resultado de Evaluación */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-4">RESULTADO EVALUACIÓN</h3>
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-700">
+                    RESULTADO EVALUACIÓN
+                  </h3>
+                  {evaluacionTotal !== null && (
+                    <div className="text-4xl font-bold text-primary">{evaluacionTotal}%</div>
+                  )}
+                </div>
+              </div>
               <div className={`border-4 rounded-lg p-8 text-center ${getClasificacionColor(clasificacion)}`}>
                 <div className="text-8xl font-bold mb-4">{clasificacion || '—'}</div>
                 <div className="text-sm font-medium mb-2">CALIFICACIÓN ACTUAL</div>

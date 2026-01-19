@@ -10,8 +10,7 @@
     "isolatedModules": true,
     "allowJs": false,
     "strict": true,
-    "composite": true,
-    "noEmit": false
+    "noEmit": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

@@ -128,8 +128,6 @@ const ProveedoresActuales: React.FC = () => {
     loadProveedores();
   }, []);
 
-  const [filterEvaluacionMenor60, setFilterEvaluacionMenor60] = useState(false);
-
   // Leer parámetro de especialidad de la URL y aplicar filtro
   useEffect(() => {
     const especialidadParam = searchParams.get('especialidad');
@@ -148,16 +146,18 @@ const ProveedoresActuales: React.FC = () => {
         setSearchParams(searchParams, { replace: true });
       }
     }
+  }, [searchParams, proveedores, setSearchParams]);
 
-    // Leer parámetro de evaluación menor a 60%
-    const evaluacionMenor60Param = searchParams.get('evaluacionMenor60');
-    if (evaluacionMenor60Param === 'true') {
-      setFilterEvaluacionMenor60(true);
+  // Leer parámetro de evaluación menor a 60% y aplicar filtro de clasificación C
+  useEffect(() => {
+    const evaluacionMenor60 = searchParams.get('evaluacionMenor60');
+    if (evaluacionMenor60 === 'true') {
+      setFilterClasificacion(Clasificacion.C);
       // Limpiar el parámetro de la URL después de aplicarlo
       searchParams.delete('evaluacionMenor60');
       setSearchParams(searchParams, { replace: true });
     }
-  }, [searchParams, proveedores, setSearchParams]);
+  }, [searchParams, setSearchParams]);
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
@@ -180,9 +180,8 @@ const ProveedoresActuales: React.FC = () => {
     });
     const matchesEspecialidad = filterEspecialidad === 'Todas' || proveedor.especialidad.includes(filterEspecialidad);
     const matchesClasificacion = filterClasificacion === 'Todas' || proveedor.clasificacion === filterClasificacion;
-    const matchesEvaluacionMenor60 = !filterEvaluacionMenor60 || (proveedor.tieneServiciosEjecutados && proveedor.evaluacion < 60);
 
-    return matchesSearch && matchesTipo && matchesCategoria && matchesEspecialidad && matchesClasificacion && matchesEvaluacionMenor60;
+    return matchesSearch && matchesTipo && matchesCategoria && matchesEspecialidad && matchesClasificacion;
   });
 
   // Paginación

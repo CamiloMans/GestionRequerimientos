@@ -195,7 +195,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                 </span>
               </button>
               
-              {/* Solicitudes */}
+              {/* Requerimientos SST */}
               <button 
                 onClick={handleRequestsClick}
                 className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
@@ -203,7 +203,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     ? 'bg-primary text-white hover:bg-primary-hover' 
                     : 'text-[#616f89] hover:bg-gray-100'
                 }`}
-                title="Solicitudes"
+                title="Requerimientos SST"
               >
                 <span className={`material-symbols-outlined fill text-2xl pointer-events-none ${isRequestsActive ? 'fill' : ''}`}>description</span>
                 <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
@@ -211,11 +211,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
                     : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
                 }`}>
-                  Solicitudes
+                  Requerimientos SST
                 </span>
               </button>
               
-              {/* Proyectos */}
+              {/* Nueva solicitud de acreditación */}
               <button 
                 onClick={handleFieldRequestClick}
                 className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
@@ -223,7 +223,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     ? 'bg-primary text-white hover:bg-primary-hover' 
                     : 'text-[#616f89] hover:bg-gray-100'
                 }`}
-                title="Proyectos"
+                title="Nueva solicitud de acreditación"
               >
                 <span className={`material-symbols-outlined text-2xl pointer-events-none ${isFieldRequestActive ? 'fill' : ''}`}>engineering</span>
                 <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
@@ -231,11 +231,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
                     : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
                 }`}>
-                  Proyectos
+                  Nueva solicitud de acreditación
                 </span>
               </button>
               
-              {/* Reportes */}
+              {/* Solicitudes de acreditación */}
               <button 
                 onClick={handleReportsClick}
                 className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
@@ -243,7 +243,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     ? 'bg-primary text-white hover:bg-primary-hover' 
                     : 'text-[#616f89] hover:bg-gray-100'
                 }`}
-                title="Reportes"
+                title="Solicitudes de acreditación"
               >
                 <span className={`material-symbols-outlined text-2xl pointer-events-none ${isReportsActive ? 'fill' : ''}`}>assessment</span>
                 <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
@@ -251,7 +251,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                     ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
                     : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
                 }`}>
-                  Reportes
+                  Solicitudes de acreditación
                 </span>
               </button>
             </nav>
