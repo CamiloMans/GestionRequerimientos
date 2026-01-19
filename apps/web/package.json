@@ -16,6 +16,8 @@
     "@myma/contracts": "workspace:*",
     "@supabase/supabase-js": "^2.87.3",
     "express": "^4.22.1",
+    "jspdf": "^4.0.0",
+    "jspdf-autotable": "^5.0.7",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.11.0",
@@ -29,7 +31,3 @@
     "vite": "^6.2.0"
   }
 }
-
-
-
-

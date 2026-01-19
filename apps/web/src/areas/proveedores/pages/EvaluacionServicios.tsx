@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse } from '../services/proveedoresService';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface CriterioEvaluacion {
   id: string;
@@ -290,6 +292,439 @@ const EvaluacionServicios: React.FC = () => {
     }).format(amount);
   };
 
+  const handleExport = () => {
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+    // ====== BRAND TOKENS (ajusta a tu paleta MyMA) ======
+    const BRAND = {
+      bgHeader: [17, 19, 24] as [number, number, number],     // #111318
+      cardBg: [250, 250, 252] as [number, number, number],    // #FAFAFC
+      border: [229, 231, 235] as [number, number, number],    // #E5E7EB
+      text: [17, 19, 24] as [number, number, number],         // #111318
+      muted: [107, 114, 128] as [number, number, number],     // #6B7280
+      primary: [59, 130, 246] as [number, number, number],    // #3B82F6 (similar al "primary" típico)
+      ok: [22, 163, 74] as [number, number, number],          // green
+      warn: [217, 119, 6] as [number, number, number],        // amber
+      bad: [220, 38, 38] as [number, number, number],         // red
+    };
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 44; // más "corporate"
+    let y = margin;
+
+    // ====== HELPERS ======
+    const checkPageBreak = (requiredSpace: number) => {
+      if (y + requiredSpace > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+        drawHeader(); // mantener consistencia visual por página
+      }
+    };
+
+    const setTextColor = (rgb: [number, number, number]) => doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+    const setFillColor = (rgb: [number, number, number]) => doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+    const setDrawColor = (rgb: [number, number, number]) => doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+
+    const formatDateTimeCL = (d: Date) =>
+      d.toLocaleDateString('es-CL', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+    const getClasificacionBadge = (clas?: string | null) => {
+      const c = (clas || '').toUpperCase();
+      if (c === 'A') return { label: 'Categoría A', color: BRAND.ok };
+      if (c === 'B') return { label: 'Categoría B', color: BRAND.warn };
+      if (c === 'C') return { label: 'Categoría C', color: BRAND.bad };
+      return { label: 'Sin clasificación', color: BRAND.muted };
+    };
+
+    const drawHeader = () => {
+      // Banda superior oscura tipo "email" - altura reducida
+      const headerHeight = 70;
+      setFillColor(BRAND.bgHeader);
+      doc.rect(0, 0, pageWidth, headerHeight, 'F');
+
+      // "Logo" placeholder (cámbialo por imagen si quieres)
+      // doc.addImage(...) si tienes base64/png
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      setTextColor([255, 255, 255]);
+      doc.text('MyMA', margin, 28);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      setTextColor([210, 214, 220]);
+      doc.text('Evaluación de Servicios · Calificación de Proveedores', margin, 44);
+
+      // Título a la derecha
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      setTextColor([255, 255, 255]);
+      doc.text('REPORTE DE EVALUACIÓN', pageWidth - margin, 30, { align: 'right' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      setTextColor([210, 214, 220]);
+      doc.text(`Generado el ${formatDateTimeCL(new Date())}`, pageWidth - margin, 46, { align: 'right' });
+
+      // Separador fino
+      setDrawColor([35, 38, 45]);
+      doc.setLineWidth(1);
+      doc.line(0, headerHeight, pageWidth, headerHeight);
+
+      // Ajuste del cursor
+      y = headerHeight + 20;
+    };
+
+    const drawFooter = (page: number, total: number) => {
+      // Separador
+      setDrawColor(BRAND.border);
+      doc.setLineWidth(1);
+      doc.line(margin, pageHeight - 40, pageWidth - margin, pageHeight - 40);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      setTextColor(BRAND.muted);
+      doc.text(`Página ${page} de ${total}`, margin, pageHeight - 22);
+
+      doc.text('© ' + new Date().getFullYear() + ' MyMALAB. Todos los derechos reservados.', pageWidth - margin, pageHeight - 22, {
+        align: 'right',
+      });
+    };
+
+    const drawSectionTitle = (num: string, title: string, subtitle?: string) => {
+      checkPageBreak(64);
+
+      // Agregar espacio antes del título (reducido para que quepa mejor)
+      y += 20;
+
+      // "pill" número
+      const pillW = 22;
+      const pillH = 22;
+      setFillColor(BRAND.primary);
+      doc.roundedRect(margin, y - 14, pillW, pillH, 6, 6, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      setTextColor([255, 255, 255]);
+      doc.text(num, margin + pillW / 2, y + 2, { align: 'center' });
+
+      // título
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      setTextColor(BRAND.text);
+      doc.text(title.toUpperCase(), margin + 30, y + 2);
+
+      if (subtitle) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        setTextColor(BRAND.muted);
+        doc.text(subtitle, margin + 30, y + 18);
+        y += 34;
+      } else {
+        y += 24;
+      }
+    };
+
+    const drawCard = (height: number) => {
+      checkPageBreak(height + 16);
+
+      const x = margin;
+      const w = pageWidth - margin * 2;
+
+      setFillColor(BRAND.cardBg);
+      setDrawColor(BRAND.border);
+      doc.setLineWidth(1);
+      doc.roundedRect(x, y, w, height, 12, 12, 'FD');
+
+      return { x, y, w, h: height };
+    };
+
+    const drawKpiRow = (items: { label: string; value: string; accent?: [number, number, number] }[]) => {
+      const rowH = 56;
+      const { x, y: cardY, w } = drawCard(rowH);
+
+      // Anchos proporcionales: más espacio para proveedor, menos para resultado y clasificación
+      const colWidths = [w * 0.55, w * 0.225, w * 0.225]; // 55%, 22.5%, 22.5% - más espacio para proveedor
+      let currentX = x;
+
+      items.forEach((it, i) => {
+        const colW = colWidths[i];
+        const cx = currentX;
+        const maxWidth = colW - 28; // Ancho disponible menos padding
+
+        // separador vertical
+        if (i > 0) {
+          setDrawColor(BRAND.border);
+          doc.setLineWidth(1);
+          doc.line(cx, cardY + 12, cx, cardY + rowH - 12);
+        }
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        setTextColor(BRAND.muted);
+        doc.text(it.label.toUpperCase(), cx + 14, cardY + 22);
+
+        doc.setFont('helvetica', 'bold');
+        setTextColor(it.accent || BRAND.text);
+        
+        // Para el proveedor, usar tamaño de fuente más pequeño y múltiples líneas si es necesario
+        if (i === 0) {
+          // Proveedor: tamaño de fuente más pequeño para que quepa mejor
+          doc.setFontSize(14);
+          const textLines = doc.splitTextToSize(it.value, maxWidth);
+          // Si necesita más de una línea, ajustar altura del card
+          if (textLines.length > 1) {
+            // Ajustar posición Y para múltiples líneas
+            doc.text(textLines, cx + 14, cardY + 42, { maxWidth: maxWidth });
+          } else {
+            doc.text(it.value, cx + 14, cardY + 44, { maxWidth: maxWidth });
+          }
+        } else {
+          // Resultado y Clasificación: tamaño normal
+          doc.setFontSize(16);
+          doc.text(it.value, cx + 14, cardY + 44);
+        }
+
+        currentX += colW;
+      });
+
+      y = cardY + rowH + 14;
+    };
+
+    // ====== DATA ======
+    const proveedorSeleccionado = proveedores.find((p) => p.id.toString() === formData.proveedorId);
+
+    const porcentajeTxt = evaluacionTotal !== null ? `${evaluacionTotal}%` : '—';
+    const badge = getClasificacionBadge(clasificacion);
+
+    // ====== START DOC ======
+    drawHeader();
+
+    // KPI row (tipo correo) - usar nombre completo del proveedor
+    const nombreProveedorKpi = proveedorSeleccionado?.nombre_proveedor || 'No seleccionado';
+    drawKpiRow([
+      { label: 'Proveedor', value: nombreProveedorKpi },
+      { label: 'Resultado', value: porcentajeTxt, accent: BRAND.primary },
+      { label: 'Clasificación', value: (clasificacion || '—').toUpperCase(), accent: badge.color },
+    ]);
+
+    // 1) Antecedentes
+    drawSectionTitle('1', 'Antecedentes', 'Información general del servicio y proveedor');
+
+    const antecedentes = [
+      ['PROVEEDOR', proveedorSeleccionado?.nombre_proveedor || 'No seleccionado'],
+      ['NOMBRE DE CONTACTO', formData.nombreContacto || '—'],
+      ['CORREO DE CONTACTO', formData.correoContacto || '—'],
+      ['ORDEN DE SERVICIO', formData.ordenServicio || '—'],
+      ['FECHA DE EVALUACIÓN', formData.fechaEvaluacion || '—'],
+      ['PRECIO DEL SERVICIO', formData.precioServicio ? formatCurrency(formData.precioServicio) : '—'],
+      ['EVALUADOR RESPONSABLE', formData.evaluadorResponsable || '—'],
+      ['DESCRIPCIÓN DEL SERVICIO', formData.descripcionServicio || '—'],
+      ['LINK DEL SERVICIO EJECUTADO', formData.linkServicioEjecutado || '—'],
+    ];
+
+    // Calcular altura estimada de la tabla
+    const estimatedTableHeight = 50 + antecedentes.length * 24;
+    const cardStartY = y;
+    
+    // Dibujar el card primero como fondo
+    setFillColor(BRAND.cardBg);
+    setDrawColor(BRAND.border);
+    doc.setLineWidth(1);
+    doc.roundedRect(margin, cardStartY, pageWidth - margin * 2, estimatedTableHeight, 12, 12, 'FD');
+    
+    // Ahora dibujar la tabla encima del card
+    autoTable(doc, {
+      startY: cardStartY + 16,
+      margin: { left: margin + 14, right: margin + 14 },
+      head: [['Campo', 'Valor']],
+      body: antecedentes,
+      theme: 'plain',
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 6,
+        textColor: BRAND.text,
+        lineColor: BRAND.border,
+        lineWidth: 0.5,
+      },
+      headStyles: {
+        fillColor: [255, 255, 255], // Blanco para que se vea sobre el card
+        textColor: BRAND.muted,
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      columnStyles: {
+        0: { cellWidth: 140, fontStyle: 'bold' },
+        1: { cellWidth: pageWidth - margin * 2 - 28 - 140 },
+      },
+      didDrawCell: (data) => {
+        // separador fino por fila (look "dashboard/email")
+        if (data.section === 'body' && data.column.index === 0) {
+          const x1 = data.table.settings.margin.left;
+          const x2 = pageWidth - margin - 14;
+          const yLine = (data.cell.y + data.cell.height);
+          setDrawColor(BRAND.border);
+          doc.setLineWidth(0.5);
+          doc.line(x1, yLine, x2, yLine);
+        }
+      },
+    });
+
+    const finalTableY = (doc as any).lastAutoTable.finalY;
+    y = finalTableY + 40; // Más espacio antes de la siguiente sección para que el título no quede sobre el card
+
+    // 2) Evaluación de criterios
+    drawSectionTitle('2', 'Evaluación de criterios', 'Detalle de criterios según la clasificación de desempeño');
+
+    const criteriosData = formData.criterios
+      .filter((c) => c.id !== 'terreno' || formData.vaTerreno)
+      .map((criterio) => {
+        const opciones = getCriterioOpciones(criterio.id);
+        let valorTexto = '—';
+
+        if (criterio.valor) {
+          if (criterio.id === 'terreno') valorTexto = criterio.valor;
+          else valorTexto = opciones[criterio.valor] || criterio.valor;
+        }
+
+        return [criterio.nombre, criterio.id === 'terreno' ? 'N/A' : `${criterio.peso}%`, valorTexto];
+      });
+
+    const critCard = drawCard(Math.max(180, 44 + criteriosData.length * 20));
+    autoTable(doc, {
+      startY: critCard.y + 16,
+      margin: { left: critCard.x + 14, right: critCard.x + 14 },
+      head: [['Criterio', 'Peso', 'Evaluación']],
+      body: criteriosData,
+      theme: 'plain',
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 6,
+        textColor: BRAND.text,
+        lineColor: BRAND.border,
+        lineWidth: 0.5,
+      },
+      headStyles: {
+        fillColor: BRAND.cardBg,
+        textColor: BRAND.muted,
+        fontStyle: 'bold',
+      },
+      columnStyles: {
+        0: { cellWidth: 240, fontStyle: 'bold' },
+        1: { cellWidth: 70, halign: 'center' },
+        2: { cellWidth: pageWidth - margin * 2 - 28 - 240 - 70 },
+      },
+      didDrawCell: (data) => {
+        // separador por filas
+        if (data.section === 'body' && data.column.index === 0) {
+          const x1 = data.table.settings.margin.left;
+          const x2 = pageWidth - margin - 14;
+          const yLine = (data.cell.y + data.cell.height);
+          setDrawColor(BRAND.border);
+          doc.setLineWidth(0.5);
+          doc.line(x1, yLine, x2, yLine);
+        }
+      },
+    });
+
+    y = Math.max((doc as any).lastAutoTable.finalY, critCard.y + critCard.h) + 24;
+
+    // 3) Resultado - Forzar nueva página
+    checkPageBreak(200); // Espacio necesario para la sección completa
+    if (y > pageHeight / 2) {
+      // Si ya estamos más abajo de la mitad de la página, forzar nueva página
+      doc.addPage();
+      y = margin;
+      drawHeader();
+    }
+    drawSectionTitle('3', 'Resultado de evaluación', 'Resumen final y estatus');
+
+    // Card resumen con "badge" de clasificación
+    const resCardH = 110;
+    const res = drawCard(resCardH);
+
+    // Badge color
+    setFillColor(badge.color);
+    doc.roundedRect(res.x + 14, res.y + 16, 92, 22, 10, 10, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    setTextColor([255, 255, 255]);
+    doc.text(badge.label.toUpperCase(), res.x + 14 + 46, res.y + 31, { align: 'center' });
+
+    // KPI texts
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    setTextColor(BRAND.muted);
+    doc.text('PORCENTAJE', res.x + 14, res.y + 62);
+    doc.text('ESTATUS FINAL', res.x + 160, res.y + 62);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    setTextColor(BRAND.primary);
+    doc.text(porcentajeTxt, res.x + 14, res.y + 86);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    setTextColor(BRAND.text);
+    doc.text((estatusFinal || '—'), res.x + 160, res.y + 86);
+
+    // Clasificación grande a la derecha
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(44);
+    setTextColor(badge.color);
+    doc.text((clasificacion || '—').toUpperCase(), res.x + res.w - 14, res.y + 88, { align: 'right' });
+
+    y = res.y + resCardH + 24; // Más espacio antes de observaciones
+
+    // 4) Observaciones
+    if (formData.observaciones) {
+      drawSectionTitle('4', 'Observaciones', 'Comentarios y justificación del puntaje');
+
+      const obsText = formData.observaciones || '';
+      // Ajustar ancho del texto para que no supere el card (margen del card + padding interno)
+      const textWidth = pageWidth - margin * 2 - 28; // Ancho disponible dentro del card
+      const obsLines = doc.splitTextToSize(obsText, textWidth);
+
+      const obsCardH = Math.min(340, Math.max(120, 44 + obsLines.length * 14));
+      const obs = drawCard(obsCardH);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      setTextColor(BRAND.text);
+      // Asegurar que el texto no se salga del card
+      doc.text(obsLines, obs.x + 14, obs.y + 28, { maxWidth: textWidth });
+
+      y = obs.y + obsCardH + 18;
+    }
+
+    // ====== FOOTER (todas las páginas) ======
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+
+      // Header en cada página (estilo reporte-email)
+      // OJO: en la primera página ya está, pero redibujarlo no hace daño; si prefieres, condicional i>1
+      drawHeader();
+
+      // Footer
+      drawFooter(i, totalPages);
+    }
+
+    // ====== SAVE ======
+    const nombreProveedor = proveedorSeleccionado?.nombre_proveedor || 'Proveedor';
+    const fecha = new Date().toISOString().split('T')[0];
+    const nombreArchivo = `Evaluacion_Servicios_${nombreProveedor}_${fecha}.pdf`;
+    doc.save(nombreArchivo);
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -301,7 +736,7 @@ const EvaluacionServicios: React.FC = () => {
                 Evaluación de Servicios
               </h1>
               <p className="text-sm text-gray-500">
-                Workflow Secuencial para Calificación de Proveedores
+                Calificación de Proveedores
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -317,7 +752,10 @@ const EvaluacionServicios: React.FC = () => {
                 <span className="material-symbols-outlined text-lg">edit</span>
                 <span>Editar</span>
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium">
+              <button 
+                onClick={handleExport}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
+              >
                 <span className="material-symbols-outlined text-lg">download</span>
                 <span>Exportar</span>
               </button>
