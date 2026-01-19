@@ -156,6 +156,57 @@ const EvaluacionServicios: React.FC = () => {
     return 'INHABILITADO PARA CONTRATACIÓN.';
   }, [clasificacion]);
 
+  // Función para formatear número con puntos cada 3 dígitos
+  const formatNumberWithDots = (value: number | string): string => {
+    if (!value && value !== 0) return '';
+    const num = typeof value === 'number' ? value : parseFloat(value.toString().replace(/\./g, ''));
+    if (isNaN(num)) return '';
+    
+    // Convertir a string y separar parte entera y decimal
+    const numStr = num.toString();
+    const parts = numStr.split('.');
+    const integerPart = parts[0];
+    const decimalPart = parts[1] || '';
+    
+    // Formatear parte entera con puntos cada 3 dígitos
+    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    
+    // Combinar con decimal si existe
+    return decimalPart ? `${formattedInteger}.${decimalPart}` : formattedInteger;
+  };
+
+  // Función para convertir valor formateado a número
+  const parseFormattedNumber = (value: string): number => {
+    if (!value) return 0;
+    // Remover todos los puntos (separadores de miles) y mantener solo el último punto como decimal si existe
+    // Primero, contar cuántos puntos hay
+    const dotCount = (value.match(/\./g) || []).length;
+    let cleaned = value;
+    
+    if (dotCount > 1) {
+      // Si hay múltiples puntos, el último es el decimal
+      const lastDotIndex = value.lastIndexOf('.');
+      cleaned = value.substring(0, lastDotIndex).replace(/\./g, '') + value.substring(lastDotIndex);
+    } else if (dotCount === 1) {
+      // Si hay un solo punto, verificar si es decimal o separador de miles
+      const dotIndex = value.indexOf('.');
+      const afterDot = value.substring(dotIndex + 1);
+      // Si después del punto hay más de 2 dígitos, es separador de miles
+      if (afterDot.length > 2) {
+        cleaned = value.replace(/\./g, '');
+      } else {
+        // Es decimal, remover solo los puntos antes del decimal
+        cleaned = value.substring(0, dotIndex).replace(/\./g, '') + '.' + afterDot;
+      }
+    } else {
+      // No hay puntos, solo remover comas si las hay
+      cleaned = value.replace(/,/g, '');
+    }
+    
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -206,6 +257,19 @@ const EvaluacionServicios: React.FC = () => {
         [name]: type === 'checkbox' ? checked : value,
       }));
     }
+  };
+
+  // Handler específico para el campo de precio
+  const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Permitir solo números y puntos
+    const cleaned = value.replace(/[^\d.]/g, '');
+    // Convertir a número y guardar
+    const numValue = parseFormattedNumber(cleaned);
+    setFormData((prev) => ({
+      ...prev,
+      precioServicio: numValue,
+    }));
   };
 
   const handleCriterioChange = (criterioId: string, valor: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO' | 'A' | 'B' | 'C') => {
@@ -298,11 +362,11 @@ const EvaluacionServicios: React.FC = () => {
     // ====== BRAND TOKENS (ajusta a tu paleta MyMA) ======
     const BRAND = {
       bgHeader: [17, 19, 24] as [number, number, number],     // #111318
-      cardBg: [250, 250, 252] as [number, number, number],    // #FAFAFC
+      cardBg: [240, 253, 244] as [number, number, number],    // Verde claro transparente (similar al azul anterior)
       border: [229, 231, 235] as [number, number, number],    // #E5E7EB
       text: [17, 19, 24] as [number, number, number],         // #111318
       muted: [107, 114, 128] as [number, number, number],     // #6B7280
-      primary: [59, 130, 246] as [number, number, number],    // #3B82F6 (similar al "primary" típico)
+      primary: [22, 163, 74] as [number, number, number],    // Verde (antes azul #3B82F6)
       ok: [22, 163, 74] as [number, number, number],          // green
       warn: [217, 119, 6] as [number, number, number],        // amber
       bad: [220, 38, 38] as [number, number, number],         // red
@@ -311,6 +375,7 @@ const EvaluacionServicios: React.FC = () => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 44; // más "corporate"
+    const spaceAfterCard = 40; // Espacio consistente después del card antes del siguiente título
     let y = margin;
 
     // ====== HELPERS ======
@@ -365,7 +430,7 @@ const EvaluacionServicios: React.FC = () => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       setTextColor([255, 255, 255]);
-      doc.text('REPORTE DE EVALUACIÓN', pageWidth - margin, 30, { align: 'right' });
+      doc.text('Reporte de evaluación', pageWidth - margin, 30, { align: 'right' });
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -518,32 +583,37 @@ const EvaluacionServicios: React.FC = () => {
     drawSectionTitle('1', 'Antecedentes', 'Información general del servicio y proveedor');
 
     const antecedentes = [
-      ['PROVEEDOR', proveedorSeleccionado?.nombre_proveedor || 'No seleccionado'],
-      ['NOMBRE DE CONTACTO', formData.nombreContacto || '—'],
-      ['CORREO DE CONTACTO', formData.correoContacto || '—'],
-      ['ORDEN DE SERVICIO', formData.ordenServicio || '—'],
-      ['FECHA DE EVALUACIÓN', formData.fechaEvaluacion || '—'],
-      ['PRECIO DEL SERVICIO', formData.precioServicio ? formatCurrency(formData.precioServicio) : '—'],
-      ['EVALUADOR RESPONSABLE', formData.evaluadorResponsable || '—'],
-      ['DESCRIPCIÓN DEL SERVICIO', formData.descripcionServicio || '—'],
-      ['LINK DEL SERVICIO EJECUTADO', formData.linkServicioEjecutado || '—'],
+      ['Proveedor', proveedorSeleccionado?.nombre_proveedor || 'No seleccionado'],
+      ['Nombre de contacto', formData.nombreContacto || '—'],
+      ['Correo de contacto', formData.correoContacto || '—'],
+      ['Orden de servicio', formData.ordenServicio || '—'],
+      ['Fecha de evaluación', formData.fechaEvaluacion || '—'],
+      ['Precio del servicio', formData.precioServicio ? formatCurrency(formData.precioServicio) : '—'],
+      ['Evaluador responsable', formData.evaluadorResponsable || '—'],
+      ['Descripción del servicio', formData.descripcionServicio || '—'],
+      ['Link del servicio ejecutado', formData.linkServicioEjecutado || '—'],
     ];
 
-    // Calcular altura estimada de la tabla
-    const estimatedTableHeight = 50 + antecedentes.length * 24;
+    // Calcular altura de la tabla (más precisa)
     const cardStartY = y;
+    const paddingTop = 16; // Padding desde el comienzo del card hasta el primer texto
+    const paddingBottom = 8; // Padding desde el último texto hasta el final del card (reducido)
     
-    // Dibujar el card primero como fondo
+    // Calcular altura estimada más precisa basada en el número de filas
+    const estimatedTableHeight = antecedentes.length * 25; // Aumentado a 25pt por fila para más espacio
+    const estimatedCardHeight = estimatedTableHeight + paddingTop + paddingBottom;
+    
+    // Dibujar el card primero como fondo con altura generosa
     setFillColor(BRAND.cardBg);
     setDrawColor(BRAND.border);
     doc.setLineWidth(1);
-    doc.roundedRect(margin, cardStartY, pageWidth - margin * 2, estimatedTableHeight, 12, 12, 'FD');
+    doc.roundedRect(margin, cardStartY, pageWidth - margin * 2, estimatedCardHeight, 12, 12, 'FD');
     
-    // Ahora dibujar la tabla encima del card
+    // Ahora dibujar la tabla encima del card (sin header)
     autoTable(doc, {
-      startY: cardStartY + 16,
+      startY: cardStartY + paddingTop,
       margin: { left: margin + 14, right: margin + 14 },
-      head: [['Campo', 'Valor']],
+      head: [], // Sin header
       body: antecedentes,
       theme: 'plain',
       styles: {
@@ -553,12 +623,6 @@ const EvaluacionServicios: React.FC = () => {
         textColor: BRAND.text,
         lineColor: BRAND.border,
         lineWidth: 0.5,
-      },
-      headStyles: {
-        fillColor: [255, 255, 255], // Blanco para que se vea sobre el card
-        textColor: BRAND.muted,
-        fontStyle: 'bold',
-        halign: 'left',
       },
       columnStyles: {
         0: { cellWidth: 140, fontStyle: 'bold' },
@@ -577,8 +641,18 @@ const EvaluacionServicios: React.FC = () => {
       },
     });
 
+    // Obtener la altura final de la tabla
     const finalTableY = (doc as any).lastAutoTable.finalY;
-    y = finalTableY + 40; // Más espacio antes de la siguiente sección para que el título no quede sobre el card
+    // Calcular altura real del contenido de la tabla
+    const tableContentHeight = finalTableY - (cardStartY + paddingTop);
+    // Altura total del card = contenido de tabla + padding superior + padding inferior
+    const actualCardHeight = tableContentHeight + paddingTop + paddingBottom;
+    
+    // Usar la altura real para el cálculo de posición, pero no redibujar el card
+    // (el card ya está dibujado y la tabla está encima, visible)
+
+    // Espacio consistente después del card antes del siguiente título
+    y = cardStartY + actualCardHeight + spaceAfterCard;
 
     // 2) Evaluación de criterios
     drawSectionTitle('2', 'Evaluación de criterios', 'Detalle de criterios según la clasificación de desempeño');
@@ -597,10 +671,22 @@ const EvaluacionServicios: React.FC = () => {
         return [criterio.nombre, criterio.id === 'terreno' ? 'N/A' : `${criterio.peso}%`, valorTexto];
       });
 
-    const critCard = drawCard(Math.max(180, 44 + criteriosData.length * 20));
+    // Calcular altura estimada de la tabla para dibujar el card primero
+    const estimatedCritHeight = 50 + criteriosData.length * 24;
+    const critCardStartY = y;
+    const paddingTopCrit = 16; // Padding desde el comienzo del card hasta el primer texto
+    const paddingBottomCrit = 8; // Padding desde el último texto hasta el final del card (reducido)
+    
+    // Dibujar el card primero como fondo
+    setFillColor(BRAND.cardBg);
+    setDrawColor(BRAND.border);
+    doc.setLineWidth(1);
+    doc.roundedRect(margin, critCardStartY, pageWidth - margin * 2, estimatedCritHeight + paddingTopCrit + paddingBottomCrit, 12, 12, 'FD');
+    
+    // Ahora dibujar la tabla encima del card
     autoTable(doc, {
-      startY: critCard.y + 16,
-      margin: { left: critCard.x + 14, right: critCard.x + 14 },
+      startY: critCardStartY + paddingTopCrit,
+      margin: { left: margin + 14, right: margin + 14 },
       head: [['Criterio', 'Peso', 'Evaluación']],
       body: criteriosData,
       theme: 'plain',
@@ -635,7 +721,20 @@ const EvaluacionServicios: React.FC = () => {
       },
     });
 
-    y = Math.max((doc as any).lastAutoTable.finalY, critCard.y + critCard.h) + 24;
+    // Obtener la altura final de la tabla para ajustar si es necesario
+    const finalCritTableY = (doc as any).lastAutoTable.finalY;
+    const actualCritTableHeight = finalCritTableY - critCardStartY + paddingTopCrit + paddingBottomCrit;
+    
+    // Si la tabla es más alta de lo estimado, redibujar el card con la altura correcta
+    if (actualCritTableHeight > estimatedCritHeight + paddingTopCrit + paddingBottomCrit) {
+      setFillColor(BRAND.cardBg);
+      setDrawColor(BRAND.border);
+      doc.setLineWidth(1);
+      doc.roundedRect(margin, critCardStartY, pageWidth - margin * 2, actualCritTableHeight, 12, 12, 'FD');
+    }
+
+    // Espacio consistente después del card antes del siguiente título (igual que la tabla anterior)
+    y = critCardStartY + actualCritTableHeight + spaceAfterCard;
 
     // 3) Resultado - Forzar nueva página
     checkPageBreak(200); // Espacio necesario para la sección completa
@@ -784,8 +883,8 @@ const EvaluacionServicios: React.FC = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        PROVEEDOR
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Proveedor
                       </label>
                       {loadingProveedores ? (
                         <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
@@ -808,8 +907,8 @@ const EvaluacionServicios: React.FC = () => {
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        NOMBRE DE CONTACTO
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Nombre de contacto
                       </label>
                       <input
                         type="text"
@@ -824,8 +923,8 @@ const EvaluacionServicios: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        CORREO DE CONTACTO
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Correo de contacto
                       </label>
                       <input
                         type="email"
@@ -837,8 +936,8 @@ const EvaluacionServicios: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        ORDEN DE SERVICIO
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Orden de servicio
                       </label>
                       <input
                         type="text"
@@ -853,8 +952,8 @@ const EvaluacionServicios: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        FECHA DE EVALUACIÓN
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Fecha de evaluación
                       </label>
                       <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -870,23 +969,21 @@ const EvaluacionServicios: React.FC = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        PRECIO DE SERVICIO
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Precio de servicio
                       </label>
                       <input
-                        type="number"
+                        type="text"
                         name="precioServicio"
-                        value={formData.precioServicio || ''}
-                        onChange={handleChange}
-                        min="0"
-                        step="0.01"
+                        value={formatNumberWithDots(formData.precioServicio)}
+                        onChange={handlePrecioChange}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                         placeholder="0.00"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">
-                        EVALUADOR RESPONSABLE
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Evaluador responsable
                       </label>
                       <select
                         name="evaluadorResponsable"
@@ -901,8 +998,8 @@ const EvaluacionServicios: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2">
-                      DESCRIPCIÓN DEL SERVICIO
+                    <label className="block text-sm font-medium text-[#111318] mb-2">
+                      Descripción del servicio
                     </label>
                     <textarea
                       name="descripcionServicio"
@@ -915,8 +1012,8 @@ const EvaluacionServicios: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2">
-                      LINK DEL SERVICIO EJECUTADO
+                    <label className="block text-sm font-medium text-[#111318] mb-2">
+                      Link del servicio ejecutado
                     </label>
                     <div className="relative">
                       <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
