@@ -44,10 +44,10 @@ const EvaluacionServicios: React.FC = () => {
     linkServicioEjecutado: '',
     vaTerreno: false,
     criterios: [
-      { id: 'calidad', nombre: 'Calidad', peso: 30, valor: null },
-      { id: 'disponibilidad', nombre: 'Disponibilidad', peso: 20, valor: null },
-      { id: 'cumplimiento', nombre: 'Cumplimiento', peso: 30, valor: null },
-      { id: 'precio', nombre: 'Precio', peso: 20, valor: null },
+      { id: 'calidad', nombre: 'Calidad', peso: 52.2, valor: null },
+      { id: 'disponibilidad', nombre: 'Disposición operativa y colaboración', peso: 18.2, valor: null },
+      { id: 'cumplimiento', nombre: 'Cumplimiento fecha de entrega', peso: 13.7, valor: null },
+      { id: 'precio', nombre: 'Precio respecto de la competencia', peso: 15.9, valor: null },
     ],
     observaciones: '',
   });
@@ -73,34 +73,73 @@ const EvaluacionServicios: React.FC = () => {
     loadProveedores();
   }, []);
 
-  // Calcular evaluación total (excluyendo criterio terreno que no tiene peso)
+  // Calcular evaluación total usando la nueva fórmula (excluyendo criterio terreno que no tiene peso)
   const evaluacionTotal = useMemo(() => {
-    const valores = {
-      ALTO: 100,
-      MEDIO: 60,
-      BAJO: 30,
-      MUY_BAJO: 0,
-      A: 100, // Para terreno, pero no se usa en el cálculo
-      B: 60,
-      C: 0,
+    // Pesos por criterio (constantes de la fórmula)
+    const pesos: Record<string, number> = {
+      calidad: 0.522,
+      disponibilidad: 0.182,
+      cumplimiento: 0.137,
+      precio: 0.159,
     };
 
-    let totalPonderado = 0;
-    let totalPeso = 0;
+    // Valores por opción según criterio (tabla entregada)
+    const valoresPorCriterio: Record<
+      string,
+      { ALTO: number; MEDIO: number; BAJO: number; MUY_BAJO: number }
+    > = {
+      calidad: {
+        ALTO: 0.521, // Sobresaliente
+        MEDIO: 0.297, // Buena
+        BAJO: 0.144, // Regular
+        MUY_BAJO: 0.038, // Deficiente
+      },
+      disponibilidad: {
+        ALTO: 0.544, // Alta
+        MEDIO: 0.311, // Buena
+        BAJO: 0.097, // Mediana
+        MUY_BAJO: 0.048, // Nula
+      },
+      cumplimiento: {
+        ALTO: 0.533, // Entrega por adelantado
+        MEDIO: 0.315, // Cumplen la fecha
+        BAJO: 0.092, // Se retrasa ocasionalmente
+        MUY_BAJO: 0.04, // Generalmente se retrasa
+      },
+      precio: {
+        ALTO: 0.651, // Muy buen precio
+        MEDIO: 0.206, // Precio de mercado
+        BAJO: 0.096, // Costo elevado
+        MUY_BAJO: 0.048, // Costo muy elevado
+      },
+    };
+
+    const denominador = 0.5475;
+
+    let numerador = 0;
+    let tieneAlMenosUnCriterio = false;
 
     formData.criterios.forEach((criterio) => {
-      // Excluir criterio terreno del cálculo (peso 0)
+      // Excluir criterio terreno del cálculo
       if (criterio.id === 'terreno') return;
-      
-      if (criterio.valor && criterio.peso > 0) {
-        const valorNumerico = valores[criterio.valor as keyof typeof valores] || 0;
-        totalPonderado += valorNumerico * criterio.peso;
-        totalPeso += criterio.peso;
-      }
+
+      const peso = pesos[criterio.id];
+      const valores = valoresPorCriterio[criterio.id];
+
+      if (!peso || !valores || !criterio.valor) return;
+
+      const valorOpcion = valores[criterio.valor as keyof typeof valores];
+      if (typeof valorOpcion !== 'number') return;
+
+      numerador += valorOpcion * peso;
+      tieneAlMenosUnCriterio = true;
     });
 
-    if (totalPeso === 0) return null;
-    return Math.round(totalPonderado / totalPeso);
+    if (!tieneAlMenosUnCriterio || denominador === 0) return null;
+
+    // Resultado en rango 0-1 -> convertir a porcentaje 0-100
+    const resultado = numerador / denominador;
+    return Math.round(resultado * 100);
   }, [formData.criterios]);
 
 
@@ -224,12 +263,12 @@ const EvaluacionServicios: React.FC = () => {
       // Si se marca "va a terreno", agregar el criterio de terreno y ajustar pesos
       // Si se desmarca, remover el criterio de terreno y restaurar pesos
       setFormData((prev) => {
-        const criteriosBase = prev.criterios.filter(c => c.id !== 'terreno');
+        const criteriosBase = prev.criterios.filter((c) => c.id !== 'terreno');
         const pesosOriginales: Record<string, number> = {
-          calidad: 30,
-          disponibilidad: 20,
-          cumplimiento: 30,
-          precio: 20,
+          calidad: 52.2,
+          disponibilidad: 18.2,
+          cumplimiento: 13.7,
+          precio: 15.9,
         };
         
         if (checked) {
@@ -247,7 +286,10 @@ const EvaluacionServicios: React.FC = () => {
           return {
             ...prev,
             vaTerreno: checked,
-            criterios: criteriosBase.map(c => ({ ...c, peso: pesosOriginales[c.id] || c.peso })),
+            criterios: criteriosBase.map((c) => ({
+              ...c,
+              peso: pesosOriginales[c.id] || c.peso,
+            })),
           };
         }
       });
@@ -301,28 +343,28 @@ const EvaluacionServicios: React.FC = () => {
   const getCriterioOpciones = (criterioId: string) => {
     const opciones: Record<string, { ALTO: string; MEDIO: string; BAJO: string; MUY_BAJO: string }> = {
       calidad: {
-        ALTO: 'Óptima',
+        ALTO: 'Sobresaliente',
         MEDIO: 'Buena',
         BAJO: 'Regular',
         MUY_BAJO: 'Deficiente',
       },
       disponibilidad: {
-        ALTO: 'Inmediatamente',
-        MEDIO: 'A 15 días',
-        BAJO: 'A 30 días',
-        MUY_BAJO: 'A más de 30 días',
+        ALTO: 'Alta',
+        MEDIO: 'Buena',
+        BAJO: 'Mediana',
+        MUY_BAJO: 'Nula',
       },
       cumplimiento: {
-        ALTO: 'Óptimo',
-        MEDIO: 'Generalmente cumple',
+        ALTO: 'Entrega por adelantado',
+        MEDIO: 'Cumplen la fecha',
         BAJO: 'Se retrasa ocasionalmente',
         MUY_BAJO: 'Generalmente se retrasa',
       },
       precio: {
-        ALTO: 'Gral. menor precio',
-        MEDIO: 'Gral. igual precio',
-        BAJO: 'Gral. mayor precio',
-        MUY_BAJO: 'No existe competencia',
+        ALTO: 'Muy buen precio',
+        MEDIO: 'Precio de mercado',
+        BAJO: 'Costo elevado',
+        MUY_BAJO: 'Costo muy elevado',
       },
       terreno: {
         ALTO: 'A',
@@ -333,6 +375,106 @@ const EvaluacionServicios: React.FC = () => {
     };
     return opciones[criterioId] || opciones.calidad;
   };
+
+  // Función helper para obtener el valor numérico de una opción
+  const getValorOpcion = (criterioId: string, nivel: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO'): number | null => {
+    const valoresPorCriterio: Record<
+      string,
+      { ALTO: number; MEDIO: number; BAJO: number; MUY_BAJO: number }
+    > = {
+      calidad: {
+        ALTO: 0.521,
+        MEDIO: 0.297,
+        BAJO: 0.144,
+        MUY_BAJO: 0.038,
+      },
+      disponibilidad: {
+        ALTO: 0.544,
+        MEDIO: 0.311,
+        BAJO: 0.097,
+        MUY_BAJO: 0.048,
+      },
+      cumplimiento: {
+        ALTO: 0.533,
+        MEDIO: 0.315,
+        BAJO: 0.092,
+        MUY_BAJO: 0.04,
+      },
+      precio: {
+        ALTO: 0.651,
+        MEDIO: 0.206,
+        BAJO: 0.096,
+        MUY_BAJO: 0.048,
+      },
+    };
+    return valoresPorCriterio[criterioId]?.[nivel] ?? null;
+  };
+
+  // Función para calcular el valor de la multiplicación (peso criterio × valor opción)
+  const getValorMultiplicacion = (criterioId: string, valor: string | null): number | null => {
+    if (!valor || criterioId === 'terreno') return null;
+    
+    const pesos: Record<string, number> = {
+      calidad: 0.522,
+      disponibilidad: 0.182,
+      cumplimiento: 0.137,
+      precio: 0.159,
+    };
+
+    const pesoCriterio = pesos[criterioId];
+    if (!pesoCriterio) return null;
+
+    const valorOpcion = getValorOpcion(criterioId, valor as 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO');
+    if (valorOpcion === null) return null;
+
+    return pesoCriterio * valorOpcion;
+  };
+
+  // Detalle de cómo se calcula la evaluación total (para mostrar la fórmula con números)
+  const detalleCalculoEvaluacion = useMemo(() => {
+    if (!formData.criterios || formData.criterios.length === 0) return null;
+
+    const pesos: Record<string, number> = {
+      calidad: 0.522,
+      disponibilidad: 0.182,
+      cumplimiento: 0.137,
+      precio: 0.159,
+    };
+
+    const denominador = 0.5475;
+
+    const terminos: string[] = [];
+    let numerador = 0;
+
+    formData.criterios.forEach((criterio) => {
+      if (criterio.id === 'terreno') return;
+      if (!criterio.valor) return;
+
+      const peso = pesos[criterio.id];
+      if (!peso) return;
+
+      const valorOpcion = getValorOpcion(
+        criterio.id,
+        criterio.valor as 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO'
+      );
+      if (valorOpcion === null) return;
+
+      numerador += peso * valorOpcion;
+      terminos.push(`${valorOpcion.toFixed(3)} × ${peso.toFixed(3)}`);
+    });
+
+    if (terminos.length === 0) return null;
+
+    const resultadoFraccion = numerador / denominador;
+    const porcentaje = resultadoFraccion * 100;
+
+    return {
+      formula: `(( ${terminos.join(' + ')} ) / ${denominador.toFixed(4)}) × 100`,
+      numerador: numerador.toFixed(4),
+      fraccion: resultadoFraccion.toFixed(4),
+      porcentaje: Math.round(porcentaje),
+    };
+  }, [formData.criterios]);
 
   const getClasificacionColor = (clasif: string | null) => {
     if (!clasif) return 'bg-gray-100 text-gray-700 border-gray-300';
@@ -1038,7 +1180,7 @@ const EvaluacionServicios: React.FC = () => {
               {/* 2. Evaluación de Criterios */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
                 <div className="mb-4">
-                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">
                         2
@@ -1046,9 +1188,18 @@ const EvaluacionServicios: React.FC = () => {
                       <h2 className="text-lg font-bold text-[#111318]">Evaluación de Criterios</h2>
                     </div>
                     {evaluacionTotal !== null && (
-                      <div className="text-right">
+                      <div className="text-right max-w-xs">
                         <div className="text-2xl font-bold text-primary">{evaluacionTotal}%</div>
                         <div className="text-xs text-gray-500">Resultado</div>
+                        {detalleCalculoEvaluacion && (
+                          <div className="mt-1 text-[10px] text-gray-500 text-right leading-snug">
+                            <div>{detalleCalculoEvaluacion.formula}</div>
+                            <div>
+                              = ({detalleCalculoEvaluacion.numerador} / 0.5475) × 100 ≈{' '}
+                              {detalleCalculoEvaluacion.porcentaje}%
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1076,15 +1227,25 @@ const EvaluacionServicios: React.FC = () => {
                       'C': 'Incumplimiento Crítico / Exposición a Riesgo Inaceptable',
                     };
                     
+                    const valorMultiplicacion = getValorMultiplicacion(criterio.id, criterio.valor);
+                    
                     return (
                       <div key={criterio.id} className="border border-gray-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-[#111318]">{criterio.nombre}</span>
                             {!isTerreno && (
-                              <span className="ml-2 text-sm text-gray-500">PESO: {criterio.peso}%</span>
+                              <span className="text-sm text-gray-500">PESO: {criterio.peso}%</span>
                             )}
                           </div>
+                          {valorMultiplicacion !== null && (
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-primary">
+                                {valorMultiplicacion.toFixed(4)}
+                              </div>
+                              <div className="text-xs text-gray-500">Peso × Opción</div>
+                            </div>
+                          )}
                         </div>
                         {isTerreno ? (
                           // Renderizado especial para terreno con A, B, C
@@ -1127,25 +1288,33 @@ const EvaluacionServicios: React.FC = () => {
                         ) : (
                           // Renderizado normal para otros criterios
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {(['ALTO', 'MEDIO', 'BAJO', 'MUY_BAJO'] as const).map((nivel) => (
-                              <label
-                                key={nivel}
-                                className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                                  criterio.valor === nivel
-                                    ? 'border-primary bg-primary/5'
-                                    : 'border-gray-200 hover:border-gray-300'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`criterio-${criterio.id}`}
-                                  checked={criterio.valor === nivel}
-                                  onChange={() => handleCriterioChange(criterio.id, nivel)}
-                                  className="text-primary focus:ring-primary"
-                                />
-                                <span className="text-sm text-[#111318]">{opciones[nivel]}</span>
-                              </label>
-                            ))}
+                            {(['ALTO', 'MEDIO', 'BAJO', 'MUY_BAJO'] as const).map((nivel) => {
+                              const valorOpcion = getValorOpcion(criterio.id, nivel);
+                              return (
+                                <label
+                                  key={nivel}
+                                  className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                                    criterio.valor === nivel
+                                      ? 'border-primary bg-primary/5'
+                                      : 'border-gray-200 hover:border-gray-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`criterio-${criterio.id}`}
+                                    checked={criterio.valor === nivel}
+                                    onChange={() => handleCriterioChange(criterio.id, nivel)}
+                                    className="text-primary focus:ring-primary"
+                                  />
+                                  <span className="text-sm text-[#111318]">
+                                    {opciones[nivel]}
+                                    {valorOpcion !== null && (
+                                      <span className="text-xs text-gray-500 ml-1">({valorOpcion})</span>
+                                    )}
+                                  </span>
+                                </label>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
