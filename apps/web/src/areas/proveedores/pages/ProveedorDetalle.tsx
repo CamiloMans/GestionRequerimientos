@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedorById, ProveedorResponse, fetchEspecialidades } from '../services/proveedoresService';
+import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, EvaluacionProveedor } from '../services/proveedoresService';
 import { Clasificacion } from '../types';
 
 interface Servicio {
@@ -10,70 +10,11 @@ interface Servicio {
   codigo: string;
   descripcion: string;
   categoria: string;
-  tarifaRef: number;
+  tarifaRef: number | null;
   estado: 'Vigente' | 'En revisión' | 'Inactivo';
-  clasificacion?: 'A' | 'B' | 'C' | 'D' | null;
-  documentacionUrl?: string;
+  clasificacion?: 'A' | 'B' | 'C' | null;
+  documentacionUrl?: string | null;
 }
-
-// Datos mock de servicios (luego se conectarán con Supabase)
-const MOCK_SERVICIOS: Servicio[] = [
-  {
-    id: 1,
-    nombre: 'Análisis Físico-Químico de Aguas',
-    codigo: 'LAB-001',
-    descripcion: 'Análisis completo de potabilidad según NCh 4...',
-    categoria: 'Laboratorio',
-    tarifaRef: 45000,
-    estado: 'Vigente',
-    clasificacion: 'A',
-    documentacionUrl: 'https://ejemplo.com/documentacion/lab-001',
-  },
-  {
-    id: 2,
-    nombre: 'Muestreo Isocinético',
-    codigo: 'AIR-023',
-    descripcion: 'Muestreo de material particulado en chimenea...',
-    categoria: 'Aire',
-    tarifaRef: 320000,
-    estado: 'Vigente',
-    clasificacion: 'B',
-    documentacionUrl: 'https://ejemplo.com/documentacion/air-023',
-  },
-  {
-    id: 3,
-    nombre: 'Caracterización de RILes',
-    codigo: 'LAB-045',
-    descripcion: 'Determinación de carga contaminante en resid...',
-    categoria: 'Laboratorio',
-    tarifaRef: 85000,
-    estado: 'En revisión',
-    clasificacion: 'C',
-    documentacionUrl: 'https://ejemplo.com/documentacion/lab-045',
-  },
-  {
-    id: 4,
-    nombre: 'Análisis de Suelos',
-    codigo: 'LAB-012',
-    descripcion: 'Análisis completo de suelos para evaluación ambiental...',
-    categoria: 'Laboratorio',
-    tarifaRef: 120000,
-    estado: 'Vigente',
-    clasificacion: 'A',
-    documentacionUrl: 'https://ejemplo.com/documentacion/lab-012',
-  },
-  {
-    id: 5,
-    nombre: 'Medición de Ruido',
-    codigo: 'AIR-015',
-    descripcion: 'Medición de niveles de ruido ambiental...',
-    categoria: 'Aire',
-    tarifaRef: 95000,
-    estado: 'Vigente',
-    clasificacion: 'B',
-    documentacionUrl: 'https://ejemplo.com/documentacion/air-015',
-  },
-];
 
 const ProveedorDetalle: React.FC = () => {
   const navigate = useNavigate();
@@ -85,6 +26,8 @@ const ProveedorDetalle: React.FC = () => {
   const [filterCategoria, setFilterCategoria] = useState<string>('Todas las categorías');
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([]);
   const [loadingCategorias, setLoadingCategorias] = useState(true);
+  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [loadingServicios, setLoadingServicios] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
@@ -136,8 +79,45 @@ const ProveedorDetalle: React.FC = () => {
     loadProveedor();
   }, [id]);
 
+  // Cargar evaluaciones (servicios) del proveedor
+  useEffect(() => {
+    const loadEvaluaciones = async () => {
+      if (!proveedor) return;
+
+      try {
+        setLoadingServicios(true);
+        const evaluaciones = await fetchEvaluacionesByNombreProveedor(proveedor.nombre_proveedor);
+        
+        // Convertir evaluaciones a formato Servicio
+        const serviciosMapeados: Servicio[] = evaluaciones.map((evaluacion) => ({
+          id: evaluacion.id,
+          nombre: evaluacion.nombre_proyecto || evaluacion.nombre || 'Sin nombre',
+          codigo: evaluacion.codigo_proyecto || evaluacion.orden_compra || `EVAL-${evaluacion.id}`,
+          descripcion: evaluacion.observacion || 'Sin descripción',
+          categoria: evaluacion.especialidad || evaluacion.actividad || 'Sin categoría',
+          tarifaRef: null, // No hay precio_servicio en brg_core_proveedor_evaluacion
+          estado: 'Vigente' as const, // Por defecto
+          clasificacion: (evaluacion.categoria_proveedor as 'A' | 'B' | 'C') || null,
+          documentacionUrl: null, // No hay link_servicio_ejecutado en brg_core_proveedor_evaluacion
+        }));
+
+        setServicios(serviciosMapeados);
+      } catch (err: any) {
+        console.error('Error al cargar evaluaciones:', err);
+        // No mostrar error, solo dejar array vacío
+        setServicios([]);
+      } finally {
+        setLoadingServicios(false);
+      }
+    };
+
+    if (proveedor) {
+      loadEvaluaciones();
+    }
+  }, [proveedor]);
+
   // Filtrar servicios
-  const filteredServicios = MOCK_SERVICIOS.filter((servicio) => {
+  const filteredServicios = servicios.filter((servicio) => {
     const matchesSearch =
       servicio.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       servicio.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -361,22 +341,36 @@ const ProveedorDetalle: React.FC = () => {
 
           {/* Tabla de Servicios */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
-                  <tr>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">NOMBRE DEL SERVICIO</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DESCRIPCIÓN</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CATEGORÍA</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">TARIFA REF.</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CALIFICACIÓN</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DOCUMENTACIÓN</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedServicios.map((servicio) => (
+            {loadingServicios ? (
+              <div className="p-8 text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                <p className="text-sm text-gray-500">Cargando evaluaciones...</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
+                    <tr>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">NOMBRE DEL SERVICIO</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DESCRIPCIÓN</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CATEGORÍA</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">TARIFA REF.</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">REF.</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CALIFICACIÓN</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DOCUMENTACIÓN</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedServicios.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-gray-500">
+                          No hay evaluaciones registradas para este proveedor.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedServicios.map((servicio) => (
                     <tr
                       key={servicio.id}
                       className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
@@ -388,7 +382,7 @@ const ProveedorDetalle: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-4 px-6">
-                        <span className="text-sm text-gray-600">{servicio.descripcion}</span>
+                        <span className="text-sm text-gray-600 line-clamp-2 max-w-xs">{servicio.descripcion}</span>
                       </td>
                       <td className="py-4 px-6">
                         <span
@@ -400,7 +394,14 @@ const ProveedorDetalle: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-4 px-6">
-                        <span className="text-sm font-medium text-[#111318]">{formatCurrency(servicio.tarifaRef)}</span>
+                        {servicio.tarifaRef !== null ? (
+                          <span className="text-sm font-medium text-[#111318]">{formatCurrency(servicio.tarifaRef)}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-xs text-gray-500">{servicio.codigo}</span>
                       </td>
                       <td className="py-4 px-6">
                         <span
@@ -449,10 +450,12 @@ const ProveedorDetalle: React.FC = () => {
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Paginación */}
             {filteredServicios.length > 0 && (

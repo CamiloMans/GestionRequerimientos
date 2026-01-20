@@ -242,7 +242,7 @@ export const fetchCatalogoRequerimientos = async (): Promise<any[]> => {
 // Función para obtener todos los proveedores
 export const fetchProveedores = async (): Promise<{ id: number; nombre_proveedor: string }[]> => {
   const { data, error } = await supabase
-    .from('proveedor')
+    .from('dim_core_proveedor')
     .select('id, nombre_proveedor')
     .order('nombre_proveedor', { ascending: true });
   

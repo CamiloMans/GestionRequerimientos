@@ -47,7 +47,7 @@ export const calcularClasificacion = (evaluacion: number | null | undefined): st
  */
 export const fetchProveedores = async (): Promise<ProveedorResponse[]> => {
   const { data, error } = await supabase
-    .from('proveedor')
+    .from('dim_core_proveedor')
     .select('*')
     .order('nombre_proveedor', { ascending: true });
 
@@ -64,7 +64,7 @@ export const fetchProveedores = async (): Promise<ProveedorResponse[]> => {
  */
 export const createProveedor = async (proveedorData: ProveedorData): Promise<ProveedorResponse> => {
   const { data, error } = await supabase
-    .from('proveedor')
+    .from('dim_core_proveedor')
     .insert([proveedorData])
     .select()
     .single();
@@ -85,7 +85,7 @@ export const updateProveedor = async (
   proveedorData: Partial<ProveedorData>
 ): Promise<ProveedorResponse> => {
   const { data, error } = await supabase
-    .from('proveedor')
+    .from('dim_core_proveedor')
     .update({
       ...proveedorData,
       updated_at: new Date().toISOString(),
@@ -107,7 +107,7 @@ export const updateProveedor = async (
  */
 export const fetchProveedorById = async (id: number): Promise<ProveedorResponse | null> => {
   const { data, error } = await supabase
-    .from('proveedor')
+    .from('dim_core_proveedor')
     .select('*')
     .eq('id', id)
     .single();
@@ -128,7 +128,7 @@ export const fetchProveedorById = async (id: number): Promise<ProveedorResponse 
  * Eliminar un proveedor
  */
 export const deleteProveedor = async (id: number): Promise<void> => {
-  const { error } = await supabase.from('proveedor').delete().eq('id', id);
+  const { error } = await supabase.from('dim_core_proveedor').delete().eq('id', id);
 
   if (error) {
     console.error('Error deleting proveedor:', error);
@@ -141,7 +141,7 @@ export const deleteProveedor = async (id: number): Promise<void> => {
  */
 export const fetchEspecialidades = async (): Promise<{ id: number; nombre: string }[]> => {
   const { data, error } = await supabase
-    .from('especialidad')
+    .from('dim_core_especialidad')
     .select('id, nombre_especialidad')
     .order('nombre_especialidad', { ascending: true });
 
@@ -313,5 +313,51 @@ export const saveEvaluacionServicios = async (
   }
 
   return data;
+};
+
+/**
+ * Interfaz para las evaluaciones de proveedores desde brg_core_proveedor_evaluacion
+ */
+export interface EvaluacionProveedor {
+  id: number;
+  nombre: string;
+  especialidad?: string | null;
+  actividad?: string | null;
+  orden_compra?: string | null;
+  codigo_proyecto?: string | null;
+  nombre_proyecto?: string | null;
+  jefe_proyecto?: string | null;
+  gerente_proyecto?: string | null;
+  fecha_evaluacion?: string | null;
+  evaluador?: string | null;
+  evaluacion_calidad?: string | null;
+  evaluacion_disponibilidad?: string | null;
+  evaluacion_fecha_entrega?: string | null;
+  evaluacion_precio?: string | null;
+  nota_total_ponderada?: number | null;
+  categoria_proveedor?: string | null;
+  observacion?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Obtener todas las evaluaciones de un proveedor por nombre
+ */
+export const fetchEvaluacionesByNombreProveedor = async (
+  nombreProveedor: string
+): Promise<EvaluacionProveedor[]> => {
+  const { data, error } = await supabase
+    .from('brg_core_proveedor_evaluacion')
+    .select('*')
+    .eq('nombre', nombreProveedor)
+    .order('fecha_evaluacion', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching evaluaciones del proveedor:', error);
+    throw error;
+  }
+
+  return data || [];
 };
 
