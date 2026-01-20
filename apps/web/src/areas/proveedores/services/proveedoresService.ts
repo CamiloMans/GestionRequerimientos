@@ -25,16 +25,21 @@ export interface ProveedorResponse {
 
 /**
  * Calcular la clasificación basada en el porcentaje de evaluación
+ * Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
+ * > 0.764 → A
+ * 0.5 <= cumplimiento <= 0.764 → B
+ * < 0.5 → C
  */
 export const calcularClasificacion = (evaluacion: number | null | undefined): string | null => {
   if (evaluacion === null || evaluacion === undefined) {
     return null;
   }
 
-  if (evaluacion >= 80) return 'A';
-  if (evaluacion >= 60) return 'B';
-  if (evaluacion >= 40) return 'C';
-  return 'D';
+  // Convertir porcentaje a decimal (0-1)
+  const cumplimiento = evaluacion / 100;
+  if (cumplimiento > 0.764) return 'A';
+  if (cumplimiento >= 0.5 && cumplimiento <= 0.764) return 'B';
+  return 'C';
 };
 
 /**
@@ -259,5 +264,54 @@ export const saveProveedorEspecialidades = async (
     // Si hay cualquier error, solo loguear un warning pero no fallar
     console.warn('No se pudieron guardar las especialidades del proveedor:', err);
   }
+};
+
+/**
+ * Interfaz para los datos de evaluación de servicios
+ */
+export interface EvaluacionServiciosData {
+  nombre_proveedor: string;
+  especialidad?: string | null;
+  actividad?: string | null;
+  orden_compra?: string | null;
+  codigo_proyecto?: string | null;
+  nombre_proyecto?: string | null;
+  jefe_proyecto?: string | null;
+  gerente_proyecto?: string | null;
+  fecha_evaluacion?: string | null;
+  evaluador?: string | null;
+  evaluacion_calidad?: string | null;
+  evaluacion_disponibilidad?: string | null;
+  evaluacion_fecha_entrega?: string | null;
+  evaluacion_precio?: string | null;
+  nota_total_ponderada?: number | null;
+  categoria_proveedor?: string | null;
+  observacion?: string | null;
+  aplica_salida_terreno?: boolean;
+  evaluacion_seguridad_terreno?: string | null;
+  precio_servicio?: number | null;
+  correo_contacto?: string | null;
+  descripcion_servicio?: string | null;
+  link_servicio_ejecutado?: string | null;
+}
+
+/**
+ * Guardar una evaluación de servicios en fct_proveedores_evaluacion
+ */
+export const saveEvaluacionServicios = async (
+  evaluacionData: EvaluacionServiciosData
+): Promise<any> => {
+  const { data, error } = await supabase
+    .from('fct_proveedores_evaluacion')
+    .insert([evaluacionData])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error guardando evaluación de servicios:', error);
+    throw error;
+  }
+
+  return data;
 };
 

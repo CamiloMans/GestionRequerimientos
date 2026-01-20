@@ -181,9 +181,10 @@ const ProveedorDetalle: React.FC = () => {
 
   const getEvaluacionColor = (evaluacion: number | null | undefined) => {
     if (!evaluacion) return 'bg-gray-500';
-    if (evaluacion >= 80) return 'bg-green-500';
-    if (evaluacion >= 60) return 'bg-yellow-500';
-    if (evaluacion >= 40) return 'bg-orange-500';
+    // Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
+    const cumplimiento = evaluacion / 100;
+    if (cumplimiento > 0.764) return 'bg-green-500';
+    if (cumplimiento >= 0.5 && cumplimiento <= 0.764) return 'bg-yellow-500';
     return 'bg-red-500';
   };
 

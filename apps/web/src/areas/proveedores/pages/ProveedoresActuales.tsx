@@ -49,10 +49,11 @@ const ProveedoresActuales: React.FC = () => {
       }
     } else if (response.evaluacion !== null && response.evaluacion !== undefined) {
       // Si no hay clasificación pero hay evaluación, calcularla
-      if (response.evaluacion >= 80) clasificacion = Clasificacion.A;
-      else if (response.evaluacion >= 60) clasificacion = Clasificacion.B;
-      else if (response.evaluacion >= 40) clasificacion = Clasificacion.C;
-      else clasificacion = Clasificacion.D;
+      // Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
+      const cumplimiento = response.evaluacion / 100;
+      if (cumplimiento > 0.764) clasificacion = Clasificacion.A;
+      else if (cumplimiento >= 0.5 && cumplimiento <= 0.764) clasificacion = Clasificacion.B;
+      else clasificacion = Clasificacion.C;
     }
 
     // Obtener especialidades desde brg_core_proveedor_especialidad
@@ -239,9 +240,10 @@ const ProveedoresActuales: React.FC = () => {
   };
 
   const getEvaluacionColor = (evaluacion: number) => {
-    if (evaluacion >= 80) return 'bg-green-500';
-    if (evaluacion >= 60) return 'bg-yellow-500';
-    if (evaluacion >= 40) return 'bg-orange-500';
+    // Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
+    const cumplimiento = evaluacion / 100;
+    if (cumplimiento > 0.764) return 'bg-green-500';
+    if (cumplimiento >= 0.5 && cumplimiento <= 0.764) return 'bg-yellow-500';
     return 'bg-red-500';
   };
 

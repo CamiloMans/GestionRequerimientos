@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData } from '../services/proveedoresService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -144,10 +144,13 @@ const EvaluacionServicios: React.FC = () => {
 
 
   // Calcular clasificación basada en criterios normales
+  // Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
   const clasificacionCriterios = useMemo(() => {
     if (evaluacionTotal === null) return null;
-    if (evaluacionTotal >= 80) return 'A';
-    if (evaluacionTotal >= 60) return 'B';
+    // Convertir porcentaje a decimal (0-1)
+    const cumplimiento = evaluacionTotal / 100;
+    if (cumplimiento > 0.764) return 'A';
+    if (cumplimiento >= 0.5 && cumplimiento <= 0.764) return 'B';
     return 'C';
   }, [evaluacionTotal]);
 
@@ -321,20 +324,95 @@ const EvaluacionServicios: React.FC = () => {
     }));
   };
 
+  // Función helper para obtener el texto de la evaluación según el criterio y valor
+  const getTextoEvaluacion = (criterioId: string, valor: string | null): string | null => {
+    if (!valor) return null;
+    
+    const opciones = getCriterioOpciones(criterioId);
+    
+    // Si es terreno, devolver directamente A, B o C
+    if (criterioId === 'terreno') {
+      return valor;
+    }
+    
+    // Para otros criterios, mapear ALTO/MEDIO/BAJO/MUY_BAJO a texto
+    if (valor === 'ALTO' || valor === 'MEDIO' || valor === 'BAJO' || valor === 'MUY_BAJO') {
+      return opciones[valor] || null;
+    }
+    
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // TODO: Guardar evaluación en Supabase
-      console.log('Guardando evaluación:', formData);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Validar que se haya seleccionado un proveedor
+      if (!formData.proveedorId) {
+        alert('Por favor selecciona un proveedor');
+        setLoading(false);
+        return;
+      }
+
+      // Obtener el proveedor seleccionado
+      const proveedorSeleccionado = proveedores.find(
+        (p) => p.id.toString() === formData.proveedorId
+      );
+
+      if (!proveedorSeleccionado) {
+        alert('Proveedor no encontrado');
+        setLoading(false);
+        return;
+      }
+
+      // Obtener los valores de los criterios
+      const criterioCalidad = formData.criterios.find((c) => c.id === 'calidad');
+      const criterioDisponibilidad = formData.criterios.find((c) => c.id === 'disponibilidad');
+      const criterioCumplimiento = formData.criterios.find((c) => c.id === 'cumplimiento');
+      const criterioPrecio = formData.criterios.find((c) => c.id === 'precio');
+      const criterioTerreno = formData.criterios.find((c) => c.id === 'terreno');
+
+      // Preparar los datos para guardar
+      const evaluacionData: EvaluacionServiciosData = {
+        nombre_proveedor: proveedorSeleccionado.nombre_proveedor,
+        especialidad: null, // Se puede agregar si se tiene en el formulario
+        actividad: null, // Se puede agregar si se tiene en el formulario
+        orden_compra: formData.ordenServicio || null,
+        codigo_proyecto: null, // Se puede agregar si se tiene en el formulario
+        nombre_proyecto: null, // Se puede agregar si se tiene en el formulario
+        jefe_proyecto: null, // Se puede agregar si se tiene en el formulario
+        gerente_proyecto: null, // Se puede agregar si se tiene en el formulario
+        fecha_evaluacion: formData.fechaEvaluacion || null,
+        evaluador: formData.evaluadorResponsable || null,
+        evaluacion_calidad: getTextoEvaluacion('calidad', criterioCalidad?.valor || null),
+        evaluacion_disponibilidad: getTextoEvaluacion('disponibilidad', criterioDisponibilidad?.valor || null),
+        evaluacion_fecha_entrega: getTextoEvaluacion('cumplimiento', criterioCumplimiento?.valor || null),
+        evaluacion_precio: getTextoEvaluacion('precio', criterioPrecio?.valor || null),
+        nota_total_ponderada: evaluacionTotal !== null ? parseFloat((evaluacionTotal / 100).toFixed(2)) : null,
+        categoria_proveedor: clasificacion || null,
+        observacion: formData.observaciones || null,
+        aplica_salida_terreno: formData.vaTerreno,
+        evaluacion_seguridad_terreno: criterioTerreno?.valor === 'A' || criterioTerreno?.valor === 'B' || criterioTerreno?.valor === 'C' 
+          ? criterioTerreno.valor 
+          : null,
+        precio_servicio: formData.precioServicio > 0 ? formData.precioServicio : null,
+        correo_contacto: formData.correoContacto || null,
+        descripcion_servicio: formData.descripcionServicio || null,
+        link_servicio_ejecutado: formData.linkServicioEjecutado || null,
+      };
+
+      // Guardar en Supabase
+      await saveEvaluacionServicios(evaluacionData);
       
-      // Redirigir o mostrar mensaje de éxito
+      // Mostrar mensaje de éxito
       alert('Evaluación guardada exitosamente');
+      
+      // Opcional: limpiar el formulario o redirigir
+      // navigate(getAreaPath('proveedores'));
     } catch (err: any) {
       console.error('Error al guardar evaluación:', err);
-      alert('Error al guardar la evaluación');
+      alert(`Error al guardar la evaluación: ${err.message || 'Error desconocido'}`);
     } finally {
       setLoading(false);
     }
@@ -374,6 +452,60 @@ const EvaluacionServicios: React.FC = () => {
       },
     };
     return opciones[criterioId] || opciones.calidad;
+  };
+
+  // Descripciones detalladas por criterio y nivel (para tooltip de info)
+  const getDescripcionOpcion = (
+    criterioId: string,
+    nivel: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO'
+  ): string | null => {
+    const descripciones: Record<
+      string,
+      { ALTO: string; MEDIO: string; BAJO: string; MUY_BAJO: string }
+    > = {
+      calidad: {
+        ALTO:
+          'Cumple íntegramente los requisitos de calidad y evidencia un desempeño superior y consistente, sin observaciones.',
+        MEDIO:
+          'Cumple los requisitos de calidad, presentando observaciones menores que no afectan el resultado del servicio.',
+        BAJO:
+          'Cumple parcialmente los requisitos de calidad; presenta deficiencias que afectan el resultado y requieren corrección.',
+        MUY_BAJO:
+          'No cumple los requisitos de calidad; el servicio es técnicamente inaceptable.',
+      },
+      disponibilidad: {
+        ALTO:
+          'Presenta alta disponibilidad para reuniones y coordinación. Responde de forma oportuna y consistente a los requerimientos, e implementa las modificaciones solicitadas de manera eficiente, sin reprocesos ni dilaciones.',
+        MEDIO:
+          'Mantiene una disponibilidad adecuada para la coordinación. Responde a los requerimientos y ejecuta las modificaciones con retrasos menores, sin afectar significativamente el desarrollo del servicio.',
+        BAJO:
+          'Evidencia una disponibilidad irregular, con respuestas tardías o necesidad de reiteraciones. Las modificaciones se implementan de forma parcial o con demoras que afectan la eficiencia del servicio.',
+        MUY_BAJO:
+          'No presenta disponibilidad para la coordinación. Existe falta de respuesta o resistencia sistemática a las modificaciones solicitadas, lo que impide una gestión adecuada del servicio y compromete su cumplimiento.',
+      },
+      cumplimiento: {
+        ALTO:
+          'Realiza la entrega antes de la fecha comprometida, sin afectar la calidad ni generar reprocesos.',
+        MEDIO:
+          'Realiza la entrega en la fecha comprometida o con una desviación marginal que, en términos proporcionales, no tiene impacto en la planificación del proyecto.',
+        BAJO:
+          'Entrega con un retraso proporcionalmente menor respecto del plazo total del servicio, sin comprometer hitos críticos ni generar impactos relevantes en la ejecución del proyecto.',
+        MUY_BAJO:
+          'Entrega con un retraso proporcionalmente significativo respecto del plazo total del servicio, afectando hitos críticos, la coordinación, los costos o la continuidad del proyecto.',
+      },
+      precio: {
+        ALTO:
+          'Presenta un precio significativamente inferior al promedio de mercado para servicios equivalentes, manteniendo los estándares técnicos y de calidad exigidos.',
+        MEDIO:
+          'Presenta un precio alineado con los valores habituales de mercado para servicios equivalentes, considerando alcance, complejidad y nivel técnico comparable.',
+        BAJO:
+          'Presenta un precio superior al promedio de mercado, cuya diferencia requiere una justificación técnica o económica específica, como mayor alcance, especialización, plazos o riesgos asumidos.',
+        MUY_BAJO:
+          'Presenta un precio sustancialmente superior al mercado, sin justificación técnica suficiente, lo que lo vuelve económicamente desventajoso frente a alternativas disponibles.',
+      },
+    };
+
+    return descripciones[criterioId]?.[nivel] ?? null;
   };
 
   // Función helper para obtener el valor numérico de una opción
@@ -1256,10 +1388,10 @@ const EvaluacionServicios: React.FC = () => {
                               return (
                                 <label
                                   key={nivel}
-                                  className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                                  className={`relative flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors group ${
                                     estaSeleccionado
-                                      ? 'border-primary bg-primary/5'
-                                      : 'border-gray-200 hover:border-gray-300'
+                                      ? 'border-primary bg-primary/5 group-hover:border-transparent'
+                                      : 'border-gray-200 hover:border-gray-300 group-hover:border-transparent'
                                   }`}
                                 >
                                   <input
@@ -1272,9 +1404,9 @@ const EvaluacionServicios: React.FC = () => {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className="text-sm font-semibold text-[#111318]">{nivel}</span>
-                                      <div className="relative group">
+                                      <div className="relative">
                                         <span className="material-symbols-outlined text-green-600 text-base cursor-help">info</span>
-                                        <div className="absolute left-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                                        <div className="absolute left-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none border border-transparent outline-none">
                                           {descripcionesTerreno[nivel]}
                                         </div>
                                       </div>
@@ -1290,13 +1422,14 @@ const EvaluacionServicios: React.FC = () => {
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {(['ALTO', 'MEDIO', 'BAJO', 'MUY_BAJO'] as const).map((nivel) => {
                               const valorOpcion = getValorOpcion(criterio.id, nivel);
+                              const descripcionOpcion = getDescripcionOpcion(criterio.id, nivel);
                               return (
                                 <label
                                   key={nivel}
-                                  className={`flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                                  className={`relative flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-colors group ${
                                     criterio.valor === nivel
-                                      ? 'border-primary bg-primary/5'
-                                      : 'border-gray-200 hover:border-gray-300'
+                                      ? 'border-primary bg-primary/5 group-hover:border-transparent'
+                                      : 'border-gray-200 hover:border-gray-300 group-hover:border-transparent'
                                   }`}
                                 >
                                   <input
@@ -1306,12 +1439,26 @@ const EvaluacionServicios: React.FC = () => {
                                     onChange={() => handleCriterioChange(criterio.id, nivel)}
                                     className="text-primary focus:ring-primary"
                                   />
-                                  <span className="text-sm text-[#111318]">
-                                    {opciones[nivel]}
-                                    {valorOpcion !== null && (
-                                      <span className="text-xs text-gray-500 ml-1">({valorOpcion})</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-sm text-[#111318]">
+                                      {opciones[nivel]}
+                                      {valorOpcion !== null && (
+                                        <span className="text-xs text-gray-500 ml-1">
+                                          ({valorOpcion})
+                                        </span>
+                                      )}
+                                    </span>
+                                    {descripcionOpcion && (
+                                      <div className="relative">
+                                        <span className="material-symbols-outlined text-blue-600 text-base cursor-help">
+                                          info
+                                        </span>
+                                        <div className="absolute left-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none border border-transparent outline-none">
+                                          {descripcionOpcion}
+                                        </div>
+                                      </div>
                                     )}
-                                  </span>
+                                  </div>
                                 </label>
                               );
                             })}
@@ -1407,7 +1554,7 @@ const EvaluacionServicios: React.FC = () => {
                   <span className="material-symbols-outlined text-green-600">check_circle</span>
                   <div>
                     <div className="font-semibold text-green-700 mb-1">Categoría A</div>
-                    <div className="text-xs text-green-600">Evaluación ≥ 80%</div>
+                    <div className="text-xs text-green-600">Cumplimiento &gt; 76,4%</div>
                     <div className="text-xs text-gray-600 mt-1">
                       Habilitado para contratación inmediata.
                     </div>
@@ -1417,7 +1564,7 @@ const EvaluacionServicios: React.FC = () => {
                   <span className="material-symbols-outlined text-yellow-600">info</span>
                   <div>
                     <div className="font-semibold text-yellow-700 mb-1">Categoría B</div>
-                    <div className="text-xs text-yellow-600">Evaluación 60% - 79%</div>
+                    <div className="text-xs text-yellow-600">50% ≤ cumplimiento ≤ 76,4%</div>
                     <div className="text-xs text-gray-600 mt-1">
                       Habilitado con plan de mejora obligatorio.
                     </div>
@@ -1427,7 +1574,7 @@ const EvaluacionServicios: React.FC = () => {
                   <span className="material-symbols-outlined text-red-600">warning</span>
                   <div>
                     <div className="font-semibold text-red-700 mb-1">Categoría C</div>
-                    <div className="text-xs text-red-600">Evaluación &lt; 60%</div>
+                    <div className="text-xs text-red-600">Cumplimiento &lt; 50%</div>
                     <div className="text-xs text-gray-600 mt-1">
                       INHABILITADO PARA CONTRATACIÓN.
                     </div>

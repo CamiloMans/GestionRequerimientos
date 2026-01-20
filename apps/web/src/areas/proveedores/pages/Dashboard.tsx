@@ -29,10 +29,11 @@ const Dashboard: React.FC = () => {
         default: clasificacion = Clasificacion.A;
       }
     } else if (response.evaluacion !== null && response.evaluacion !== undefined) {
-      if (response.evaluacion >= 80) clasificacion = Clasificacion.A;
-      else if (response.evaluacion >= 60) clasificacion = Clasificacion.B;
-      else if (response.evaluacion >= 40) clasificacion = Clasificacion.C;
-      else clasificacion = Clasificacion.D;
+      // Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
+      const cumplimiento = response.evaluacion / 100;
+      if (cumplimiento > 0.764) clasificacion = Clasificacion.A;
+      else if (cumplimiento >= 0.5 && cumplimiento <= 0.764) clasificacion = Clasificacion.B;
+      else clasificacion = Clasificacion.C;
     }
 
     const especialidades = await fetchEspecialidadesByNombreProveedor(response.nombre_proveedor);
@@ -321,7 +322,7 @@ const Dashboard: React.FC = () => {
                   <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
                   <div>
                     <h3 className="font-semibold text-green-700 mb-1">Categoría A</h3>
-                    <p className="text-sm text-green-600 mb-1">Evaluación ≥ 80%</p>
+                    <p className="text-sm text-green-600 mb-1">Cumplimiento &gt; 76,4%</p>
                     <p className="text-xs text-gray-600">Habilitado para contratación inmediata.</p>
                   </div>
                 </div>
@@ -333,7 +334,7 @@ const Dashboard: React.FC = () => {
                   <span className="material-symbols-outlined text-yellow-600 text-2xl">info</span>
                   <div>
                     <h3 className="font-semibold text-yellow-700 mb-1">Categoría B</h3>
-                    <p className="text-sm text-yellow-600 mb-1">Evaluación 60% - 79%</p>
+                    <p className="text-sm text-yellow-600 mb-1">50% ≤ cumplimiento ≤ 76,4%</p>
                     <p className="text-xs text-gray-600">Habilitado con plan de mejora obligatorio.</p>
                   </div>
                 </div>
@@ -345,7 +346,7 @@ const Dashboard: React.FC = () => {
                   <span className="material-symbols-outlined text-red-600 text-2xl">cancel</span>
                   <div>
                     <h3 className="font-semibold text-red-700 mb-1">Categoría C</h3>
-                    <p className="text-sm text-red-600 mb-1">Evaluación &lt; 60%</p>
+                    <p className="text-sm text-red-600 mb-1">Cumplimiento &lt; 50%</p>
                     <p className="text-xs text-gray-600">INHABILITADO PARA CONTRATACIÓN.</p>
                   </div>
                 </div>
@@ -471,8 +472,8 @@ const Dashboard: React.FC = () => {
                       <p className="text-xs text-gray-500 truncate">{proveedor.especialidad[0] || 'Sin especialidad'}</p>
                     </div>
                     <span className={`text-sm font-semibold whitespace-nowrap shrink-0 ${
-                      proveedor.evaluacion >= 80 ? 'text-green-600' :
-                      proveedor.evaluacion >= 60 ? 'text-yellow-600' :
+                      proveedor.evaluacion && (proveedor.evaluacion / 100) > 0.764 ? 'text-green-600' :
+                      proveedor.evaluacion && (proveedor.evaluacion / 100) >= 0.5 ? 'text-yellow-600' :
                       'text-orange-600'
                     }`}>
                       {proveedor.evaluacion}%
