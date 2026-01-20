@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n } from '../services/proveedoresService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -403,7 +403,22 @@ const EvaluacionServicios: React.FC = () => {
       };
 
       // Guardar en Supabase
-      await saveEvaluacionServicios(evaluacionData);
+      const evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
+      
+      // Enviar evaluación a n8n a través de edge function
+      try {
+        console.log('📤 Enviando evaluación a n8n...');
+        await sendEvaluacionProveedorToN8n({
+          tipo: 'evaluacion_proveedor',
+          fecha_envio: new Date().toISOString(),
+          evaluacion: evaluacionData,
+          evaluacion_id: evaluacionGuardada?.id || null,
+        });
+        console.log('✅ Evaluación enviada a n8n exitosamente');
+      } catch (errorN8n: any) {
+        console.error('⚠️ Error al enviar evaluación a n8n (pero se guardó en BD):', errorN8n);
+        // No fallar el guardado si falla el envío a n8n
+      }
       
       // Mostrar mensaje de éxito
       alert('Evaluación guardada exitosamente');

@@ -316,6 +316,37 @@ export const saveEvaluacionServicios = async (
 };
 
 /**
+ * Enviar evaluación de proveedor a n8n a través de edge function
+ */
+export const sendEvaluacionProveedorToN8n = async (payload: any): Promise<any> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('Envio-de-registro-de-Evaluacion-de-Servicio', {
+      body: payload,
+    });
+
+    if (error) {
+      console.error('❌ Error al invocar función edge:', error);
+      
+      // Si es un 404, la función no está desplegada
+      if (error.message?.includes('404') || error.message?.includes('not found') || (error as any).status === 404) {
+        throw new Error('La función edge "Envio-de-registro-de-Evaluacion-de-Servicio" no está desplegada. Por favor, despliega la función en Supabase usando: supabase functions deploy Envio-de-registro-de-Evaluacion-de-Servicio');
+      }
+      
+      throw error;
+    }
+
+    if (!data || !data.success) {
+      throw new Error(data?.error || 'Error desconocido al enviar evaluación a n8n');
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error('❌ Error completo al enviar evaluación a n8n:', error);
+    throw error;
+  }
+};
+
+/**
  * Interfaz para las evaluaciones de proveedores desde brg_core_proveedor_evaluacion
  */
 export interface EvaluacionProveedor {
