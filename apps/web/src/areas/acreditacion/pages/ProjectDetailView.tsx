@@ -15,6 +15,8 @@ interface ProjectRequirement {
   realizado: boolean;
   fechaFinalizada?: string;
   drive_doc_url?: string;
+  localFileUrl?: string; // URL local del archivo subido (antes de que esté en Drive)
+  localFileName?: string; // Nombre del archivo local
 }
 
 interface ProjectDetailViewProps {
@@ -148,10 +150,25 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
         setRequirements(prev => prev.map(req => {
           const requerimientoActualizado = proyectoRequerimientos.find(r => r.id === req.id);
           if (requerimientoActualizado) {
-            return {
+            const updatedReq = {
               ...req,
-              drive_doc_url: requerimientoActualizado.drive_doc_url
+              drive_doc_url: requerimientoActualizado.drive_doc_url || undefined
             };
+            
+            // Si se detecta el link de Drive, limpiar el archivo local y usar el link de Drive
+            if (requerimientoActualizado.drive_doc_url && req.localFileUrl) {
+              // Limpiar el objeto URL local si existe
+              URL.revokeObjectURL(req.localFileUrl);
+              updatedReq.localFileUrl = undefined;
+              updatedReq.localFileName = undefined;
+            }
+            
+            // Si no hay drive_doc_url en la tabla y había uno en el estado local, limpiarlo
+            if (!requerimientoActualizado.drive_doc_url && req.drive_doc_url) {
+              updatedReq.drive_doc_url = undefined;
+            }
+            
+            return updatedReq;
           }
           return req;
         }));
@@ -169,6 +186,17 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     // Limpiar el intervalo al desmontar
     return () => clearInterval(interval);
   }, [project.projectCode]);
+
+  // Limpiar objetos URL locales al desmontar el componente
+  useEffect(() => {
+    return () => {
+      requirements.forEach(req => {
+        if (req.localFileUrl) {
+          URL.revokeObjectURL(req.localFileUrl);
+        }
+      });
+    };
+  }, []); // Solo se ejecuta al desmontar
 
   // Usar las tareas del proyecto (vienen de ProjectGalleryItem)
   const [requirements, setRequirements] = useState<ProjectRequirement[]>(
@@ -437,12 +465,20 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     };
   };
 
-  // Función para manejar la visualización del documento de un requerimiento
+  // Función para manejar la visualización del documento de un requerimiento (Drive)
   const handleVerDocumentoRequerimiento = (driveDocUrl: string) => {
     if (!driveDocUrl) return;
 
     const urls = getDriveUrls(driveDocUrl);
     setPreviewLink(urls.preview);
+    setIsPreviewModalOpen(true);
+  };
+
+  // Función para manejar la visualización del archivo local
+  const handleVerArchivoLocal = (localFileUrl: string) => {
+    if (!localFileUrl) return;
+    
+    setPreviewLink(localFileUrl);
     setIsPreviewModalOpen(true);
   };
 
@@ -458,7 +494,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const handleEliminarDocumentoRequerimiento = (requerimientoId: number) => {
     const requerimiento = requirements.find(req => req.id === requerimientoId);
     
-    if (!requerimiento || !requerimiento.drive_doc_url) {
+    // Permitir eliminar si hay drive_doc_url o localFileUrl
+    if (!requerimiento || (!requerimiento.drive_doc_url && !requerimiento.localFileUrl)) {
       alert('Error: No se encontró el documento.');
       return;
     }
@@ -481,8 +518,38 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     // Obtener el requerimiento del estado local para tener todos los datos
     const requerimiento = requirements.find(req => req.id === requerimientoAEliminar);
     
-    if (!requerimiento || !requerimiento.drive_doc_url) {
-      alert('Error: No se encontró el documento.');
+    // Solo permitir eliminar si hay drive_doc_url (documentos en Drive)
+    // Si solo hay localFileUrl, simplemente limpiarlo sin enviar webhook
+    if (!requerimiento) {
+      alert('Error: No se encontró el requerimiento.');
+      handleCerrarEliminarDocumentoModal();
+      return;
+    }
+
+    // Si solo hay archivo local (no hay drive_doc_url), limpiarlo directamente
+    if (!requerimiento.drive_doc_url && requerimiento.localFileUrl) {
+      setRequirements(prev => prev.map(req => {
+        if (req.id === requerimientoAEliminar) {
+          // Limpiar el objeto URL local
+          if (req.localFileUrl) {
+            URL.revokeObjectURL(req.localFileUrl);
+          }
+          return {
+            ...req,
+            localFileUrl: undefined,
+            localFileName: undefined
+          };
+        }
+        return req;
+      }));
+      alert('✅ Archivo local eliminado.');
+      handleCerrarEliminarDocumentoModal();
+      return;
+    }
+
+    // Si no hay documento en Drive, no se puede eliminar
+    if (!requerimiento.drive_doc_url) {
+      alert('Error: No se encontró el documento en Drive.');
       handleCerrarEliminarDocumentoModal();
       return;
     }
@@ -557,6 +624,24 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }
       
       console.log('✅ Webhook enviado exitosamente:', result.data);
+      
+      // Limpiar el estado local del requerimiento (tanto drive_doc_url como localFileUrl)
+      setRequirements(prev => prev.map(req => {
+        if (req.id === requerimientoAEliminar) {
+          // Limpiar el objeto URL local si existe
+          if (req.localFileUrl) {
+            URL.revokeObjectURL(req.localFileUrl);
+          }
+          return {
+            ...req,
+            drive_doc_url: undefined,
+            localFileUrl: undefined,
+            localFileName: undefined
+          };
+        }
+        return req;
+      }));
+      
       alert('✅ Información de eliminación enviada exitosamente.');
       handleCerrarEliminarDocumentoModal();
     } catch (error) {
@@ -907,6 +992,21 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }
       
       console.log('✅ Webhook enviado exitosamente:', result.data);
+      
+      // Crear URL local del archivo para visualización inmediata
+      const localFileUrl = URL.createObjectURL(file);
+      
+      // Actualizar el requerimiento con el archivo local
+      setRequirements(prev => prev.map(req => {
+        if (req.id === requerimiento.id) {
+          return {
+            ...req,
+            localFileUrl: localFileUrl,
+            localFileName: file.name
+          };
+        }
+        return req;
+      }));
       
       // Si el requerimiento no está completado, marcarlo como "Completado"
       if (!requerimiento.realizado) {
@@ -1662,6 +1762,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                         {/* Documento */}
                         <td className="px-6 py-4 text-center">
                           {req.drive_doc_url ? (
+                            // Si hay link de Drive, mostrar todos los iconos (Drive está disponible)
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
@@ -1695,6 +1796,21 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                                 title="Eliminar documento"
                               >
                                 <span className="material-symbols-outlined text-[18px]">delete</span>
+                              </button>
+                            </div>
+                          ) : req.localFileUrl ? (
+                            // Si solo hay archivo local, mostrar solo el icono de visualización
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleVerArchivoLocal(req.localFileUrl!);
+                                }}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
+                                title={`Visualizar documento (${req.localFileName || 'archivo local'})`}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">visibility</span>
                               </button>
                             </div>
                           ) : (
