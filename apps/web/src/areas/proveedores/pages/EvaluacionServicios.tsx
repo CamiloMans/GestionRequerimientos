@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona } from '../services/proveedoresService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -25,13 +25,22 @@ interface EvaluacionData {
   vaTerreno: boolean;
   criterios: CriterioEvaluacion[];
   observaciones: string;
+  especialidad: string;
+  codigoProyecto: string;
+  nombreProyecto: string;
+  jefeProyecto: string;
+  gerenteProyecto: string;
 }
 
 const EvaluacionServicios: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loadingProveedores, setLoadingProveedores] = useState(true);
+  const [loadingEspecialidades, setLoadingEspecialidades] = useState(true);
+  const [loadingPersonas, setLoadingPersonas] = useState(true);
   const [proveedores, setProveedores] = useState<ProveedorResponse[]>([]);
+  const [especialidades, setEspecialidades] = useState<{ id: number; nombre: string }[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [formData, setFormData] = useState<EvaluacionData>({
     proveedorId: '',
     nombreContacto: '',
@@ -50,6 +59,11 @@ const EvaluacionServicios: React.FC = () => {
       { id: 'precio', nombre: 'Precio respecto de la competencia', peso: 15.9, valor: null },
     ],
     observaciones: '',
+    especialidad: '',
+    codigoProyecto: '',
+    nombreProyecto: '',
+    jefeProyecto: '',
+    gerenteProyecto: '',
   });
 
   const getAreaPath = (path: string) => {
@@ -71,6 +85,40 @@ const EvaluacionServicios: React.FC = () => {
     };
 
     loadProveedores();
+  }, []);
+
+  // Cargar especialidades
+  useEffect(() => {
+    const loadEspecialidades = async () => {
+      try {
+        setLoadingEspecialidades(true);
+        const data = await fetchEspecialidades();
+        setEspecialidades(data);
+      } catch (err) {
+        console.error('Error al cargar especialidades:', err);
+      } finally {
+        setLoadingEspecialidades(false);
+      }
+    };
+
+    loadEspecialidades();
+  }, []);
+
+  // Cargar personas
+  useEffect(() => {
+    const loadPersonas = async () => {
+      try {
+        setLoadingPersonas(true);
+        const data = await fetchPersonas();
+        setPersonas(data);
+      } catch (err) {
+        console.error('Error al cargar personas:', err);
+      } finally {
+        setLoadingPersonas(false);
+      }
+    };
+
+    loadPersonas();
   }, []);
 
   // Calcular evaluación total usando la nueva fórmula (excluyendo criterio terreno que no tiene peso)
@@ -317,6 +365,79 @@ const EvaluacionServicios: React.FC = () => {
     }));
   };
 
+  // Handler específico para el campo de código de proyecto (formato MY-XXX-YYYY)
+  const handleCodigoProyectoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let input = e.target.value.toUpperCase().trim();
+    
+    // Si está vacío, permitir borrar
+    if (input === '') {
+      setFormData((prev) => ({
+        ...prev,
+        codigoProyecto: '',
+      }));
+      return;
+    }
+    
+    // Si el input ya tiene formato MY-XXX-YYYY, permitir edición libre de los números
+    if (input.startsWith('MY-')) {
+      const partes = input.substring(3).split('-');
+      let numeros = (partes[0] || '').replace(/[^0-9]/g, '').slice(0, 3); // Sin padStart para permitir edición libre
+      let año = (partes[1] || '').replace(/[^0-9]/g, '').slice(0, 4);
+      
+      // Si el usuario está escribiendo solo números después de MY-, asumir que son los 3 números del código
+      if (partes.length === 1 && numeros.length > 0) {
+        // Si tiene exactamente 3 dígitos, agregar el año actual automáticamente
+        if (numeros.length === 3) {
+          const añoActual = new Date().getFullYear().toString();
+          input = `MY-${numeros}-${añoActual}`;
+        } else {
+          // Menos de 3 dígitos, permitir edición libre sin año
+          input = `MY-${numeros}`;
+        }
+      } else if (año.length === 4) {
+        // Tiene año completo, mantener formato completo
+        input = `MY-${numeros}-${año}`;
+      } else if (año.length > 0) {
+        // Está escribiendo el año, permitir edición libre
+        input = `MY-${numeros}-${año}`;
+      } else if (numeros.length > 0) {
+        // Solo tiene números del código, sin año aún
+        input = `MY-${numeros}`;
+      } else {
+        // Solo tiene MY-
+        input = 'MY-';
+      }
+    } else {
+      // Si el usuario escribe números directamente sin MY-, formatear automáticamente
+      const soloNumeros = input.replace(/[^0-9]/g, '');
+      
+      if (soloNumeros.length > 0) {
+        const numeros = soloNumeros.slice(0, 3); // Sin padStart para permitir edición libre
+        const año = soloNumeros.slice(3, 7);
+        const añoActual = new Date().getFullYear().toString();
+        
+        if (año.length === 4) {
+          // Tiene código y año completo
+          input = `MY-${numeros}-${año}`;
+        } else if (soloNumeros.length >= 3) {
+          // Tiene al menos 3 dígitos, usar año actual
+          input = `MY-${numeros}-${añoActual}`;
+        } else {
+          // Menos de 3 dígitos, solo mostrar MY-XXX
+          input = `MY-${numeros}`;
+        }
+      } else {
+        // No hay números, no hacer nada
+        return;
+      }
+    }
+    
+    setFormData((prev) => ({
+      ...prev,
+      codigoProyecto: input,
+    }));
+  };
+
   const handleCriterioChange = (criterioId: string, valor: 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO' | 'A' | 'B' | 'C') => {
     setFormData((prev) => ({
       ...prev,
@@ -373,18 +494,55 @@ const EvaluacionServicios: React.FC = () => {
       const criterioPrecio = formData.criterios.find((c) => c.id === 'precio');
       const criterioTerreno = formData.criterios.find((c) => c.id === 'terreno');
 
+      // Obtener nombres de especialidad y personas seleccionadas
+      const especialidadSeleccionada = especialidades.find(e => e.id.toString() === formData.especialidad);
+      const jefeProyectoSeleccionado = personas.find(p => p.id.toString() === formData.jefeProyecto);
+      const gerenteProyectoSeleccionado = personas.find(p => p.id.toString() === formData.gerenteProyecto);
+      const evaluadorSeleccionado = personas.find(p => p.id.toString() === formData.evaluadorResponsable);
+
+      // Normalizar código de proyecto: asegurar formato MY-XXX-YYYY con 3 números rellenados con ceros
+      let codigoProyectoNormalizado = formData.codigoProyecto || null;
+      if (codigoProyectoNormalizado && codigoProyectoNormalizado.startsWith('MY-')) {
+        const partes = codigoProyectoNormalizado.substring(3).split('-');
+        const numeros = (partes[0] || '').replace(/[^0-9]/g, '').padStart(3, '0').slice(0, 3);
+        const año = (partes[1] || '').replace(/[^0-9]/g, '').slice(0, 4);
+        
+        if (numeros.length === 3 && año.length === 4) {
+          codigoProyectoNormalizado = `MY-${numeros}-${año}`;
+        } else if (numeros.length === 3) {
+          // Si tiene los 3 números pero no el año, usar año actual
+          const añoActual = new Date().getFullYear().toString();
+          codigoProyectoNormalizado = `MY-${numeros}-${añoActual}`;
+        } else {
+          // Si no tiene formato completo, mantener como está o null
+          codigoProyectoNormalizado = codigoProyectoNormalizado.length > 3 ? codigoProyectoNormalizado : null;
+        }
+      } else if (codigoProyectoNormalizado && codigoProyectoNormalizado.length > 0) {
+        // Si tiene algún valor pero no empieza con MY-, intentar formatearlo
+        const soloNumeros = codigoProyectoNormalizado.replace(/[^0-9]/g, '');
+        if (soloNumeros.length >= 3) {
+          const numeros = soloNumeros.slice(0, 3).padStart(3, '0');
+          const año = soloNumeros.slice(3, 7);
+          const añoActual = new Date().getFullYear().toString();
+          codigoProyectoNormalizado = `MY-${numeros}-${año.length === 4 ? año : añoActual}`;
+        } else {
+          codigoProyectoNormalizado = null;
+        }
+      }
+
       // Preparar los datos para guardar
       const evaluacionData: EvaluacionServiciosData = {
         nombre_proveedor: proveedorSeleccionado.nombre_proveedor,
-        especialidad: null, // Se puede agregar si se tiene en el formulario
-        actividad: null, // Se puede agregar si se tiene en el formulario
+        rut: proveedorSeleccionado.rut || null,
+        especialidad: especialidadSeleccionada?.nombre || null,
+        actividad: formData.descripcionServicio || null,
         orden_compra: formData.ordenServicio || null,
-        codigo_proyecto: null, // Se puede agregar si se tiene en el formulario
-        nombre_proyecto: null, // Se puede agregar si se tiene en el formulario
-        jefe_proyecto: null, // Se puede agregar si se tiene en el formulario
-        gerente_proyecto: null, // Se puede agregar si se tiene en el formulario
+        codigo_proyecto: codigoProyectoNormalizado,
+        nombre_proyecto: formData.nombreProyecto || null,
+        jefe_proyecto: jefeProyectoSeleccionado?.nombre_completo || null,
+        gerente_proyecto: gerenteProyectoSeleccionado?.nombre_completo || null,
         fecha_evaluacion: formData.fechaEvaluacion || null,
-        evaluador: formData.evaluadorResponsable || null,
+        evaluador: evaluadorSeleccionado?.nombre_completo || null,
         evaluacion_calidad: getTextoEvaluacion('calidad', criterioCalidad?.valor || null),
         evaluacion_disponibilidad: getTextoEvaluacion('disponibilidad', criterioDisponibilidad?.valor || null),
         evaluacion_fecha_entrega: getTextoEvaluacion('cumplimiento', criterioCumplimiento?.valor || null),
@@ -398,30 +556,30 @@ const EvaluacionServicios: React.FC = () => {
           : null,
         precio_servicio: formData.precioServicio > 0 ? formData.precioServicio : null,
         correo_contacto: formData.correoContacto || null,
-        descripcion_servicio: formData.descripcionServicio || null,
         link_servicio_ejecutado: formData.linkServicioEjecutado || null,
       };
 
       // Guardar en Supabase
       const evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
       
-      // Enviar evaluación a n8n a través de edge function
-      try {
-        console.log('📤 Enviando evaluación a n8n...');
-        await sendEvaluacionProveedorToN8n({
-          tipo: 'evaluacion_proveedor',
-          fecha_envio: new Date().toISOString(),
-          evaluacion: evaluacionData,
-          evaluacion_id: evaluacionGuardada?.id || null,
-        });
-        console.log('✅ Evaluación enviada a n8n exitosamente');
-      } catch (errorN8n: any) {
-        console.error('⚠️ Error al enviar evaluación a n8n (pero se guardó en BD):', errorN8n);
-        // No fallar el guardado si falla el envío a n8n
-      }
-      
-      // Mostrar mensaje de éxito
+      // Mostrar mensaje de éxito inmediatamente después de guardar
       alert('Evaluación guardada exitosamente');
+      
+      // Enviar evaluación a n8n a través de edge function (asíncrono, no bloquea)
+      // Esto se ejecuta en background sin esperar a que termine
+      sendEvaluacionProveedorToN8n({
+        tipo: 'evaluacion_proveedor',
+        fecha_envio: new Date().toISOString(),
+        evaluacion: evaluacionData,
+        evaluacion_id: evaluacionGuardada?.id || null,
+      })
+        .then(() => {
+          console.log('✅ Evaluación enviada a n8n exitosamente');
+        })
+        .catch((errorN8n: any) => {
+          console.error('⚠️ Error al enviar evaluación a n8n (pero se guardó en BD):', errorN8n);
+          // No mostrar error al usuario ya que el guardado fue exitoso
+        });
       
       // Opcional: limpiar el formulario o redirigir
       // navigate(getAreaPath('proveedores'));
@@ -871,15 +1029,26 @@ const EvaluacionServicios: React.FC = () => {
     // 1) Antecedentes
     drawSectionTitle('1', 'Antecedentes', 'Información general del servicio y proveedor');
 
+    // Obtener nombres de especialidad y personas seleccionadas para el PDF
+    const especialidadSeleccionadaPDF = especialidades.find(e => e.id.toString() === formData.especialidad);
+    const jefeProyectoSeleccionadoPDF = personas.find(p => p.id.toString() === formData.jefeProyecto);
+    const gerenteProyectoSeleccionadoPDF = personas.find(p => p.id.toString() === formData.gerenteProyecto);
+    const evaluadorSeleccionadoPDF = personas.find(p => p.id.toString() === formData.evaluadorResponsable);
+
     const antecedentes = [
       ['Proveedor', proveedorSeleccionado?.nombre_proveedor || 'No seleccionado'],
       ['Nombre de contacto', formData.nombreContacto || '—'],
       ['Correo de contacto', formData.correoContacto || '—'],
+      ['Especialidad', especialidadSeleccionadaPDF?.nombre || '—'],
+      ['Código de proyecto', formData.codigoProyecto || '—'],
+      ['Nombre de proyecto', formData.nombreProyecto || '—'],
+      ['Jefe de proyecto', jefeProyectoSeleccionadoPDF?.nombre_completo || '—'],
+      ['Gerente de proyecto', gerenteProyectoSeleccionadoPDF?.nombre_completo || '—'],
       ['Orden de servicio', formData.ordenServicio || '—'],
       ['Fecha de evaluación', formData.fechaEvaluacion || '—'],
       ['Precio del servicio', formData.precioServicio ? formatCurrency(formData.precioServicio) : '—'],
-      ['Evaluador responsable', formData.evaluadorResponsable || '—'],
-      ['Descripción del servicio', formData.descripcionServicio || '—'],
+      ['Evaluador responsable', evaluadorSeleccionadoPDF?.nombre_completo || '—'],
+      ['Actividad del servicio', formData.descripcionServicio || '—'],
       ['Link del servicio ejecutado', formData.linkServicioEjecutado || '—'],
     ];
 
@@ -1239,6 +1408,115 @@ const EvaluacionServicios: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Especialidad
+                      </label>
+                      {loadingEspecialidades ? (
+                        <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                          <span className="text-sm text-gray-500">Cargando...</span>
+                        </div>
+                      ) : (
+                        <select
+                          name="especialidad"
+                          value={formData.especialidad}
+                          onChange={handleChange}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                        >
+                          <option value="">Seleccione una especialidad</option>
+                          {especialidades.map((esp) => (
+                            <option key={esp.id} value={esp.id.toString()}>
+                              {esp.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Código de proyecto
+                      </label>
+                      <input
+                        type="text"
+                        name="codigoProyecto"
+                        value={formData.codigoProyecto}
+                        onChange={handleCodigoProyectoChange}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        placeholder="MY-001-2024"
+                        maxLength={12}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Formato: MY-XXX-YYYY (ej: MY-001-2024)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#111318] mb-2">
+                      Nombre de proyecto
+                    </label>
+                    <input
+                      type="text"
+                      name="nombreProyecto"
+                      value={formData.nombreProyecto}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      placeholder="Nombre del proyecto"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Jefe de proyecto
+                      </label>
+                      {loadingPersonas ? (
+                        <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                          <span className="text-sm text-gray-500">Cargando...</span>
+                        </div>
+                      ) : (
+                        <select
+                          name="jefeProyecto"
+                          value={formData.jefeProyecto}
+                          onChange={handleChange}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                        >
+                          <option value="">Seleccione jefe de proyecto</option>
+                          {personas.map((persona) => (
+                            <option key={persona.id} value={persona.id.toString()}>
+                              {persona.nombre_completo}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#111318] mb-2">
+                        Gerente de proyecto
+                      </label>
+                      {loadingPersonas ? (
+                        <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                          <span className="text-sm text-gray-500">Cargando...</span>
+                        </div>
+                      ) : (
+                        <select
+                          name="gerenteProyecto"
+                          value={formData.gerenteProyecto}
+                          onChange={handleChange}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                        >
+                          <option value="">Seleccione gerente de proyecto</option>
+                          {personas.map((persona) => (
+                            <option key={persona.id} value={persona.id.toString()}>
+                              {persona.nombre_completo}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-[#111318] mb-2">
@@ -1274,21 +1552,31 @@ const EvaluacionServicios: React.FC = () => {
                       <label className="block text-sm font-medium text-[#111318] mb-2">
                         Evaluador responsable
                       </label>
-                      <select
-                        name="evaluadorResponsable"
-                        value={formData.evaluadorResponsable}
-                        onChange={handleChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
-                      >
-                        <option value="">Seleccione evaluador</option>
-                        <option value="Admin User">Admin User</option>
-                      </select>
+                      {loadingPersonas ? (
+                        <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                          <span className="text-sm text-gray-500">Cargando...</span>
+                        </div>
+                      ) : (
+                        <select
+                          name="evaluadorResponsable"
+                          value={formData.evaluadorResponsable}
+                          onChange={handleChange}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                        >
+                          <option value="">Seleccione evaluador</option>
+                          {personas.map((persona) => (
+                            <option key={persona.id} value={persona.id.toString()}>
+                              {persona.nombre_completo}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-[#111318] mb-2">
-                      Descripción del servicio
+                      Actividad del servicio
                     </label>
                     <textarea
                       name="descripcionServicio"

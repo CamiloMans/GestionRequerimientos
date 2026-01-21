@@ -137,6 +137,29 @@ export const deleteProveedor = async (id: number): Promise<void> => {
 };
 
 /**
+ * Interfaz para Persona
+ */
+export interface Persona {
+  id: number;
+  rut: string;
+  nombres: string;
+  apellidos: string;
+  nombre_completo: string;
+  fecha_nacimiento: string;
+  correo: string;
+  telefono?: string;
+  direccion?: string;
+  obs_salud?: string;
+  estado: string;
+  gerencia_id: string;
+  comuna_id: string;
+  cargo_myma_id: string;
+  especialidad_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Obtener todas las especialidades
  */
 export const fetchEspecialidades = async (): Promise<{ id: number; nombre: string }[]> => {
@@ -155,6 +178,24 @@ export const fetchEspecialidades = async (): Promise<{ id: number; nombre: strin
     id: item.id,
     nombre: item.nombre_especialidad,
   }));
+};
+
+/**
+ * Obtener todas las personas activas
+ */
+export const fetchPersonas = async (): Promise<Persona[]> => {
+  const { data, error } = await supabase
+    .from('persona')
+    .select('*')
+    .eq('estado', 'Activo')
+    .order('nombre_completo', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching personas:', error);
+    throw error;
+  }
+  
+  return data || [];
 };
 
 /**
@@ -271,6 +312,7 @@ export const saveProveedorEspecialidades = async (
  */
 export interface EvaluacionServiciosData {
   nombre_proveedor: string;
+  rut?: string | null;
   especialidad?: string | null;
   actividad?: string | null;
   orden_compra?: string | null;
@@ -291,18 +333,17 @@ export interface EvaluacionServiciosData {
   evaluacion_seguridad_terreno?: string | null;
   precio_servicio?: number | null;
   correo_contacto?: string | null;
-  descripcion_servicio?: string | null;
   link_servicio_ejecutado?: string | null;
 }
 
 /**
- * Guardar una evaluación de servicios en fct_proveedores_evaluacion
+ * Guardar una evaluación de servicios en fct_proveedores_evaluacion_evt
  */
 export const saveEvaluacionServicios = async (
   evaluacionData: EvaluacionServiciosData
 ): Promise<any> => {
   const { data, error } = await supabase
-    .from('fct_proveedores_evaluacion')
+    .from('fct_proveedores_evaluacion_evt')
     .insert([evaluacionData])
     .select()
     .single();
@@ -347,11 +388,13 @@ export const sendEvaluacionProveedorToN8n = async (payload: any): Promise<any> =
 };
 
 /**
- * Interfaz para las evaluaciones de proveedores desde brg_core_proveedor_evaluacion
+ * Interfaz para las evaluaciones de proveedores desde fct_proveedores_evaluacion_evt
  */
 export interface EvaluacionProveedor {
   id: number;
-  nombre: string;
+  nombre?: string | null; // nombre_proveedor en la tabla
+  nombre_proveedor?: string | null; // Campo principal
+  rut?: string | null;
   especialidad?: string | null;
   actividad?: string | null;
   orden_compra?: string | null;
@@ -368,6 +411,11 @@ export interface EvaluacionProveedor {
   nota_total_ponderada?: number | null;
   categoria_proveedor?: string | null;
   observacion?: string | null;
+  aplica_salida_terreno?: boolean | null;
+  evaluacion_seguridad_terreno?: string | null;
+  precio_servicio?: number | null;
+  correo_contacto?: string | null;
+  link_servicio_ejecutado?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -379,9 +427,9 @@ export const fetchEvaluacionesByNombreProveedor = async (
   nombreProveedor: string
 ): Promise<EvaluacionProveedor[]> => {
   const { data, error } = await supabase
-    .from('brg_core_proveedor_evaluacion')
+    .from('fct_proveedores_evaluacion_evt')
     .select('*')
-    .eq('nombre', nombreProveedor)
+    .or(`nombre_proveedor.eq.${nombreProveedor},nombre.eq.${nombreProveedor}`)
     .order('fecha_evaluacion', { ascending: false });
 
   if (error) {

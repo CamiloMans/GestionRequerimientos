@@ -91,14 +91,14 @@ const ProveedorDetalle: React.FC = () => {
         // Convertir evaluaciones a formato Servicio
         const serviciosMapeados: Servicio[] = evaluaciones.map((evaluacion) => ({
           id: evaluacion.id,
-          nombre: evaluacion.nombre_proyecto || evaluacion.nombre || 'Sin nombre',
+          nombre: evaluacion.nombre_proyecto || evaluacion.nombre || evaluacion.nombre_proveedor || 'Sin nombre',
           codigo: evaluacion.codigo_proyecto || evaluacion.orden_compra || `EVAL-${evaluacion.id}`,
-          descripcion: evaluacion.observacion || 'Sin descripción',
+          descripcion: evaluacion.actividad || evaluacion.observacion || 'Sin descripción',
           categoria: evaluacion.especialidad || evaluacion.actividad || 'Sin categoría',
-          tarifaRef: null, // No hay precio_servicio en brg_core_proveedor_evaluacion
+          tarifaRef: evaluacion.precio_servicio || null,
           estado: 'Vigente' as const, // Por defecto
           clasificacion: (evaluacion.categoria_proveedor as 'A' | 'B' | 'C') || null,
-          documentacionUrl: null, // No hay link_servicio_ejecutado en brg_core_proveedor_evaluacion
+          documentacionUrl: evaluacion.link_servicio_ejecutado || null,
         }));
 
         setServicios(serviciosMapeados);

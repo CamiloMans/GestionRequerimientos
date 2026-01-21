@@ -191,3 +191,4 @@ Una vez que hayas configurado ambos lugares (Supabase y Google Cloud Console), e
 
 
 
+
