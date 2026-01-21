@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad } from '../services/proveedoresService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -41,6 +41,9 @@ const EvaluacionServicios: React.FC = () => {
   const [proveedores, setProveedores] = useState<ProveedorResponse[]>([]);
   const [especialidades, setEspecialidades] = useState<{ id: number; nombre: string }[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [showModalEspecialidad, setShowModalEspecialidad] = useState(false);
+  const [nuevaEspecialidadNombre, setNuevaEspecialidadNombre] = useState('');
+  const [guardandoEspecialidad, setGuardandoEspecialidad] = useState(false);
   const [formData, setFormData] = useState<EvaluacionData>({
     proveedorId: '',
     nombreContacto: '',
@@ -120,6 +123,42 @@ const EvaluacionServicios: React.FC = () => {
 
     loadPersonas();
   }, []);
+
+  // Función para crear una nueva especialidad
+  const handleCrearEspecialidad = async () => {
+    if (!nuevaEspecialidadNombre.trim()) {
+      alert('Por favor ingrese un nombre para la especialidad');
+      return;
+    }
+
+    try {
+      setGuardandoEspecialidad(true);
+      const nuevaEspecialidad = await createEspecialidad(nuevaEspecialidadNombre.trim());
+      
+      // Agregar la nueva especialidad a la lista
+      setEspecialidades((prev) => {
+        const nuevasEspecialidades = [...prev, nuevaEspecialidad].sort((a, b) => 
+          a.nombre.localeCompare(b.nombre)
+        );
+        return nuevasEspecialidades;
+      });
+      
+      // Seleccionar la nueva especialidad creada
+      setFormData((prev) => ({
+        ...prev,
+        especialidad: nuevaEspecialidad.id.toString(),
+      }));
+      
+      // Cerrar el modal y limpiar el campo
+      setShowModalEspecialidad(false);
+      setNuevaEspecialidadNombre('');
+    } catch (err: any) {
+      console.error('Error al crear especialidad:', err);
+      alert(`Error al crear la especialidad: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setGuardandoEspecialidad(false);
+    }
+  };
 
   // Calcular evaluación total usando la nueva fórmula (excluyendo criterio terreno que no tiene peso)
   const evaluacionTotal = useMemo(() => {
@@ -301,15 +340,24 @@ const EvaluacionServicios: React.FC = () => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     
-    // Si se cambia el proveedor, actualizar automáticamente los campos de contacto
+    // Si se cambia el proveedor, actualizar automáticamente solo el correo de contacto
     if (name === 'proveedorId') {
       const proveedorSeleccionado = proveedores.find((p) => p.id.toString() === value);
       setFormData((prev) => ({
         ...prev,
         [name]: value,
-        nombreContacto: proveedorSeleccionado?.nombre_proveedor || '',
         correoContacto: proveedorSeleccionado?.correo_contacto || '',
       }));
+    } else if (name === 'especialidad') {
+      // Si se selecciona "Otro", mostrar el modal
+      if (value === 'otro') {
+        setShowModalEspecialidad(true);
+      } else {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: value,
+        }));
+      }
     } else if (name === 'vaTerreno') {
       // Si se marca "va a terreno", agregar el criterio de terreno y ajustar pesos
       // Si se desmarca, remover el criterio de terreno y restaurar pesos
@@ -561,23 +609,36 @@ const EvaluacionServicios: React.FC = () => {
 
       // Guardar en Supabase
       const evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
+      console.log('✅ Evaluación guardada en BD:', evaluacionGuardada);
+      
+      // Preparar payload JSON para enviar a la edge function
+      const webhookPayload = {
+        tipo: 'evaluacion_proveedor',
+        fecha_envio: new Date().toISOString(),
+        evaluacion: evaluacionData,
+        evaluacion_id: evaluacionGuardada?.id || null,
+      };
+      
+      console.log('📤 Enviando webhook a edge function "Envio-de-registro-de-Evaluacion-de-Servicio"');
+      console.log('📦 Payload JSON:', JSON.stringify(webhookPayload, null, 2));
       
       // Mostrar mensaje de éxito inmediatamente después de guardar
       alert('Evaluación guardada exitosamente');
       
       // Enviar evaluación a n8n a través de edge function (asíncrono, no bloquea)
       // Esto se ejecuta en background sin esperar a que termine
-      sendEvaluacionProveedorToN8n({
-        tipo: 'evaluacion_proveedor',
-        fecha_envio: new Date().toISOString(),
-        evaluacion: evaluacionData,
-        evaluacion_id: evaluacionGuardada?.id || null,
-      })
-        .then(() => {
+      sendEvaluacionProveedorToN8n(webhookPayload)
+        .then((response) => {
           console.log('✅ Evaluación enviada a n8n exitosamente');
+          console.log('📥 Respuesta de la edge function:', response);
         })
         .catch((errorN8n: any) => {
           console.error('⚠️ Error al enviar evaluación a n8n (pero se guardó en BD):', errorN8n);
+          console.error('🔍 Detalles del error:', {
+            message: errorN8n.message,
+            status: (errorN8n as any).status,
+            error: errorN8n,
+          });
           // No mostrar error al usuario ya que el guardado fue exitoso
         });
       
@@ -1430,6 +1491,7 @@ const EvaluacionServicios: React.FC = () => {
                               {esp.nombre}
                             </option>
                           ))}
+                          <option value="otro">Otro</option>
                         </select>
                       )}
                     </div>
@@ -1893,6 +1955,81 @@ const EvaluacionServicios: React.FC = () => {
           <p>© {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
         </div>
       </div>
+
+      {/* Modal para crear nueva especialidad */}
+      {showModalEspecialidad && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-[#111318]">Nueva Especialidad</h3>
+              <button
+                onClick={() => {
+                  setShowModalEspecialidad(false);
+                  setNuevaEspecialidadNombre('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                disabled={guardandoEspecialidad}
+              >
+                <span className="material-symbols-outlined text-2xl">close</span>
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-[#111318] mb-2">
+                Nombre de la especialidad
+              </label>
+              <input
+                type="text"
+                value={nuevaEspecialidadNombre}
+                onChange={(e) => setNuevaEspecialidadNombre(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !guardandoEspecialidad) {
+                    handleCrearEspecialidad();
+                  }
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                placeholder="Ej: Hidrogeología"
+                disabled={guardandoEspecialidad}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowModalEspecialidad(false);
+                  setNuevaEspecialidadNombre('');
+                  setFormData((prev) => ({
+                    ...prev,
+                    especialidad: '',
+                  }));
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
+                disabled={guardandoEspecialidad}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCrearEspecialidad}
+                disabled={guardandoEspecialidad || !nuevaEspecialidadNombre.trim()}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {guardandoEspecialidad ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">save</span>
+                    <span>Guardar</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

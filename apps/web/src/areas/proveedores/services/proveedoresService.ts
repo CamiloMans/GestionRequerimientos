@@ -181,6 +181,27 @@ export const fetchEspecialidades = async (): Promise<{ id: number; nombre: strin
 };
 
 /**
+ * Crear una nueva especialidad
+ */
+export const createEspecialidad = async (nombreEspecialidad: string): Promise<{ id: number; nombre: string }> => {
+  const { data, error } = await supabase
+    .from('dim_core_especialidad')
+    .insert([{ nombre_especialidad: nombreEspecialidad }])
+    .select('id, nombre_especialidad')
+    .single();
+
+  if (error) {
+    console.error('Error creating especialidad:', error);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    nombre: data.nombre_especialidad,
+  };
+};
+
+/**
  * Obtener todas las personas activas
  */
 export const fetchPersonas = async (): Promise<Persona[]> => {
@@ -358,15 +379,24 @@ export const saveEvaluacionServicios = async (
 
 /**
  * Enviar evaluación de proveedor a n8n a través de edge function
+ * Edge function: Envio-de-registro-de-Evaluacion-de-Servicio
  */
 export const sendEvaluacionProveedorToN8n = async (payload: any): Promise<any> => {
   try {
+    console.log('🔗 Invocando edge function: Envio-de-registro-de-Evaluacion-de-Servicio');
+    console.log('📦 Payload completo:', JSON.stringify(payload, null, 2));
+    
     const { data, error } = await supabase.functions.invoke('Envio-de-registro-de-Evaluacion-de-Servicio', {
       body: payload,
     });
 
     if (error) {
       console.error('❌ Error al invocar función edge:', error);
+      console.error('🔍 Detalles del error:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
       
       // Si es un 404, la función no está desplegada
       if (error.message?.includes('404') || error.message?.includes('not found') || (error as any).status === 404) {
@@ -376,7 +406,14 @@ export const sendEvaluacionProveedorToN8n = async (payload: any): Promise<any> =
       throw error;
     }
 
-    if (!data || !data.success) {
+    console.log('📥 Respuesta recibida de la edge function:', data);
+
+    if (!data) {
+      throw new Error('No se recibió respuesta de la edge function');
+    }
+
+    // La edge function puede devolver success: true/false o simplemente datos
+    if (data.success === false) {
       throw new Error(data?.error || 'Error desconocido al enviar evaluación a n8n');
     }
 
