@@ -7,7 +7,7 @@ import { AreaId } from '@contracts/areas';
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  activeView?: 'dashboard' | 'actuales' | 'evaluacion';
+  activeView?: 'dashboard' | 'actuales' | 'evaluacion' | 'evaluaciones-tabla';
   hideOnDesktop?: boolean;
 }
 
@@ -22,6 +22,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
   const isDashboardActive = activeView === 'dashboard';
   const isActualesActive = activeView === 'actuales';
   const isEvaluacionActive = activeView === 'evaluacion';
+  const isEvaluacionesTablaActive = activeView === 'evaluaciones-tabla';
 
   // Construir rutas del área
   const getAreaPath = (path: string) => {
@@ -80,6 +81,11 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 
   const handleEvaluacionClick = () => {
     navigate(getAreaPath('evaluacion'));
+    onClose();
+  };
+
+  const handleEvaluacionesTablaClick = () => {
+    navigate(getAreaPath('evaluaciones-tabla'));
     onClose();
   };
 
@@ -191,6 +197,30 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
                 </span>
               </button>
 
+              {/* Evaluaciones Tabla */}
+              <button
+                onClick={handleEvaluacionesTablaClick}
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                  isEvaluacionesTablaActive
+                    ? 'bg-primary text-white hover:bg-primary-hover'
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
+                title="Evaluaciones Tabla"
+              >
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isEvaluacionesTablaActive ? 'fill' : ''}`}>
+                  table_chart
+                </span>
+                <span
+                  className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isEvaluacionesTablaActive
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100'
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  Evaluaciones Tabla
+                </span>
+              </button>
+
               {/* Evaluación de Servicios */}
               <button
                 onClick={handleEvaluacionClick}
@@ -202,7 +232,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
                 title="Evaluación de Servicios"
               >
                 <span className={`material-symbols-outlined text-2xl pointer-events-none ${isEvaluacionActive ? 'fill' : ''}`}>
-                  assessment
+                  grade
                 </span>
                 <span
                   className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${

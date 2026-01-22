@@ -2188,7 +2188,7 @@ const EvaluacionServicios: React.FC = () => {
                   <span className="material-symbols-outlined text-green-600">check_circle</span>
                   <div>
                     <div className="font-semibold text-green-700 mb-1">Categoría A</div>
-                    <div className="text-xs text-green-600">Cumplimiento &gt; 76,4%</div>
+                    <div className="text-xs text-green-600">Cumplimiento &gt; 76%</div>
                     <div className="text-xs text-gray-600 mt-1">
                       Habilitado para contratación inmediata.
                     </div>
@@ -2198,7 +2198,7 @@ const EvaluacionServicios: React.FC = () => {
                   <span className="material-symbols-outlined text-yellow-600">info</span>
                   <div>
                     <div className="font-semibold text-yellow-700 mb-1">Categoría B</div>
-                    <div className="text-xs text-yellow-600">50% ≤ cumplimiento ≤ 76,4%</div>
+                    <div className="text-xs text-yellow-600">50% ≤ cumplimiento ≤ 76%</div>
                     <div className="text-xs text-gray-600 mt-1">
                       Habilitado con plan de mejora obligatorio.
                     </div>

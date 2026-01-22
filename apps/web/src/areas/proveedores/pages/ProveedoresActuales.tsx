@@ -12,7 +12,6 @@ const ProveedoresActuales: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('Todos');
-  const [filterCategoria, setFilterCategoria] = useState<string>('Todas');
   const [filterEspecialidad, setFilterEspecialidad] = useState<string>('Todas');
   const [filterClasificacion, setFilterClasificacion] = useState<string>('Todas');
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([]);
@@ -210,11 +209,10 @@ const ProveedoresActuales: React.FC = () => {
       proveedor.email?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesTipo = filterTipo === 'Todos' || proveedor.tipo === filterTipo;
-    const matchesCategoria = filterCategoria === 'Todas' || proveedor.clasificacion === filterCategoria;
     const matchesEspecialidad = filterEspecialidad === 'Todas' || proveedor.especialidad.includes(filterEspecialidad);
     const matchesClasificacion = filterClasificacion === 'Todas' || proveedor.clasificacion === filterClasificacion;
 
-    return matchesSearch && matchesTipo && matchesCategoria && matchesEspecialidad && matchesClasificacion;
+    return matchesSearch && matchesTipo && matchesEspecialidad && matchesClasificacion;
   });
 
   // Paginación
@@ -307,7 +305,7 @@ const ProveedoresActuales: React.FC = () => {
 
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Búsqueda */}
             <div className="lg:col-span-1">
               <label className="block text-xs font-medium text-gray-700 mb-2">
@@ -340,23 +338,6 @@ const ProveedoresActuales: React.FC = () => {
                 <option value="Todos">Todos los tipos</option>
                 <option value={TipoProveedor.EMPRESA}>Empresa</option>
                 <option value={TipoProveedor.PERSONA}>Persona</option>
-              </select>
-            </div>
-
-            {/* Categoría */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-2">
-                CATEGORÍA
-              </label>
-              <select
-                value={filterCategoria}
-                onChange={(e) => setFilterCategoria(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
-              >
-                <option value="Todas">Todas las categorías</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
               </select>
             </div>
 

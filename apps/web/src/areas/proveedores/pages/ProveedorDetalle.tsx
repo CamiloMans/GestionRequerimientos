@@ -33,7 +33,7 @@ const ProveedorDetalle: React.FC = () => {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [loadingServicios, setLoadingServicios] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 20;
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionProveedor[]>([]);
 
   const getAreaPath = (path: string) => {
@@ -181,14 +181,41 @@ const ProveedorDetalle: React.FC = () => {
   };
 
   const getCategoriaColor = (categoria: string) => {
-    switch (categoria) {
-      case 'Laboratorio':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Aire':
-        return 'bg-cyan-100 text-cyan-700 border-cyan-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
+    // Paleta de colores para especialidades (misma que en ProveedoresActuales)
+    const colorPalette = [
+      'bg-blue-100 text-blue-700 border-blue-200',
+      'bg-purple-100 text-purple-700 border-purple-200',
+      'bg-cyan-100 text-cyan-700 border-cyan-200',
+      'bg-indigo-100 text-indigo-700 border-indigo-200',
+      'bg-orange-100 text-orange-700 border-orange-200',
+      'bg-teal-100 text-teal-700 border-teal-200',
+      'bg-green-100 text-green-700 border-green-200',
+      'bg-pink-100 text-pink-700 border-pink-200',
+      'bg-rose-100 text-rose-700 border-rose-200',
+      'bg-amber-100 text-amber-700 border-amber-200',
+      'bg-lime-100 text-lime-700 border-lime-200',
+      'bg-emerald-100 text-emerald-700 border-emerald-200',
+      'bg-sky-100 text-sky-700 border-sky-200',
+      'bg-violet-100 text-violet-700 border-violet-200',
+      'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+      'bg-stone-100 text-stone-700 border-stone-200',
+    ];
+
+    // Función hash simple para asignar color de forma consistente
+    const hashString = (str: string): number => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
+    };
+
+    // Asignar color basado en el hash del nombre de la categoría
+    const hash = hashString(categoria.toLowerCase());
+    const colorIndex = hash % colorPalette.length;
+    return colorPalette[colorIndex];
   };
 
   const getEvaluacionColor = (evaluacion: number | null | undefined) => {

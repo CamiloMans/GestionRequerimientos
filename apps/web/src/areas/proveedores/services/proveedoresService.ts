@@ -544,3 +544,24 @@ export const fetchEvaluacionesByRutProveedor = async (
   return data || [];
 };
 
+/**
+ * Obtener todas las evaluaciones de todos los proveedores
+ */
+export const fetchAllEvaluaciones = async (): Promise<EvaluacionProveedor[]> => {
+  console.log('🔍 Buscando todas las evaluaciones');
+  
+  const { data, error } = await supabase
+    .from('fct_proveedores_evaluacion_evt')
+    .select('*')
+    .order('fecha_evaluacion', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching todas las evaluaciones:', error);
+    throw error;
+  }
+
+  console.log(`✅ Encontradas ${data?.length || 0} evaluaciones en total`);
+
+  return data || [];
+};
+

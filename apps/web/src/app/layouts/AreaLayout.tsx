@@ -22,12 +22,14 @@ const AreaLayout: React.FC<AreaLayoutProps> = ({ children }) => {
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
 
   // Determinar la vista activa basada en la ruta
-  const getActiveView = (): 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'dashboard' | 'actuales' | 'evaluacion' => {
+  const getActiveView = (): 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'dashboard' | 'actuales' | 'evaluacion' | 'evaluaciones-tabla' => {
     const path = location.pathname;
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboards')) return 'dashboards';
     if (path.includes('/field-request')) return 'fieldRequest';
     if (path.includes('/requests/create') || path.includes('/requests/edit')) return 'create';
+    if (path.includes('/evaluaciones-tabla')) return 'evaluaciones-tabla';
+    if (path.includes('/servicios-evaluados')) return 'dashboard'; // Servicios evaluados ahora está en dashboard
     if (path.includes('/actuales')) return 'actuales';
     if (path.includes('/evaluacion')) return 'evaluacion';
     if (path.includes('/dashboard')) return 'dashboard';

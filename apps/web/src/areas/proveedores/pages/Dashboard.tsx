@@ -1,15 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
 import { Proveedor, Clasificacion, TipoProveedor } from '../types';
+import ServiciosEvaluados from './ServiciosEvaluados';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [especialidades, setEspecialidades] = useState<{ id: number; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estado para controlar qué dashboard mostrar
+  const [activeDashboard, setActiveDashboard] = useState<'proveedores' | 'servicios'>(() => {
+    return location.pathname.includes('/servicios-evaluados') ? 'servicios' : 'proveedores';
+  });
+  
+  const [searchEspecialidad, setSearchEspecialidad] = useState('');
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
@@ -118,8 +127,20 @@ const Dashboard: React.FC = () => {
     // Contar proveedores con categoria_proveedor = 'C' (sin filtro de servicios ejecutados)
     const categoriaC = proveedoresFiltrados.filter(p => p.clasificacion === Clasificacion.C).length;
     
-    // Calcular proveedores nuevos este mes (dummy)
-    const nuevosEsteMes = Math.floor(total * 0.08);
+    // Calcular diferencia de proveedores: total actual vs total hasta el mes anterior
+    const ahora = new Date();
+    const primerDiaMesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    
+    // Contar proveedores creados hasta el mes anterior (antes del primer día del mes actual)
+    const proveedoresHastaMesAnterior = proveedoresFiltrados.filter(p => {
+      if (!p.created_at) return false;
+      const fechaCreacion = new Date(p.created_at);
+      return fechaCreacion < primerDiaMesActual;
+    }).length;
+    
+    // Calcular la diferencia: total actual - total hasta el mes anterior
+    const nuevosEsteMes = total - proveedoresHastaMesAnterior;
+    
     const promedioAnterior = promedio - 2;
 
     return {
@@ -143,14 +164,25 @@ const Dashboard: React.FC = () => {
       return { nombre: especialidad.nombre, cantidad };
     });
 
-    // Ordenar por cantidad (mayor a menor) y luego por nombre alfabéticamente
-    return componentes.sort((a, b) => {
-      if (b.cantidad !== a.cantidad) {
-        return b.cantidad - a.cantidad;
-      }
-      return a.nombre.localeCompare(b.nombre);
-    });
-  }, [proveedores, especialidades]);
+    // Filtrar solo las que tienen proveedores y ordenar por cantidad (mayor a menor) y luego por nombre alfabéticamente
+    let filtered = componentes
+      .filter(item => item.cantidad > 0)
+      .sort((a, b) => {
+        if (b.cantidad !== a.cantidad) {
+          return b.cantidad - a.cantidad;
+        }
+        return a.nombre.localeCompare(b.nombre);
+      });
+
+    // Aplicar filtro de búsqueda si existe
+    if (searchEspecialidad.trim()) {
+      filtered = filtered.filter(item =>
+        item.nombre.toLowerCase().includes(searchEspecialidad.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [proveedores, especialidades, searchEspecialidad]);
 
   // Distribución por clasificación
   const distribucionClasificacion = useMemo(() => {
@@ -257,15 +289,44 @@ const Dashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-[#111318] mb-1">
-                Dashboard - Navegación Normalizada
-              </h1>
+          <div className="mb-4">
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#111318] mb-4">
+              {activeDashboard === 'proveedores' ? 'Dashboard de Proveedores' : 'Dashboard de Servicios'}
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveDashboard('proveedores')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  activeDashboard === 'proveedores'
+                    ? 'bg-green-600 text-white border-green-600'
+                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">groups</span>
+                <span>Dashboard de Proveedores</span>
+              </button>
+              <button
+                onClick={() => setActiveDashboard('servicios')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  activeDashboard === 'servicios'
+                    ? 'bg-green-600 text-white border-green-600'
+                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">description</span>
+                <span>Dashboard de Servicios</span>
+              </button>
             </div>
           </div>
         </div>
 
+        {activeDashboard === 'servicios' ? (
+          <ServiciosEvaluados 
+            onDashboardChange={setActiveDashboard}
+            activeDashboard={activeDashboard}
+          />
+        ) : (
+          <>
         {/* Métricas principales */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Total Proveedores */}
@@ -274,7 +335,9 @@ const Dashboard: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-500 mb-1">Total Proveedores</p>
                 <p className="text-3xl font-bold text-[#111318]">{metrics.total}</p>
-                <p className="text-xs text-gray-500 mt-2">+{metrics.nuevosEsteMes} este mes</p>
+                <p className={`text-xs mt-2 ${metrics.nuevosEsteMes >= 0 ? 'text-gray-500' : 'text-red-500'}`}>
+                  {metrics.nuevosEsteMes >= 0 ? '+' : ''}{metrics.nuevosEsteMes} este mes
+                </p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
                 <span className="material-symbols-outlined text-blue-600 text-2xl">groups</span>
@@ -288,7 +351,7 @@ const Dashboard: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-500 mb-1">Promedio General</p>
                 <p className="text-3xl font-bold text-[#111318]">{metrics.promedio}%</p>
-                <p className="text-xs text-green-600 mt-2">↑+{metrics.promedio - metrics.promedioAnterior}% vs mes anterior</p>
+                <p className="text-xs text-gray-500 mt-2">cumplimiento mes actual</p>
               </div>
               <div className="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center">
                 <span className="material-symbols-outlined text-yellow-600 text-2xl">star</span>
@@ -325,72 +388,92 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Proveedores por Componente */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">groups</span>
-                <h2 className="text-lg font-bold text-[#111318]">Proveedores por Componente</h2>
-              </div>
-               <span className="text-sm text-gray-500">{especialidades.length} Especialidades</span>
+        {/* Proveedores por Componente */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">groups</span>
+              <h2 className="text-lg font-bold text-[#111318]">Proveedores por Especialidad</h2>
             </div>
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {proveedoresPorComponente.map((componente, index) => (
-                <div
-                  key={index}
-                  onClick={() => navigate(`${getAreaPath('actuales')}?especialidad=${encodeURIComponent(componente.nombre)}`)}
-                  className="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-primary transition-colors cursor-pointer"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
-                    <span className="material-symbols-outlined text-primary text-xl">
-                      {getComponentIcon(componente.nombre)}
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-[#111318] text-center mb-1">{componente.nombre}</p>
-                  <p className="text-lg font-bold text-primary">{componente.cantidad}</p>
-                </div>
-              ))}
+            <span className="text-sm text-gray-500">{proveedoresPorComponente.length} Especialidades</span>
+          </div>
+          <div className="mb-4">
+            <div className="relative max-w-md">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchEspecialidad}
+                onChange={(e) => setSearchEspecialidad(e.target.value)}
+                placeholder="Buscar especialidad..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+              />
             </div>
           </div>
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {proveedoresPorComponente.map((componente, index) => (
+              <div
+                key={index}
+                onClick={() => {
+                  if (activeDashboard === 'proveedores') {
+                    navigate(`${getAreaPath('actuales')}?especialidad=${encodeURIComponent(componente.nombre)}`);
+                  } else {
+                    navigate(getAreaPath('evaluaciones-tabla'), {
+                      state: { especialidad: componente.nombre }
+                    });
+                  }
+                }}
+                className="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-primary transition-colors cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                  <span className="material-symbols-outlined text-primary text-xl">
+                    {getComponentIcon(componente.nombre)}
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-[#111318] text-center mb-1">{componente.nombre}</p>
+                <p className="text-lg font-bold text-primary">{componente.cantidad}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
-          {/* Criterios de Elegibilidad */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
-            <h2 className="text-lg font-bold text-[#111318] mb-4">Criterios de Elegibilidad</h2>
-            <div className="space-y-4">
-              {/* Categoría A */}
-              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
-                  <div>
-                    <h3 className="font-semibold text-green-700 mb-1">Categoría A</h3>
-                    <p className="text-sm text-green-600 mb-1">Cumplimiento &gt; 76,4%</p>
-                    <p className="text-xs text-gray-600">Habilitado para contratación inmediata.</p>
-                  </div>
+        {/* Criterios de Elegibilidad */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6 mb-6">
+          <h2 className="text-lg font-bold text-[#111318] mb-4">Criterios de Elegibilidad</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Categoría A */}
+            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+                <div>
+                  <h3 className="font-semibold text-green-700 mb-1">Categoría A</h3>
+                  <p className="text-sm text-green-600 mb-1">Cumplimiento &gt; 76%</p>
+                  <p className="text-xs text-gray-600">Habilitado para contratación inmediata.</p>
                 </div>
               </div>
+            </div>
 
-              {/* Categoría B */}
-              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-yellow-600 text-2xl">info</span>
-                  <div>
-                    <h3 className="font-semibold text-yellow-700 mb-1">Categoría B</h3>
-                    <p className="text-sm text-yellow-600 mb-1">50% ≤ cumplimiento ≤ 76,4%</p>
-                    <p className="text-xs text-gray-600">Habilitado con plan de mejora obligatorio.</p>
-                  </div>
+            {/* Categoría B */}
+            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-yellow-600 text-2xl">info</span>
+                <div>
+                  <h3 className="font-semibold text-yellow-700 mb-1">Categoría B</h3>
+                  <p className="text-sm text-yellow-600 mb-1">50% ≤ cumplimiento ≤ 76%</p>
+                  <p className="text-xs text-gray-600">Habilitado con plan de mejora obligatorio.</p>
                 </div>
               </div>
+            </div>
 
-              {/* Categoría C */}
-              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-red-600 text-2xl">cancel</span>
-                  <div>
-                    <h3 className="font-semibold text-red-700 mb-1">Categoría C</h3>
-                    <p className="text-sm text-red-600 mb-1">Cumplimiento &lt; 50%</p>
-                    <p className="text-xs text-gray-600">INHABILITADO PARA CONTRATACIÓN.</p>
-                  </div>
+            {/* Categoría C */}
+            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-red-600 text-2xl">cancel</span>
+                <div>
+                  <h3 className="font-semibold text-red-700 mb-1">Categoría C</h3>
+                  <p className="text-sm text-red-600 mb-1">Cumplimiento &lt; 50%</p>
+                  <p className="text-xs text-gray-600">INHABILITADO PARA CONTRATACIÓN.</p>
                 </div>
               </div>
             </div>
@@ -562,6 +645,8 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );
