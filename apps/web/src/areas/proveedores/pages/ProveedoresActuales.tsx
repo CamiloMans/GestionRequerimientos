@@ -202,12 +202,7 @@ const ProveedoresActuales: React.FC = () => {
       proveedor.email?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesTipo = filterTipo === 'Todos' || proveedor.tipo === filterTipo;
-    const matchesCategoria = filterCategoria === 'Todas' || proveedor.especialidad.some(esp => {
-      const categoriaSeleccionada = categorias.find(cat => cat.nombre === filterCategoria);
-      if (!categoriaSeleccionada) return false;
-      // Verificar si la especialidad contiene el nombre de la categoría (case insensitive)
-      return esp.toLowerCase().includes(categoriaSeleccionada.nombre.toLowerCase());
-    });
+    const matchesCategoria = filterCategoria === 'Todas' || proveedor.clasificacion === filterCategoria;
     const matchesEspecialidad = filterEspecialidad === 'Todas' || proveedor.especialidad.includes(filterEspecialidad);
     const matchesClasificacion = filterClasificacion === 'Todas' || proveedor.clasificacion === filterClasificacion;
 
@@ -291,10 +286,6 @@ const ProveedoresActuales: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium">
-                <span className="material-symbols-outlined text-lg">download</span>
-                <span className="hidden sm:inline">Exportar</span>
-              </button>
               <button
                 onClick={() => navigate(getAreaPath('actuales/nuevo'))}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium"
@@ -349,24 +340,16 @@ const ProveedoresActuales: React.FC = () => {
               <label className="block text-xs font-medium text-gray-700 mb-2">
                 CATEGORÍA
               </label>
-              {loadingCategorias ? (
-                <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  <span className="text-sm text-gray-500">Cargando...</span>
-                </div>
-              ) : (
-                <select
-                  value={filterCategoria}
-                  onChange={(e) => setFilterCategoria(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
-                >
-                  <option value="Todas">Todas las categorías</option>
-                  {categorias.map((cat) => (
-                    <option key={cat.id} value={cat.nombre}>
-                      {cat.nombre}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                value={filterCategoria}
+                onChange={(e) => setFilterCategoria(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+              >
+                <option value="Todas">Todas las categorías</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+              </select>
             </div>
 
             {/* Especialidad */}
@@ -401,11 +384,9 @@ const ProveedoresActuales: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
               >
                 <option value="Todas">Todas las clasificaciones</option>
-                {Object.values(Clasificacion).map((clas) => (
-                  <option key={clas} value={clas}>
-                    {clas}
-                  </option>
-                ))}
+                <option value={Clasificacion.A}>A</option>
+                <option value={Clasificacion.B}>B</option>
+                <option value={Clasificacion.C}>C</option>
               </select>
             </div>
           </div>
