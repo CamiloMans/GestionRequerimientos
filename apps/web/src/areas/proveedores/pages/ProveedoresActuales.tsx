@@ -28,6 +28,13 @@ const ProveedoresActuales: React.FC = () => {
       tipo = TipoProveedor.PERSONA;
     }
 
+    // Usar promedio_nota_total_ponderada si está disponible para calcular clasificación
+    // promedio_nota_total_ponderada viene en formato decimal (0-1)
+    // evaluacion viene en formato porcentaje (0-100)
+    const evaluacionParaClasificacion = response.promedio_nota_total_ponderada !== null && response.promedio_nota_total_ponderada !== undefined
+      ? response.promedio_nota_total_ponderada // Ya está en formato decimal (0-1)
+      : (response.evaluacion !== null && response.evaluacion !== undefined ? response.evaluacion / 100 : null); // Convertir porcentaje a decimal
+
     // Mapear clasificacion string a Clasificacion enum
     let clasificacion: Clasificacion = Clasificacion.A;
     if (response.clasificacion) {
@@ -47,10 +54,10 @@ const ProveedoresActuales: React.FC = () => {
         default:
           clasificacion = Clasificacion.A;
       }
-    } else if (response.evaluacion !== null && response.evaluacion !== undefined) {
-      // Si no hay clasificación pero hay evaluación, calcularla
-      // Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
-      const cumplimiento = response.evaluacion / 100;
+    } else if (evaluacionParaClasificacion !== null && evaluacionParaClasificacion !== undefined) {
+      // Si no hay clasificación pero hay evaluación promedio, calcularla
+      // evaluacionParaClasificacion ya está en formato decimal (0-1)
+      const cumplimiento = evaluacionParaClasificacion;
       if (cumplimiento > 0.764) clasificacion = Clasificacion.A;
       else if (cumplimiento >= 0.5 && cumplimiento <= 0.764) clasificacion = Clasificacion.B;
       else clasificacion = Clasificacion.C;
@@ -59,17 +66,47 @@ const ProveedoresActuales: React.FC = () => {
     // Obtener especialidades desde brg_core_proveedor_especialidad
     const especialidades = await fetchEspecialidadesByNombreProveedor(response.nombre_proveedor);
 
+    // Usar promedio_nota_total_ponderada si está disponible, sino usar evaluacion
+    // El promedio_nota_total_ponderada viene en formato decimal (0-1), SIEMPRE multiplicar por 100 para porcentaje
+    let evaluacionPromedio: number | null = null;
+    if (response.promedio_nota_total_ponderada !== null && response.promedio_nota_total_ponderada !== undefined) {
+      // Siempre multiplicar por 100 porque viene en formato decimal (0-1)
+      // Ejemplo: 1.0 en decimal = 100%, 0.01 en decimal = 1%
+      evaluacionPromedio = response.promedio_nota_total_ponderada * 100;
+      console.log('📊 Evaluación promedio:', {
+        valorOriginal: response.promedio_nota_total_ponderada,
+        valorConvertido: evaluacionPromedio,
+        proveedor: response.nombre_proveedor,
+        rut: response.rut,
+      });
+    } else {
+      evaluacionPromedio = response.evaluacion !== null && response.evaluacion !== undefined ? response.evaluacion : null;
+    }
+    
     // Generar dato dummy para tieneServiciosEjecutados
-    // Si tiene evaluación, asumimos que tiene servicios ejecutados
-    // Si no tiene evaluación, 70% de probabilidad de tener servicios ejecutados (para datos dummy)
-    const tieneEvaluacion = response.evaluacion !== null && response.evaluacion !== undefined && response.evaluacion > 0;
+    // Si tiene evaluación promedio, asumimos que tiene servicios ejecutados
+    const tieneEvaluacion = evaluacionPromedio !== null && evaluacionPromedio !== undefined && evaluacionPromedio > 0;
     const tieneServiciosEjecutados = tieneEvaluacion 
       ? true 
       : (response.id % 10 < 7); // 70% de probabilidad basado en el ID
 
     // Si no tiene servicios ejecutados, no debería tener evaluación ni clasificación
-    const evaluacionFinal = tieneServiciosEjecutados ? (response.evaluacion ?? 0) : 0;
+    // evaluacionPromedio ya está en formato porcentaje (0-100) después de multiplicar por 100
+    const evaluacionFinal = tieneServiciosEjecutados 
+      ? (evaluacionPromedio !== null && evaluacionPromedio !== undefined 
+          ? Math.round(evaluacionPromedio) // Redondear a entero para mostrar como porcentaje
+          : 0)
+      : 0;
     const clasificacionFinal = tieneServiciosEjecutados ? clasificacion : Clasificacion.A; // Mantener tipo pero no se mostrará
+    
+    console.log('📊 Evaluación final para mostrar:', {
+      proveedor: response.nombre_proveedor,
+      rut: response.rut,
+      promedioOriginal: response.promedio_nota_total_ponderada,
+      evaluacionPromedio,
+      evaluacionFinal,
+      tieneServiciosEjecutados,
+    });
 
     return {
       id: response.id,

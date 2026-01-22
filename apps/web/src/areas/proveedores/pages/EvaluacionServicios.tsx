@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, updateEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad, EvaluacionProveedor } from '../services/proveedoresService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -34,6 +34,7 @@ interface EvaluacionData {
 
 const EvaluacionServicios: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [loadingProveedores, setLoadingProveedores] = useState(true);
   const [loadingEspecialidades, setLoadingEspecialidades] = useState(true);
@@ -44,6 +45,7 @@ const EvaluacionServicios: React.FC = () => {
   const [showModalEspecialidad, setShowModalEspecialidad] = useState(false);
   const [nuevaEspecialidadNombre, setNuevaEspecialidadNombre] = useState('');
   const [guardandoEspecialidad, setGuardandoEspecialidad] = useState(false);
+  const [evaluacionId, setEvaluacionId] = useState<number | null>(null); // ID de la evaluación que se está editando
   const [formData, setFormData] = useState<EvaluacionData>({
     proveedorId: '',
     nombreContacto: '',
@@ -123,6 +125,131 @@ const EvaluacionServicios: React.FC = () => {
 
     loadPersonas();
   }, []);
+
+  // Cargar datos de evaluación si se está editando
+  useEffect(() => {
+    const evaluacionData = location.state?.evaluacionData as EvaluacionProveedor | undefined;
+    
+    if (evaluacionData && proveedores.length > 0 && especialidades.length > 0 && personas.length > 0) {
+      console.log('📝 Cargando datos de evaluación para editar:', evaluacionData);
+      
+      // Buscar el proveedor por nombre o RUT
+      const proveedorEncontrado = proveedores.find(
+        (p) => 
+          p.nombre_proveedor === evaluacionData.nombre_proveedor || 
+          p.nombre_proveedor === evaluacionData.nombre ||
+          p.rut === evaluacionData.rut
+      );
+
+      // Función helper para mapear texto de evaluación a valor del formulario
+      // Los textos en la BD son descriptivos (ej: "Sobresaliente", "Buena"), pero el formulario usa ALTO, MEDIO, BAJO, MUY_BAJO
+      const mapearTextoAValor = (texto: string | null | undefined, criterioId: string): 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO' | 'A' | 'B' | 'C' | null => {
+        if (!texto) return null;
+        const textoUpper = texto.toUpperCase();
+        
+        // Mapear valores directos
+        if (['ALTO', 'MEDIO', 'BAJO', 'MUY_BAJO', 'A', 'B', 'C'].includes(textoUpper)) {
+          return textoUpper as 'ALTO' | 'MEDIO' | 'BAJO' | 'MUY_BAJO' | 'A' | 'B' | 'C';
+        }
+        
+        // Obtener las opciones del criterio para mapear correctamente
+        const opciones = getCriterioOpciones(criterioId);
+        
+        // Mapear textos descriptivos a valores según el criterio
+        if (textoUpper.includes(opciones.ALTO.toUpperCase()) || textoUpper.includes('SOBRESALIENTE') || textoUpper.includes('EXCELENTE')) {
+          return 'ALTO';
+        }
+        if (textoUpper.includes(opciones.MEDIO.toUpperCase()) || textoUpper.includes('BUENA') || textoUpper.includes('BUENO') || textoUpper.includes('ALTA')) {
+          return 'MEDIO';
+        }
+        if (textoUpper.includes(opciones.BAJO.toUpperCase()) || textoUpper.includes('REGULAR') || textoUpper.includes('MEDIANA')) {
+          return 'BAJO';
+        }
+        if (textoUpper.includes(opciones.MUY_BAJO.toUpperCase()) || textoUpper.includes('DEFICIENTE') || textoUpper.includes('NULA') || textoUpper.includes('MUY ELEVADO')) {
+          return 'MUY_BAJO';
+        }
+        
+        return null;
+      };
+
+      // Mapear los criterios de evaluación con función inversa
+      const criteriosMapeados: CriterioEvaluacion[] = [
+        { 
+          id: 'calidad', 
+          nombre: 'Calidad', 
+          peso: 52.2, 
+          valor: mapearTextoAValor(evaluacionData.evaluacion_calidad, 'calidad')
+        },
+        { 
+          id: 'disponibilidad', 
+          nombre: 'Disposición operativa y colaboración', 
+          peso: 18.2, 
+          valor: mapearTextoAValor(evaluacionData.evaluacion_disponibilidad, 'disponibilidad')
+        },
+        { 
+          id: 'cumplimiento', 
+          nombre: 'Cumplimiento fecha de entrega', 
+          peso: 13.7, 
+          valor: mapearTextoAValor(evaluacionData.evaluacion_fecha_entrega, 'cumplimiento')
+        },
+        { 
+          id: 'precio', 
+          nombre: 'Precio respecto de la competencia', 
+          peso: 15.9, 
+          valor: mapearTextoAValor(evaluacionData.evaluacion_precio, 'precio')
+        },
+      ];
+
+      // Buscar IDs de personas por nombre completo
+      const jefeProyectoPersona = personas.find(
+        (p) => p.nombre_completo === evaluacionData.jefe_proyecto
+      );
+      const gerenteProyectoPersona = personas.find(
+        (p) => p.nombre_completo === evaluacionData.gerente_proyecto
+      );
+      const evaluadorPersona = personas.find(
+        (p) => p.nombre_completo === evaluacionData.evaluador
+      );
+
+      // Buscar especialidad por nombre
+      const especialidadEncontrada = especialidades.find(
+        (e) => e.nombre === evaluacionData.especialidad
+      );
+
+      // Formatear código de proyecto si existe
+      let codigoProyectoFormateado = evaluacionData.codigo_proyecto || '';
+      if (codigoProyectoFormateado && !codigoProyectoFormateado.startsWith('MY-')) {
+        // Si viene sin formato, intentar formatearlo
+        const match = codigoProyectoFormateado.match(/(\d{3})-(\d{4})/);
+        if (match) {
+          codigoProyectoFormateado = `MY-${match[1]}-${match[2]}`;
+        }
+      }
+
+      setFormData({
+        proveedorId: proveedorEncontrado?.id.toString() || '',
+        nombreContacto: evaluacionData.nombre_contacto || evaluacionData.correo_contacto?.split('@')[0] || '', // Usar nombre_contacto si existe, sino extraer del correo
+        correoContacto: evaluacionData.correo_contacto || '',
+        ordenServicio: evaluacionData.orden_compra || '',
+        fechaEvaluacion: evaluacionData.fecha_evaluacion ? evaluacionData.fecha_evaluacion.split('T')[0] : '',
+        precioServicio: evaluacionData.precio_servicio || 0,
+        evaluadorResponsable: evaluadorPersona?.id.toString() || '',
+        descripcionServicio: evaluacionData.actividad || '',
+        linkServicioEjecutado: evaluacionData.link_servicio_ejecutado || '',
+        vaTerreno: evaluacionData.aplica_salida_terreno || false,
+        criterios: criteriosMapeados,
+        observaciones: evaluacionData.observacion || '',
+        especialidad: especialidadEncontrada?.id.toString() || '',
+        codigoProyecto: codigoProyectoFormateado,
+        nombreProyecto: evaluacionData.nombre_proyecto || '',
+        jefeProyecto: jefeProyectoPersona?.id.toString() || '',
+        gerenteProyecto: gerenteProyectoPersona?.id.toString() || '',
+      });
+
+      setEvaluacionId(evaluacionData.id);
+      console.log('✅ Formulario rellenado con datos de evaluación');
+    }
+  }, [location.state, proveedores, especialidades, personas]);
 
   // Función para crear una nueva especialidad
   const handleCrearEspecialidad = async () => {
@@ -604,12 +731,21 @@ const EvaluacionServicios: React.FC = () => {
           : null,
         precio_servicio: formData.precioServicio > 0 ? formData.precioServicio : null,
         correo_contacto: formData.correoContacto || null,
+        nombre_contacto: formData.nombreContacto || null,
         link_servicio_ejecutado: formData.linkServicioEjecutado || null,
       };
 
-      // Guardar en Supabase
-      const evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
-      console.log('✅ Evaluación guardada en BD:', evaluacionGuardada);
+      // Guardar o actualizar en Supabase
+      let evaluacionGuardada;
+      if (evaluacionId) {
+        // Actualizar evaluación existente
+        evaluacionGuardada = await updateEvaluacionServicios(evaluacionId, evaluacionData);
+        console.log('✅ Evaluación actualizada en BD:', evaluacionGuardada);
+      } else {
+        // Crear nueva evaluación
+        evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
+        console.log('✅ Evaluación guardada en BD:', evaluacionGuardada);
+      }
       
       // Preparar payload JSON para enviar a la edge function
       const webhookPayload = {
@@ -642,8 +778,11 @@ const EvaluacionServicios: React.FC = () => {
           // No mostrar error al usuario ya que el guardado fue exitoso
         });
       
-      // Opcional: limpiar el formulario o redirigir
-      // navigate(getAreaPath('proveedores'));
+      // Si se vino desde ProveedorDetalle, volver ahí después de guardar
+      const returnPath = location.state?.returnPath as string | undefined;
+      if (returnPath) {
+        navigate(returnPath);
+      }
     } catch (err: any) {
       console.error('Error al guardar evaluación:', err);
       alert(`Error al guardar la evaluación: ${err.message || 'Error desconocido'}`);
@@ -1343,9 +1482,39 @@ const EvaluacionServicios: React.FC = () => {
     doc.save(nombreArchivo);
   };
 
+  // Función para navegar de vuelta
+  const handleBack = () => {
+    // Si hay un estado previo en location.state, volver a esa ruta
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else {
+      // Si no, volver a la lista de proveedores
+      navigate(getAreaPath('actuales'));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Breadcrumbs */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <button 
+            onClick={() => navigate(getAreaPath('dashboard'))}
+            className="text-[#616f89] hover:text-primary text-sm font-medium transition-colors"
+          >
+            Dashboard
+          </button>
+          <span className="material-symbols-outlined text-[#616f89] text-base">chevron_right</span>
+          <button 
+            onClick={() => navigate(getAreaPath('actuales'))}
+            className="text-[#616f89] hover:text-primary text-sm font-medium transition-colors"
+          >
+            Proveedores
+          </button>
+          <span className="material-symbols-outlined text-[#616f89] text-base">chevron_right</span>
+          <span className="text-[#111318] text-sm font-medium">Evaluación de Servicios</span>
+        </div>
+
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">

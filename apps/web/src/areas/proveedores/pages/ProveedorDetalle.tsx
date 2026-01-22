@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, EvaluacionProveedor } from '../services/proveedoresService';
+import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, fetchEvaluacionesByRutProveedor, EvaluacionProveedor } from '../services/proveedoresService';
 import { Clasificacion } from '../types';
 
 interface Servicio {
@@ -11,9 +11,13 @@ interface Servicio {
   descripcion: string;
   categoria: string;
   tarifaRef: number | null;
+  ordenCompra: string | null;
+  fechaEvaluacion: string | null;
+  evaluadorResponsable: string | null;
   estado: 'Vigente' | 'En revisión' | 'Inactivo';
   clasificacion?: 'A' | 'B' | 'C' | null;
   documentacionUrl?: string | null;
+  notaTotalPonderada?: number | null;
 }
 
 const ProveedorDetalle: React.FC = () => {
@@ -30,6 +34,7 @@ const ProveedorDetalle: React.FC = () => {
   const [loadingServicios, setLoadingServicios] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [evaluaciones, setEvaluaciones] = useState<EvaluacionProveedor[]>([]);
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
@@ -86,7 +91,30 @@ const ProveedorDetalle: React.FC = () => {
 
       try {
         setLoadingServicios(true);
-        const evaluaciones = await fetchEvaluacionesByNombreProveedor(proveedor.nombre_proveedor);
+        console.log('🔍 Cargando evaluaciones para proveedor:', {
+          id: proveedor.id,
+          nombre: proveedor.nombre_proveedor,
+          rut: proveedor.rut,
+        });
+        
+        // Intentar buscar por RUT primero, luego por nombre, y finalmente por ambos
+        let evaluaciones: EvaluacionProveedor[] = [];
+        
+        if (proveedor.rut) {
+          console.log('📋 Buscando por RUT:', proveedor.rut);
+          evaluaciones = await fetchEvaluacionesByRutProveedor(proveedor.rut);
+        }
+        
+        // Si no se encontraron por RUT, buscar por nombre
+        if (evaluaciones.length === 0) {
+          console.log('📋 No se encontraron por RUT, buscando por nombre:', proveedor.nombre_proveedor);
+          evaluaciones = await fetchEvaluacionesByNombreProveedor(proveedor.nombre_proveedor);
+        }
+        
+        console.log(`✅ Total de evaluaciones encontradas: ${evaluaciones.length}`);
+        
+        // Guardar las evaluaciones originales para poder pasarlas al formulario de edición
+        setEvaluaciones(evaluaciones);
         
         // Convertir evaluaciones a formato Servicio
         const serviciosMapeados: Servicio[] = evaluaciones.map((evaluacion) => ({
@@ -96,9 +124,13 @@ const ProveedorDetalle: React.FC = () => {
           descripcion: evaluacion.actividad || evaluacion.observacion || 'Sin descripción',
           categoria: evaluacion.especialidad || evaluacion.actividad || 'Sin categoría',
           tarifaRef: evaluacion.precio_servicio || null,
+          ordenCompra: evaluacion.orden_compra || null,
+          fechaEvaluacion: evaluacion.fecha_evaluacion || null,
+          evaluadorResponsable: evaluacion.evaluador || null,
           estado: 'Vigente' as const, // Por defecto
           clasificacion: (evaluacion.categoria_proveedor as 'A' | 'B' | 'C') || null,
           documentacionUrl: evaluacion.link_servicio_ejecutado || null,
+          notaTotalPonderada: evaluacion.nota_total_ponderada || null,
         }));
 
         setServicios(serviciosMapeados);
@@ -261,20 +293,28 @@ const ProveedorDetalle: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-6">
-              {proveedor.evaluacion !== null && proveedor.evaluacion !== undefined && (
-                <div className="text-right">
-                  <div className="text-sm text-gray-600 mb-1">EVALUACIÓN</div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-100 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all ${getEvaluacionColor(proveedor.evaluacion)}`}
-                        style={{ width: `${proveedor.evaluacion}%` }}
-                      />
+              {(() => {
+                // Usar promedio_nota_total_ponderada si está disponible, sino usar evaluacion
+                // El promedio_nota_total_ponderada viene en formato decimal (0-1), multiplicar por 100 para porcentaje
+                const evaluacionMostrar = proveedor.promedio_nota_total_ponderada !== null && proveedor.promedio_nota_total_ponderada !== undefined
+                  ? proveedor.promedio_nota_total_ponderada * 100 // Convertir de decimal (0-1) a porcentaje (0-100)
+                  : (proveedor.evaluacion !== null && proveedor.evaluacion !== undefined ? proveedor.evaluacion : null);
+                
+                return evaluacionMostrar !== null && evaluacionMostrar !== undefined ? (
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600 mb-1">EVALUACIÓN</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 bg-gray-100 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${getEvaluacionColor(evaluacionMostrar)}`}
+                          style={{ width: `${evaluacionMostrar}%` }}
+                        />
+                      </div>
+                      <span className="text-lg font-semibold text-[#111318]">{evaluacionMostrar}%</span>
                     </div>
-                    <span className="text-lg font-semibold text-[#111318]">{proveedor.evaluacion}%</span>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
               {proveedor.clasificacion && (
                 <div className="text-right">
                   <div className="text-sm text-gray-600 mb-1">CLASIFICACIÓN</div>
@@ -353,10 +393,13 @@ const ProveedorDetalle: React.FC = () => {
                     <tr>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">NOMBRE DEL SERVICIO</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DESCRIPCIÓN</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CATEGORÍA</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">TARIFA REF.</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">REF.</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">FECHA</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUADOR</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ORDEN DE SERVICIO</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">MONTO</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ORDEN SERVICIO</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CALIFICACIÓN</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DOCUMENTACIÓN</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
@@ -365,7 +408,7 @@ const ProveedorDetalle: React.FC = () => {
                   <tbody>
                     {paginatedServicios.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-gray-500">
+                        <td colSpan={12} className="py-8 text-center text-gray-500">
                           No hay evaluaciones registradas para este proveedor.
                         </td>
                       </tr>
@@ -385,6 +428,26 @@ const ProveedorDetalle: React.FC = () => {
                         <span className="text-sm text-gray-600 line-clamp-2 max-w-xs">{servicio.descripcion}</span>
                       </td>
                       <td className="py-4 px-6">
+                        {servicio.fechaEvaluacion ? (
+                          <span className="text-sm text-[#111318]">
+                            {new Date(servicio.fechaEvaluacion).toLocaleDateString('es-CL', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit'
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        {servicio.evaluadorResponsable ? (
+                          <span className="text-sm text-[#111318]">{servicio.evaluadorResponsable}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getCategoriaColor(
                             servicio.categoria
@@ -392,6 +455,13 @@ const ProveedorDetalle: React.FC = () => {
                         >
                           {servicio.categoria}
                         </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        {servicio.ordenCompra ? (
+                          <span className="text-sm text-[#111318]">{servicio.ordenCompra}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="py-4 px-6">
                         {servicio.tarifaRef !== null ? (
@@ -404,13 +474,21 @@ const ProveedorDetalle: React.FC = () => {
                         <span className="text-xs text-gray-500">{servicio.codigo}</span>
                       </td>
                       <td className="py-4 px-6">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getEstadoColor(
-                            servicio.estado
-                          )}`}
-                        >
-                          {servicio.estado}
-                        </span>
+                        {servicio.notaTotalPonderada !== null && servicio.notaTotalPonderada !== undefined ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-100 rounded-full h-2 max-w-[100px]">
+                              <div
+                                className={`h-2 rounded-full transition-all ${getEvaluacionColor(servicio.notaTotalPonderada * 100)}`}
+                                style={{ width: `${Math.round(servicio.notaTotalPonderada * 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium text-[#111318] min-w-[40px]">
+                              {Math.round(servicio.notaTotalPonderada * 100)}%
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="py-4 px-6">
                         {servicio.clasificacion ? (
@@ -442,7 +520,39 @@ const ProveedorDetalle: React.FC = () => {
                       </td>
                       <td className="py-4 px-6">
                         <button
-                          onClick={() => navigate(getAreaPath('evaluacion'))}
+                          onClick={() => {
+                            // Buscar la evaluación completa correspondiente a este servicio
+                            const evaluacionCompleta = servicios.find(s => s.id === servicio.id);
+                            if (evaluacionCompleta) {
+                              // Buscar la evaluación original en el array de evaluaciones
+                              const evaluacionOriginal = evaluaciones.find(
+                                (e) => e.id === servicio.id
+                              );
+                              if (evaluacionOriginal) {
+                                navigate(getAreaPath('evaluacion'), {
+                                  state: { 
+                                    evaluacionData: evaluacionOriginal,
+                                    returnPath: getAreaPath(`actuales/${id}`),
+                                    proveedorId: id
+                                  }
+                                });
+                              } else {
+                                navigate(getAreaPath('evaluacion'), {
+                                  state: {
+                                    returnPath: getAreaPath(`actuales/${id}`),
+                                    proveedorId: id
+                                  }
+                                });
+                              }
+                            } else {
+                              navigate(getAreaPath('evaluacion'), {
+                                state: {
+                                  returnPath: getAreaPath(`actuales/${id}`),
+                                  proveedorId: id
+                                }
+                              });
+                            }
+                          }}
                           className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
                           title="Editar"
                         >

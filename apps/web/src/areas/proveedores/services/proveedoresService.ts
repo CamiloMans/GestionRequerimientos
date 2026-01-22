@@ -19,6 +19,7 @@ export interface ProveedorResponse {
   tipo_proveedor?: string | null;
   evaluacion?: number | null;
   clasificacion?: string | null;
+  promedio_nota_total_ponderada?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -354,6 +355,7 @@ export interface EvaluacionServiciosData {
   evaluacion_seguridad_terreno?: string | null;
   precio_servicio?: number | null;
   correo_contacto?: string | null;
+  nombre_contacto?: string | null;
   link_servicio_ejecutado?: string | null;
 }
 
@@ -371,6 +373,31 @@ export const saveEvaluacionServicios = async (
 
   if (error) {
     console.error('Error guardando evaluación de servicios:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+/**
+ * Actualizar una evaluación de servicios existente en fct_proveedores_evaluacion_evt
+ */
+export const updateEvaluacionServicios = async (
+  id: number,
+  evaluacionData: Partial<EvaluacionServiciosData>
+): Promise<any> => {
+  const { data, error } = await supabase
+    .from('fct_proveedores_evaluacion_evt')
+    .update({
+      ...evaluacionData,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error actualizando evaluación de servicios:', error);
     throw error;
   }
 
@@ -452,6 +479,7 @@ export interface EvaluacionProveedor {
   evaluacion_seguridad_terreno?: string | null;
   precio_servicio?: number | null;
   correo_contacto?: string | null;
+  nombre_contacto?: string | null;
   link_servicio_ejecutado?: string | null;
   created_at: string;
   updated_at: string;
@@ -463,6 +491,8 @@ export interface EvaluacionProveedor {
 export const fetchEvaluacionesByNombreProveedor = async (
   nombreProveedor: string
 ): Promise<EvaluacionProveedor[]> => {
+  console.log('🔍 Buscando evaluaciones por nombre:', nombreProveedor);
+  
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
     .select('*')
@@ -472,6 +502,38 @@ export const fetchEvaluacionesByNombreProveedor = async (
   if (error) {
     console.error('Error fetching evaluaciones del proveedor:', error);
     throw error;
+  }
+
+  console.log(`✅ Encontradas ${data?.length || 0} evaluaciones para nombre ${nombreProveedor}`);
+  if (data && data.length > 0) {
+    console.log('📋 Evaluaciones encontradas:', data);
+  }
+
+  return data || [];
+};
+
+/**
+ * Obtener todas las evaluaciones de un proveedor por RUT
+ */
+export const fetchEvaluacionesByRutProveedor = async (
+  rutProveedor: string
+): Promise<EvaluacionProveedor[]> => {
+  console.log('🔍 Buscando evaluaciones por RUT:', rutProveedor);
+  
+  const { data, error } = await supabase
+    .from('fct_proveedores_evaluacion_evt')
+    .select('*')
+    .eq('rut', rutProveedor)
+    .order('fecha_evaluacion', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching evaluaciones del proveedor por RUT:', error);
+    throw error;
+  }
+
+  console.log(`✅ Encontradas ${data?.length || 0} evaluaciones para RUT ${rutProveedor}`);
+  if (data && data.length > 0) {
+    console.log('📋 Evaluaciones encontradas:', data);
   }
 
   return data || [];
