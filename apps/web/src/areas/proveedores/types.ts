@@ -36,6 +36,7 @@ export interface Proveedor {
   telefono?: string;
   contacto?: string;
   evaluacion: number; // Porcentaje 0-100
+  promedio_nota_total_ponderada?: number | null; // Decimal 0-1
   clasificacion: Clasificacion;
   activo: boolean;
   tieneServiciosEjecutados?: boolean; // Indica si el proveedor tiene servicios ejecutados

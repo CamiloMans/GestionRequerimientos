@@ -416,7 +416,23 @@ const ProveedorDetalle: React.FC = () => {
                       paginatedServicios.map((servicio) => (
                     <tr
                       key={servicio.id}
-                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => {
+                        // Buscar la evaluación original en el array de evaluaciones
+                        const evaluacionOriginal = evaluaciones.find(
+                          (e) => e.id === servicio.id
+                        );
+                        if (evaluacionOriginal) {
+                          navigate(getAreaPath('evaluacion'), {
+                            state: { 
+                              evaluacionData: evaluacionOriginal,
+                              returnPath: getAreaPath(`actuales/${id}`),
+                              proveedorId: id,
+                              readOnly: true // Modo solo lectura
+                            }
+                          });
+                        }
+                      }}
                     >
                       <td className="py-4 px-6">
                         <div className="flex flex-col">
@@ -520,35 +536,27 @@ const ProveedorDetalle: React.FC = () => {
                       </td>
                       <td className="py-4 px-6">
                         <button
-                          onClick={() => {
-                            // Buscar la evaluación completa correspondiente a este servicio
-                            const evaluacionCompleta = servicios.find(s => s.id === servicio.id);
-                            if (evaluacionCompleta) {
-                              // Buscar la evaluación original en el array de evaluaciones
-                              const evaluacionOriginal = evaluaciones.find(
-                                (e) => e.id === servicio.id
-                              );
-                              if (evaluacionOriginal) {
-                                navigate(getAreaPath('evaluacion'), {
-                                  state: { 
-                                    evaluacionData: evaluacionOriginal,
-                                    returnPath: getAreaPath(`actuales/${id}`),
-                                    proveedorId: id
-                                  }
-                                });
-                              } else {
-                                navigate(getAreaPath('evaluacion'), {
-                                  state: {
-                                    returnPath: getAreaPath(`actuales/${id}`),
-                                    proveedorId: id
-                                  }
-                                });
-                              }
+                          onClick={(e) => {
+                            e.stopPropagation(); // Evitar que se active el onClick de la fila
+                            // Buscar la evaluación original en el array de evaluaciones
+                            const evaluacionOriginal = evaluaciones.find(
+                              (e) => e.id === servicio.id
+                            );
+                            if (evaluacionOriginal) {
+                              navigate(getAreaPath('evaluacion'), {
+                                state: { 
+                                  evaluacionData: evaluacionOriginal,
+                                  returnPath: getAreaPath(`actuales/${id}`),
+                                  proveedorId: id,
+                                  readOnly: false // Modo edición
+                                }
+                              });
                             } else {
                               navigate(getAreaPath('evaluacion'), {
                                 state: {
                                   returnPath: getAreaPath(`actuales/${id}`),
-                                  proveedorId: id
+                                  proveedorId: id,
+                                  readOnly: false
                                 }
                               });
                             }

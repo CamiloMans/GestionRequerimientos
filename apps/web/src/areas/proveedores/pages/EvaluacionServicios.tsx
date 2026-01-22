@@ -46,6 +46,8 @@ const EvaluacionServicios: React.FC = () => {
   const [nuevaEspecialidadNombre, setNuevaEspecialidadNombre] = useState('');
   const [guardandoEspecialidad, setGuardandoEspecialidad] = useState(false);
   const [evaluacionId, setEvaluacionId] = useState<number | null>(null); // ID de la evaluación que se está editando
+  const [isEditMode, setIsEditMode] = useState(false); // Modo de edición (false = solo lectura)
+  const [initialFormData, setInitialFormData] = useState<EvaluacionData | null>(null); // Estado inicial para detectar cambios
   const [formData, setFormData] = useState<EvaluacionData>({
     proveedorId: '',
     nombreContacto: '',
@@ -247,7 +249,38 @@ const EvaluacionServicios: React.FC = () => {
       });
 
       setEvaluacionId(evaluacionData.id);
-      console.log('✅ Formulario rellenado con datos de evaluación');
+      
+      // Determinar si está en modo solo lectura
+      const readOnly = location.state?.readOnly === true;
+      setIsEditMode(!readOnly);
+      
+      // Guardar el estado inicial del formulario para detectar cambios
+      const formDataInicial = {
+        proveedorId: proveedorEncontrado?.id.toString() || '',
+        nombreContacto: evaluacionData.nombre_contacto || evaluacionData.correo_contacto?.split('@')[0] || '',
+        correoContacto: evaluacionData.correo_contacto || '',
+        ordenServicio: evaluacionData.orden_compra || '',
+        fechaEvaluacion: evaluacionData.fecha_evaluacion ? evaluacionData.fecha_evaluacion.split('T')[0] : '',
+        precioServicio: evaluacionData.precio_servicio || 0,
+        evaluadorResponsable: evaluadorPersona?.id.toString() || '',
+        descripcionServicio: evaluacionData.actividad || '',
+        linkServicioEjecutado: evaluacionData.link_servicio_ejecutado || '',
+        vaTerreno: evaluacionData.aplica_salida_terreno || false,
+        criterios: criteriosMapeados,
+        observaciones: evaluacionData.observacion || '',
+        especialidad: especialidadEncontrada?.id.toString() || '',
+        codigoProyecto: codigoProyectoFormateado,
+        nombreProyecto: evaluacionData.nombre_proyecto || '',
+        jefeProyecto: jefeProyectoPersona?.id.toString() || '',
+        gerenteProyecto: gerenteProyectoPersona?.id.toString() || '',
+      };
+      setInitialFormData(formDataInicial);
+      
+      console.log('✅ Formulario rellenado con datos de evaluación', { readOnly, isEditMode: !readOnly });
+    } else {
+      // Si no hay datos de evaluación, está en modo creación (siempre editable)
+      setIsEditMode(true);
+      setInitialFormData(null);
     }
   }, [location.state, proveedores, especialidades, personas]);
 
@@ -463,7 +496,41 @@ const EvaluacionServicios: React.FC = () => {
     return isNaN(num) ? 0 : num;
   };
 
+  // Función para detectar si hay cambios en el formulario
+  const hasFormChanges = (): boolean => {
+    if (!initialFormData) return true; // Si no hay estado inicial, siempre permitir guardar (nuevo registro)
+    if (!isEditMode) return false; // Si no está en modo edición, no hay cambios
+    
+    // Comparar todos los campos
+    const camposDiferentes = 
+      formData.proveedorId !== initialFormData.proveedorId ||
+      formData.nombreContacto !== initialFormData.nombreContacto ||
+      formData.correoContacto !== initialFormData.correoContacto ||
+      formData.ordenServicio !== initialFormData.ordenServicio ||
+      formData.fechaEvaluacion !== initialFormData.fechaEvaluacion ||
+      formData.precioServicio !== initialFormData.precioServicio ||
+      formData.evaluadorResponsable !== initialFormData.evaluadorResponsable ||
+      formData.descripcionServicio !== initialFormData.descripcionServicio ||
+      formData.linkServicioEjecutado !== initialFormData.linkServicioEjecutado ||
+      formData.vaTerreno !== initialFormData.vaTerreno ||
+      formData.observaciones !== initialFormData.observaciones ||
+      formData.especialidad !== initialFormData.especialidad ||
+      formData.codigoProyecto !== initialFormData.codigoProyecto ||
+      formData.nombreProyecto !== initialFormData.nombreProyecto ||
+      formData.jefeProyecto !== initialFormData.jefeProyecto ||
+      formData.gerenteProyecto !== initialFormData.gerenteProyecto;
+    
+    // Comparar criterios
+    const criteriosDiferentes = formData.criterios.some((criterio, index) => {
+      const criterioInicial = initialFormData.criterios[index];
+      return criterio.valor !== criterioInicial?.valor;
+    });
+    
+    return camposDiferentes || criteriosDiferentes;
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (!isEditMode) return; // No permitir cambios si no está en modo edición
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     
@@ -529,6 +596,7 @@ const EvaluacionServicios: React.FC = () => {
 
   // Handler específico para el campo de precio
   const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isEditMode) return; // No permitir cambios si no está en modo edición
     const value = e.target.value;
     // Permitir solo números y puntos
     const cleaned = value.replace(/[^\d.]/g, '');
@@ -542,6 +610,7 @@ const EvaluacionServicios: React.FC = () => {
 
   // Handler específico para el campo de código de proyecto (formato MY-XXX-YYYY)
   const handleCodigoProyectoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isEditMode) return; // No permitir cambios si no está en modo edición
     let input = e.target.value.toUpperCase().trim();
     
     // Si está vacío, permitir borrar
@@ -1529,16 +1598,25 @@ const EvaluacionServicios: React.FC = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSubmit}
-                disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50"
+                disabled={loading || !isEditMode || !hasFormChanges()}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">save</span>
                 <span>Guardar Evaluación</span>
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium">
-                <span className="material-symbols-outlined text-lg">edit</span>
-                <span>Editar</span>
-              </button>
+              {!isEditMode && (
+                <button 
+                  onClick={() => {
+                    setIsEditMode(true);
+                    // Guardar el estado actual como inicial cuando se activa el modo edición
+                    setInitialFormData(JSON.parse(JSON.stringify(formData)));
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
+                >
+                  <span className="material-symbols-outlined text-lg">edit</span>
+                  <span>Editar</span>
+                </button>
+              )}
               <button 
                 onClick={handleExport}
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
@@ -1583,7 +1661,8 @@ const EvaluacionServicios: React.FC = () => {
                           name="proveedorId"
                           value={formData.proveedorId}
                           onChange={handleChange}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                          disabled={!isEditMode}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                         >
                           <option value="">Seleccione un proveedor</option>
                           {proveedores.map((prov) => (
@@ -1603,7 +1682,8 @@ const EvaluacionServicios: React.FC = () => {
                         name="nombreContacto"
                         value={formData.nombreContacto}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        disabled={!isEditMode}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="Juan Pérez Maldonado"
                       />
                     </div>
@@ -1619,7 +1699,8 @@ const EvaluacionServicios: React.FC = () => {
                         name="correoContacto"
                         value={formData.correoContacto}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        disabled={!isEditMode}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="j.perez@proveedorit.com"
                       />
                     </div>
@@ -1632,7 +1713,8 @@ const EvaluacionServicios: React.FC = () => {
                         name="ordenServicio"
                         value={formData.ordenServicio}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        disabled={!isEditMode}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="OS-2024-001"
                       />
                     </div>
@@ -1652,7 +1734,8 @@ const EvaluacionServicios: React.FC = () => {
                           name="especialidad"
                           value={formData.especialidad}
                           onChange={handleChange}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                          disabled={!isEditMode}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                         >
                           <option value="">Seleccione una especialidad</option>
                           {especialidades.map((esp) => (
@@ -1673,7 +1756,8 @@ const EvaluacionServicios: React.FC = () => {
                         name="codigoProyecto"
                         value={formData.codigoProyecto}
                         onChange={handleCodigoProyectoChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        disabled={!isEditMode}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="MY-001-2024"
                         maxLength={12}
                       />
@@ -1692,7 +1776,8 @@ const EvaluacionServicios: React.FC = () => {
                       name="nombreProyecto"
                       value={formData.nombreProyecto}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      disabled={!isEditMode}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                       placeholder="Nombre del proyecto"
                     />
                   </div>
@@ -1711,7 +1796,8 @@ const EvaluacionServicios: React.FC = () => {
                           name="jefeProyecto"
                           value={formData.jefeProyecto}
                           onChange={handleChange}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                          disabled={!isEditMode}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                         >
                           <option value="">Seleccione jefe de proyecto</option>
                           {personas.map((persona) => (
@@ -1735,7 +1821,8 @@ const EvaluacionServicios: React.FC = () => {
                           name="gerenteProyecto"
                           value={formData.gerenteProyecto}
                           onChange={handleChange}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                          disabled={!isEditMode}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                         >
                           <option value="">Seleccione gerente de proyecto</option>
                           {personas.map((persona) => (
@@ -1762,7 +1849,8 @@ const EvaluacionServicios: React.FC = () => {
                           name="fechaEvaluacion"
                           value={formData.fechaEvaluacion}
                           onChange={handleChange}
-                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                          disabled={!isEditMode}
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                       </div>
                     </div>
@@ -1775,7 +1863,8 @@ const EvaluacionServicios: React.FC = () => {
                         name="precioServicio"
                         value={formatNumberWithDots(formData.precioServicio)}
                         onChange={handlePrecioChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        disabled={!isEditMode}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="0.00"
                       />
                     </div>
@@ -1792,7 +1881,8 @@ const EvaluacionServicios: React.FC = () => {
                           name="evaluadorResponsable"
                           value={formData.evaluadorResponsable}
                           onChange={handleChange}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                          disabled={!isEditMode}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                         >
                           <option value="">Seleccione evaluador</option>
                           {personas.map((persona) => (
@@ -1813,8 +1903,9 @@ const EvaluacionServicios: React.FC = () => {
                       name="descripcionServicio"
                       value={formData.descripcionServicio}
                       onChange={handleChange}
+                      disabled={!isEditMode}
                       rows={3}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       placeholder="Breve descripción del alcance del servicio evaluado..."
                     />
                   </div>
@@ -1832,7 +1923,8 @@ const EvaluacionServicios: React.FC = () => {
                         name="linkServicioEjecutado"
                         value={formData.linkServicioEjecutado}
                         onChange={handleChange}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        disabled={!isEditMode}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="https://ejemplo.com/servicio-ejecutado"
                       />
                     </div>
@@ -1922,7 +2014,9 @@ const EvaluacionServicios: React.FC = () => {
                               return (
                                 <label
                                   key={nivel}
-                                  className={`relative flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-colors group ${
+                                  className={`relative flex items-start gap-3 p-4 border-2 rounded-lg transition-colors group ${
+                                    isEditMode ? 'cursor-pointer' : 'cursor-not-allowed'
+                                  } ${
                                     estaSeleccionado
                                       ? 'border-primary bg-primary/5 group-hover:border-transparent'
                                       : 'border-gray-200 hover:border-gray-300 group-hover:border-transparent'
@@ -1933,7 +2027,8 @@ const EvaluacionServicios: React.FC = () => {
                                     name={`criterio-${criterio.id}`}
                                     checked={estaSeleccionado}
                                     onChange={() => handleCriterioChange(criterio.id, nivel)}
-                                    className="text-primary focus:ring-primary mt-1"
+                                    disabled={!isEditMode}
+                                    className="text-primary focus:ring-primary mt-1 disabled:cursor-not-allowed"
                                   />
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
@@ -1960,7 +2055,9 @@ const EvaluacionServicios: React.FC = () => {
                               return (
                                 <label
                                   key={nivel}
-                                  className={`relative flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-colors group ${
+                                  className={`relative flex items-center gap-2 p-3 border-2 rounded-lg transition-colors group ${
+                                    isEditMode ? 'cursor-pointer' : 'cursor-not-allowed'
+                                  } ${
                                     criterio.valor === nivel
                                       ? 'border-primary bg-primary/5 group-hover:border-transparent'
                                       : 'border-gray-200 hover:border-gray-300 group-hover:border-transparent'
@@ -1971,7 +2068,8 @@ const EvaluacionServicios: React.FC = () => {
                                     name={`criterio-${criterio.id}`}
                                     checked={criterio.valor === nivel}
                                     onChange={() => handleCriterioChange(criterio.id, nivel)}
-                                    className="text-primary focus:ring-primary"
+                                    disabled={!isEditMode}
+                                    className="text-primary focus:ring-primary disabled:cursor-not-allowed"
                                   />
                                   <div className="flex items-center gap-1">
                                     <span className="text-sm text-[#111318]">
@@ -2004,13 +2102,14 @@ const EvaluacionServicios: React.FC = () => {
                   
                   {/* Checkbox "¿Va a terreno?" */}
                   <div className="border border-gray-200 rounded-lg p-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className={`flex items-center gap-2 ${isEditMode ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                       <input
                         type="checkbox"
                         name="vaTerreno"
                         checked={formData.vaTerreno}
                         onChange={handleChange}
-                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                        disabled={!isEditMode}
+                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary disabled:cursor-not-allowed"
                       />
                       <span className="text-sm font-medium text-gray-700">
                         ¿Va a terreno?
@@ -2041,8 +2140,9 @@ const EvaluacionServicios: React.FC = () => {
                   name="observaciones"
                   value={formData.observaciones}
                   onChange={handleChange}
+                  disabled={!isEditMode}
                   rows={5}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Escriba aquí los detalles que sustentan la calificación global..."
                 />
               </div>

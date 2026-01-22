@@ -178,6 +178,14 @@ const ProveedoresActuales: React.FC = () => {
     }
   }, [searchParams, proveedores, setSearchParams]);
 
+  // Leer parámetro de clasificación de la URL
+  useEffect(() => {
+    const clasificacionParam = searchParams.get('clasificacion');
+    if (clasificacionParam && (clasificacionParam === 'A' || clasificacionParam === 'B' || clasificacionParam === 'C')) {
+      setFilterClasificacion(clasificacionParam as Clasificacion);
+    }
+  }, [searchParams]);
+
   // Leer parámetro de evaluación menor a 60% y aplicar filtro de clasificación C
   useEffect(() => {
     const evaluacionMenor60 = searchParams.get('evaluacionMenor60');

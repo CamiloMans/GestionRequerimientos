@@ -19,9 +19,11 @@ const Dashboard: React.FC = () => {
   const mapProveedorResponseToProveedor = async (response: ProveedorResponse): Promise<Proveedor> => {
     const tipo = response.tipo_proveedor === 'Persona natural' ? TipoProveedor.PERSONA : TipoProveedor.EMPRESA;
     
+    // Usar categoria_proveedor directamente de la base de datos
     let clasificacion: Clasificacion = Clasificacion.A;
-    if (response.clasificacion) {
-      switch (response.clasificacion.toUpperCase()) {
+    const categoriaProveedor = response.categoria_proveedor || response.clasificacion;
+    if (categoriaProveedor) {
+      switch (categoriaProveedor.toUpperCase()) {
         case 'A': clasificacion = Clasificacion.A; break;
         case 'B': clasificacion = Clasificacion.B; break;
         case 'C': clasificacion = Clasificacion.C; break;
@@ -50,6 +52,8 @@ const Dashboard: React.FC = () => {
       email: response.correo_contacto || undefined,
       contacto: response.correo_contacto || undefined,
       evaluacion: tieneServiciosEjecutados ? (response.evaluacion ?? 0) : 0,
+      promedio_nota_total_ponderada: response.promedio_nota_total_ponderada ?? null,
+      total_evaluaciones: response.total_evaluaciones ?? 0,
       clasificacion,
       activo: true,
       tieneServiciosEjecutados,
@@ -94,13 +98,25 @@ const Dashboard: React.FC = () => {
 
   // Calcular métricas
   const metrics = useMemo(() => {
-    const total = proveedores.length;
-    const conServicios = proveedores.filter(p => p.tieneServiciosEjecutados);
-    const promedio = conServicios.length > 0
-      ? Math.round(conServicios.reduce((sum, p) => sum + p.evaluacion, 0) / conServicios.length)
+    // Filtrar proveedores excluyendo "PRUEBA"
+    const proveedoresFiltrados = proveedores.filter(p => 
+      p.nombre.toUpperCase() !== 'PRUEBA' && 
+      p.nombre.toUpperCase() !== 'PRUEBAS'
+    );
+    
+    const total = proveedoresFiltrados.length;
+    // Calcular promedio usando promedio_nota_total_ponderada (viene en formato decimal 0-1)
+    const proveedoresConPromedio = proveedoresFiltrados.filter(p => 
+      p.promedio_nota_total_ponderada !== null && 
+      p.promedio_nota_total_ponderada !== undefined
+    );
+    const promedio = proveedoresConPromedio.length > 0
+      ? Math.round(proveedoresConPromedio.reduce((sum, p) => sum + (p.promedio_nota_total_ponderada || 0), 0) / proveedoresConPromedio.length * 100)
       : 0;
-    const categoriaA = proveedores.filter(p => p.clasificacion === Clasificacion.A && p.tieneServiciosEjecutados).length;
-    const categoriaC = proveedores.filter(p => p.clasificacion === Clasificacion.C && p.tieneServiciosEjecutados).length;
+    // Contar proveedores con categoria_proveedor = 'A' (sin filtro de servicios ejecutados)
+    const categoriaA = proveedoresFiltrados.filter(p => p.clasificacion === Clasificacion.A).length;
+    // Contar proveedores con categoria_proveedor = 'C' (sin filtro de servicios ejecutados)
+    const categoriaC = proveedoresFiltrados.filter(p => p.clasificacion === Clasificacion.C).length;
     
     // Calcular proveedores nuevos este mes (dummy)
     const nuevosEsteMes = Math.floor(total * 0.08);
@@ -138,9 +154,15 @@ const Dashboard: React.FC = () => {
 
   // Distribución por clasificación
   const distribucionClasificacion = useMemo(() => {
-    const categoriaA = proveedores.filter(p => p.clasificacion === Clasificacion.A && p.tieneServiciosEjecutados).length;
-    const categoriaB = proveedores.filter(p => p.clasificacion === Clasificacion.B && p.tieneServiciosEjecutados).length;
-    const categoriaC = proveedores.filter(p => p.clasificacion === Clasificacion.C && p.tieneServiciosEjecutados).length;
+    // Filtrar proveedores excluyendo "PRUEBA" (igual que las métricas principales)
+    const proveedoresFiltrados = proveedores.filter(p => 
+      p.nombre.toUpperCase() !== 'PRUEBA' && 
+      p.nombre.toUpperCase() !== 'PRUEBAS'
+    );
+    
+    const categoriaA = proveedoresFiltrados.filter(p => p.clasificacion === Clasificacion.A).length;
+    const categoriaB = proveedoresFiltrados.filter(p => p.clasificacion === Clasificacion.B).length;
+    const categoriaC = proveedoresFiltrados.filter(p => p.clasificacion === Clasificacion.C).length;
     const total = categoriaA + categoriaB + categoriaC;
     
     return [
@@ -150,19 +172,39 @@ const Dashboard: React.FC = () => {
     ];
   }, [proveedores]);
 
-  // Top proveedores (ordenados por mejor evaluación)
+  // Top proveedores categoría A (ordenados por mejor promedio_nota_total_ponderada, luego por total_evaluaciones)
   const topProveedores = useMemo(() => {
     return proveedores
-      .filter(p => p.evaluacion > 0) // Mostrar todos los que tengan evaluación, no solo los con servicios ejecutados
-      .sort((a, b) => b.evaluacion - a.evaluacion)
-      .slice(0, 10); // Mostrar top 10
+      .filter(p => 
+        p.nombre.toUpperCase() !== 'PRUEBA' && 
+        p.nombre.toUpperCase() !== 'PRUEBAS' &&
+        p.clasificacion === Clasificacion.A &&
+        p.promedio_nota_total_ponderada !== null &&
+        p.promedio_nota_total_ponderada !== undefined
+      )
+      .sort((a, b) => {
+        // Primero ordenar por promedio_nota_total_ponderada (descendente)
+        const promedioA = a.promedio_nota_total_ponderada || 0;
+        const promedioB = b.promedio_nota_total_ponderada || 0;
+        if (promedioB !== promedioA) {
+          return promedioB - promedioA;
+        }
+        // Si tienen el mismo promedio, ordenar por total_evaluaciones (descendente)
+        const evaluacionesA = a.total_evaluaciones || 0;
+        const evaluacionesB = b.total_evaluaciones || 0;
+        return evaluacionesB - evaluacionesA;
+      })
+      .slice(0, 5); // Mostrar top 5
   }, [proveedores]);
 
   // Proveedores categoría C (inhabilitados)
   const proveedoresCategoriaC = useMemo(() => {
     return proveedores
-      .filter(p => p.clasificacion === Clasificacion.C && p.tieneServiciosEjecutados)
-      .slice(0, 2);
+      .filter(p => 
+        p.nombre.toUpperCase() !== 'PRUEBA' && 
+        p.nombre.toUpperCase() !== 'PRUEBAS' &&
+        p.clasificacion === Clasificacion.C
+      );
   }, [proveedores]);
 
   // Iconos para componentes (mapeo basado en palabras clave del nombre)
@@ -360,18 +402,24 @@ const Dashboard: React.FC = () => {
           <h2 className="text-lg font-bold text-[#111318] mb-4">Distribución por Clasificación</h2>
           <div className="mb-4">
             <div className="flex h-8 rounded-lg overflow-hidden">
-              {distribucionClasificacion.map((item, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-center text-white font-semibold text-sm"
-                  style={{
-                    width: `${item.porcentaje}%`,
-                    backgroundColor: item.color,
-                  }}
-                >
-                  {item.porcentaje > 5 && `${item.porcentaje}%`}
-                </div>
-              ))}
+              {distribucionClasificacion.map((item, index) => {
+                const clasificacion = item.nombre === 'Categoría A' ? 'A' : 
+                                     item.nombre === 'Categoría B' ? 'B' : 'C';
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center justify-center text-white font-semibold text-sm cursor-pointer hover:opacity-90 transition-opacity"
+                    style={{
+                      width: `${item.porcentaje}%`,
+                      backgroundColor: item.color,
+                    }}
+                    onClick={() => navigate(`${getAreaPath('actuales')}?clasificacion=${clasificacion}`)}
+                    title={`Ver proveedores ${item.nombre}`}
+                  >
+                    {item.porcentaje > 0 && `${item.porcentaje}%`}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div className="flex flex-wrap gap-4">
@@ -414,7 +462,11 @@ const Dashboard: React.FC = () => {
                         <p className="font-medium text-[#111318]">{proveedor.nombre}</p>
                         <p className="text-xs text-gray-500">RUT: {proveedor.rut}</p>
                       </div>
-                      <span className="text-sm font-semibold text-red-600">{proveedor.evaluacion}%</span>
+                      <span className="text-sm font-semibold text-red-600">
+                        {proveedor.promedio_nota_total_ponderada !== null && proveedor.promedio_nota_total_ponderada !== undefined
+                          ? `${Math.round(proveedor.promedio_nota_total_ponderada * 100)}%`
+                          : '—'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-600">{proveedor.tipo} {proveedor.especialidad[0] || ''}</span>
@@ -449,7 +501,6 @@ const Dashboard: React.FC = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-[#111318]">Top Proveedores</h2>
-              <span className="material-symbols-outlined text-gray-400 cursor-pointer">more_vert</span>
             </div>
             {topProveedores.length > 0 ? (
               <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
@@ -469,15 +520,25 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[#111318] truncate">{proveedor.nombre}</p>
-                      <p className="text-xs text-gray-500 truncate">{proveedor.especialidad[0] || 'Sin especialidad'}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-gray-500 truncate">{proveedor.especialidad[0] || 'Sin especialidad'}</p>
+                        {proveedor.total_evaluaciones > 0 && (
+                          <span className="text-xs text-gray-400">•</span>
+                        )}
+                        {proveedor.total_evaluaciones > 0 && (
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                            {proveedor.total_evaluaciones} {proveedor.total_evaluaciones === 1 ? 'evaluación' : 'evaluaciones'}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span className={`text-sm font-semibold whitespace-nowrap shrink-0 ${
-                      proveedor.evaluacion && (proveedor.evaluacion / 100) > 0.764 ? 'text-green-600' :
-                      proveedor.evaluacion && (proveedor.evaluacion / 100) >= 0.5 ? 'text-yellow-600' :
-                      'text-orange-600'
-                    }`}>
-                      {proveedor.evaluacion}%
-                    </span>
+                    <div className="flex flex-col items-end shrink-0">
+                      <span className="text-sm font-semibold text-green-600 whitespace-nowrap">
+                        {proveedor.promedio_nota_total_ponderada !== null && proveedor.promedio_nota_total_ponderada !== undefined
+                          ? `${Math.round(proveedor.promedio_nota_total_ponderada * 100)}%`
+                          : '—'}
+                      </span>
+                    </div>
                   </div>
                 ))}
                 <button
