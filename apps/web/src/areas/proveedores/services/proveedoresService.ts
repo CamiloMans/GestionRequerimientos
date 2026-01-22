@@ -19,7 +19,12 @@ export interface ProveedorResponse {
   tipo_proveedor?: string | null;
   evaluacion?: number | null;
   clasificacion?: string | null;
+  categoria_proveedor?: string | null;
   promedio_nota_total_ponderada?: number | null;
+  cantidad_a?: number | null;
+  cantidad_b?: number | null;
+  cantidad_c?: number | null;
+  total_evaluaciones?: number | null;
   created_at: string;
   updated_at: string;
 }

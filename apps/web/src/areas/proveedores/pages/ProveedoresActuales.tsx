@@ -28,17 +28,12 @@ const ProveedoresActuales: React.FC = () => {
       tipo = TipoProveedor.PERSONA;
     }
 
-    // Usar promedio_nota_total_ponderada si está disponible para calcular clasificación
-    // promedio_nota_total_ponderada viene en formato decimal (0-1)
-    // evaluacion viene en formato porcentaje (0-100)
-    const evaluacionParaClasificacion = response.promedio_nota_total_ponderada !== null && response.promedio_nota_total_ponderada !== undefined
-      ? response.promedio_nota_total_ponderada // Ya está en formato decimal (0-1)
-      : (response.evaluacion !== null && response.evaluacion !== undefined ? response.evaluacion / 100 : null); // Convertir porcentaje a decimal
-
-    // Mapear clasificacion string a Clasificacion enum
+    // Usar categoria_proveedor directamente de la base de datos
+    // Mapear categoria_proveedor string a Clasificacion enum
     let clasificacion: Clasificacion = Clasificacion.A;
-    if (response.clasificacion) {
-      switch (response.clasificacion.toUpperCase()) {
+    const categoriaProveedor = response.categoria_proveedor || response.clasificacion;
+    if (categoriaProveedor) {
+      switch (categoriaProveedor.toUpperCase()) {
         case 'A':
           clasificacion = Clasificacion.A;
           break;
@@ -54,13 +49,6 @@ const ProveedoresActuales: React.FC = () => {
         default:
           clasificacion = Clasificacion.A;
       }
-    } else if (evaluacionParaClasificacion !== null && evaluacionParaClasificacion !== undefined) {
-      // Si no hay clasificación pero hay evaluación promedio, calcularla
-      // evaluacionParaClasificacion ya está en formato decimal (0-1)
-      const cumplimiento = evaluacionParaClasificacion;
-      if (cumplimiento > 0.764) clasificacion = Clasificacion.A;
-      else if (cumplimiento >= 0.5 && cumplimiento <= 0.764) clasificacion = Clasificacion.B;
-      else clasificacion = Clasificacion.C;
     }
 
     // Obtener especialidades desde brg_core_proveedor_especialidad
@@ -121,6 +109,10 @@ const ProveedoresActuales: React.FC = () => {
       clasificacion: clasificacionFinal,
       activo: true,
       tieneServiciosEjecutados,
+      cantidad_a: response.cantidad_a ?? 0,
+      cantidad_b: response.cantidad_b ?? 0,
+      cantidad_c: response.cantidad_c ?? 0,
+      total_evaluaciones: response.total_evaluaciones ?? 0,
       created_at: response.created_at,
       updated_at: response.updated_at,
     };
@@ -451,6 +443,10 @@ const ProveedoresActuales: React.FC = () => {
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CLASIFICACIÓN</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># EVALUACIONES</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># A</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># B</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># C</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
                 </tr>
               </thead>
@@ -539,6 +535,26 @@ const ProveedoresActuales: React.FC = () => {
                       ) : (
                         <span className="text-sm text-gray-400">—</span>
                       )}
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-sm font-medium text-[#111318]">
+                        {proveedor.total_evaluaciones ?? 0}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-sm font-medium text-[#111318]">
+                        {proveedor.cantidad_a ?? 0}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-sm font-medium text-[#111318]">
+                        {proveedor.cantidad_b ?? 0}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-sm font-medium text-[#111318]">
+                        {proveedor.cantidad_c ?? 0}
+                      </span>
                     </td>
                     <td className="py-4 px-6">
                       <button

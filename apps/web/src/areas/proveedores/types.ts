@@ -39,6 +39,10 @@ export interface Proveedor {
   clasificacion: Clasificacion;
   activo: boolean;
   tieneServiciosEjecutados?: boolean; // Indica si el proveedor tiene servicios ejecutados
+  cantidad_a?: number; // Cantidad de evaluaciones con clasificación A
+  cantidad_b?: number; // Cantidad de evaluaciones con clasificación B
+  cantidad_c?: number; // Cantidad de evaluaciones con clasificación C
+  total_evaluaciones?: number; // Total de evaluaciones del proveedor
   created_at?: string;
   updated_at?: string;
 }
