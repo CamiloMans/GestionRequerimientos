@@ -166,7 +166,7 @@ export const calculateStatus = (fechaVencimiento: string | null | undefined): Re
 // Función para obtener todas las personas
 export const fetchPersonas = async (): Promise<Persona[]> => {
   const { data, error } = await supabase
-    .from('persona')
+    .from('dim_core_persona')
     .select('*')
     .eq('estado', 'Activo')
     .order('nombre_completo', { ascending: true });
@@ -182,7 +182,7 @@ export const fetchPersonas = async (): Promise<Persona[]> => {
 // Función para obtener todos los clientes
 export const fetchClientes = async (): Promise<Cliente[]> => {
   const { data, error } = await supabase
-    .from('cliente')
+    .from('dim_acreditacion_cliente')
     .select('*')
     .order('nombre', { ascending: true });
   
@@ -212,7 +212,7 @@ export const fetchResponsablesRequerimiento = async (): Promise<ResponsableReque
 // Función para obtener todos los requerimientos
 export const fetchRequerimientos = async (): Promise<Requerimiento[]> => {
   const { data, error } = await supabase
-    .from('requerimientos')
+    .from('dim_acreditacion_requerimiento_sst')
     .select('*')
     .order('requerimiento', { ascending: true });
   
@@ -227,12 +227,12 @@ export const fetchRequerimientos = async (): Promise<Requerimiento[]> => {
 // Función para obtener requerimientos del catálogo
 export const fetchCatalogoRequerimientos = async (): Promise<any[]> => {
   const { data, error } = await supabase
-    .from('catalogo_requerimientos')
+    .from('dim_acreditacion_requerimiento')
     .select('*')
     .order('requerimiento', { ascending: true });
   
   if (error) {
-    console.error('Error fetching catalogo_requerimientos:', error);
+    console.error('Error fetching dim_acreditacion_requerimiento:', error);
     throw error;
   }
   
@@ -254,15 +254,15 @@ export const fetchProveedores = async (): Promise<{ id: number; nombre_proveedor
   return data || [];
 };
 
-// Función para obtener persona_requerimientos_sst con cálculo de estado
+// Función para obtener brg_acreditacion_persona_requerimiento_sst con cálculo de estado
 export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
   const { data, error } = await supabase
-    .from('persona_requerimientos_sst')
+    .from('brg_acreditacion_persona_requerimiento_sst')
     .select('*')
     .order('created_at', { ascending: false });
   
   if (error) {
-    console.error('Error fetching persona_requerimientos_sst:', error);
+    console.error('Error fetching brg_acreditacion_persona_requerimiento_sst:', error);
     throw error;
   }
   
@@ -290,13 +290,13 @@ export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
 // Función para obtener requerimientos de una persona específica por nombre
 export const fetchPersonaRequerimientosByNombre = async (nombreCompleto: string): Promise<RequestItem[]> => {
   const { data, error } = await supabase
-    .from('persona_requerimientos_sst')
+    .from('brg_acreditacion_persona_requerimiento_sst')
     .select('*')
     .ilike('nombre_completo', `%${nombreCompleto}%`)
     .order('created_at', { ascending: false });
   
   if (error) {
-    console.error('Error fetching persona_requerimientos_sst by nombre:', error);
+    console.error('Error fetching brg_acreditacion_persona_requerimiento_sst by nombre:', error);
     throw error;
   }
   
@@ -321,7 +321,7 @@ export const fetchPersonaRequerimientosByNombre = async (nombreCompleto: string)
   }));
 };
 
-// Función para crear un nuevo registro en persona_requerimientos_sst
+// Función para crear un nuevo registro en brg_acreditacion_persona_requerimiento_sst
 export const createPersonaRequerimiento = async (
   personaId: number,
   requerimientoId: number,
@@ -331,8 +331,8 @@ export const createPersonaRequerimiento = async (
 ): Promise<PersonaRequerimientoSST> => {
   // Obtener información de persona y requerimiento (incluyendo dias_anticipacion_notificacion)
   const [personaResult, requerimientoResult] = await Promise.all([
-    supabase.from('persona').select('*').eq('id', personaId).single(),
-    supabase.from('requerimientos').select('*').eq('id', requerimientoId).single()
+    supabase.from('dim_core_persona').select('*').eq('id', personaId).single(),
+    supabase.from('dim_acreditacion_requerimiento_sst').select('*').eq('id', requerimientoId).single()
   ]);
   
   if (personaResult.error) throw personaResult.error;
@@ -371,7 +371,7 @@ export const createPersonaRequerimiento = async (
   }
 
   const { data, error } = await supabase
-    .from('persona_requerimientos_sst')
+    .from('brg_acreditacion_persona_requerimiento_sst')
     .insert(insertData)
     .select()
     .single();
@@ -400,7 +400,7 @@ export const updatePersonaRequerimiento = async (
   
   // Obtener el requerimiento_id del registro existente para obtener dias_anticipacion_notificacion
   const { data: registroExistente, error: fetchError } = await supabase
-    .from('persona_requerimientos_sst')
+    .from('brg_acreditacion_persona_requerimiento_sst')
     .select('requerimiento_id')
     .eq('id', id)
     .single();
@@ -410,7 +410,7 @@ export const updatePersonaRequerimiento = async (
   if (!fetchError && registroExistente?.requerimiento_id) {
     // Obtener el requerimiento para obtener dias_anticipacion_notificacion
     const { data: requerimiento, error: reqError } = await supabase
-      .from('requerimientos')
+      .from('dim_acreditacion_requerimiento_sst')
       .select('dias_anticipacion_notificacion')
       .eq('id', registroExistente.requerimiento_id)
       .single();
@@ -443,7 +443,7 @@ export const updatePersonaRequerimiento = async (
   console.log('💾 Datos a enviar a Supabase:', updateData);
   
   const { data, error } = await supabase
-    .from('persona_requerimientos_sst')
+    .from('brg_acreditacion_persona_requerimiento_sst')
     .update(updateData)
     .eq('id', id)
     .select()
@@ -486,7 +486,7 @@ export const checkUserIsAdmin = async (): Promise<boolean> => {
 // Función para eliminar un registro (solo admin puede eliminar)
 export const deletePersonaRequerimiento = async (id: number): Promise<void> => {
   const { error } = await supabase
-    .from('persona_requerimientos_sst')
+    .from('brg_acreditacion_persona_requerimiento_sst')
     .delete()
     .eq('id', id);
   
@@ -736,7 +736,7 @@ export const fetchEmpresaRequerimientos = async (empresa: string): Promise<Empre
   console.log('Primer carácter (código):', empresa.charCodeAt(0));
   
   const { data, error } = await supabase
-    .from('empresa_requerimiento')
+    .from('brg_acreditacion_cliente_requerimiento')
     .select('*')
     .eq('empresa', empresa)
     .order('created_at', { ascending: true });
@@ -773,11 +773,11 @@ export const fetchEmpresaRequerimientos = async (empresa: string): Promise<Empre
     console.log('\n⚠️ NO SE ENCONTRARON REGISTROS');
     console.log('\n💡 Sugerencias:');
     console.log('   1. Verifica que existan datos en Supabase con este SQL:');
-    console.log(`      SELECT * FROM empresa_requerimiento WHERE empresa = '${empresa}';`);
+    console.log(`      SELECT * FROM brg_acreditacion_cliente_requerimiento WHERE empresa = '${empresa}';`);
     console.log('   2. Verifica todas las empresas disponibles:');
-    console.log('      SELECT DISTINCT empresa FROM empresa_requerimiento;');
+    console.log('      SELECT DISTINCT empresa FROM brg_acreditacion_cliente_requerimiento;');
     console.log('   3. Busca con coincidencia parcial:');
-    console.log(`      SELECT * FROM empresa_requerimiento WHERE empresa ILIKE '%${empresa}%';`);
+    console.log(`      SELECT * FROM brg_acreditacion_cliente_requerimiento WHERE empresa ILIKE '%${empresa}%';`);
   }
   console.log('═══════════════════════════════════════════════════\n');
   
@@ -790,7 +790,7 @@ export const fetchEmpresaRequerimientoObservaciones = async (
   requerimiento: string
 ): Promise<string | null> => {
   const { data, error } = await supabase
-    .from('empresa_requerimiento')
+    .from('brg_acreditacion_cliente_requerimiento')
     .select('observaciones')
     .eq('empresa', empresa)
     .eq('requerimiento', requerimiento)
@@ -1388,8 +1388,8 @@ export const updateProyectoRequerimientosResponsables = async (
 export const createProyectoTrabajadores = async (
   idProyecto: number,
   codigoProyecto: string,
-  trabajadoresMyma: { name: string }[],
-  trabajadoresContratista: { name: string }[]
+  trabajadoresMyma: { name: string; rut?: string; phone?: string }[],
+  trabajadoresContratista: { name: string; rut?: string; phone?: string }[]
 ): Promise<void> => {
   console.log('👷 Guardando trabajadores del proyecto:', codigoProyecto);
   console.log(`  - MyMA: ${trabajadoresMyma.length} trabajadores`);
@@ -1403,7 +1403,9 @@ export const createProyectoTrabajadores = async (
       id_proyecto: idProyecto,
       codigo_proyecto: codigoProyecto,
       nombre_trabajador: trabajador.name,
-      categoria_empresa: 'MyMA'
+      categoria_empresa: 'MyMA',
+      rut: trabajador.rut || null,
+      telefono: trabajador.phone || null
     });
   });
 
@@ -1413,7 +1415,9 @@ export const createProyectoTrabajadores = async (
       id_proyecto: idProyecto,
       codigo_proyecto: codigoProyecto,
       nombre_trabajador: trabajador.name,
-      categoria_empresa: 'Contratista'
+      categoria_empresa: 'Contratista',
+      rut: trabajador.rut || null,
+      telefono: trabajador.phone || null
     });
   });
 

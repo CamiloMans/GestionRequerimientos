@@ -324,7 +324,7 @@ const ProveedorDetalle: React.FC = () => {
                 // Usar promedio_nota_total_ponderada si está disponible, sino usar evaluacion
                 // El promedio_nota_total_ponderada viene en formato decimal (0-1), multiplicar por 100 para porcentaje
                 const evaluacionMostrar = proveedor.promedio_nota_total_ponderada !== null && proveedor.promedio_nota_total_ponderada !== undefined
-                  ? proveedor.promedio_nota_total_ponderada * 100 // Convertir de decimal (0-1) a porcentaje (0-100)
+                  ? Math.round(proveedor.promedio_nota_total_ponderada * 100) // Convertir de decimal (0-1) a porcentaje (0-100) y redondear
                   : (proveedor.evaluacion !== null && proveedor.evaluacion !== undefined ? proveedor.evaluacion : null);
                 
                 return evaluacionMostrar !== null && evaluacionMostrar !== undefined ? (

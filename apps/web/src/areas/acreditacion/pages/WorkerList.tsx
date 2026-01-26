@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Worker, WorkerType, MOCK_WORKERS_DB, MOCK_COMPANIES, Persona } from '../types';
-import { fetchPersonas } from '../services/acreditacionService';
+import { fetchPersonas, fetchProveedores } from '../services/acreditacionService';
 
 interface WorkerListProps {
   workers: Worker[];
@@ -36,13 +36,34 @@ export const WorkerList: React.FC<WorkerListProps> = ({
   const [extName, setExtName] = useState('');
   const [extPhone, setExtPhone] = useState('');
 
+  // Estados para trabajadores contratistas (campos manuales)
+  const [contratistaNombre, setContratistaNombre] = useState('');
+  const [contratistaRut, setContratistaRut] = useState('');
+  const [contratistaTelefono, setContratistaTelefono] = useState('');
+
   // Empresa contratista seleccionada
   const [selectedCompany, setSelectedCompany] = useState('');
+  
+  // Proveedores cargados desde dim_core_proveedor
+  const [proveedores, setProveedores] = useState<{ id: number; nombre_proveedor: string }[]>([]);
+  const [loadingProveedores, setLoadingProveedores] = useState(false);
+  
+  // Lista de empresas a usar (prioriza proveedores de BD, fallback a prop companies)
+  const empresasDisponibles = proveedores.length > 0 
+    ? proveedores.map(p => p.nombre_proveedor)
+    : companies;
 
   // Cargar personas de Supabase
   useEffect(() => {
     loadPersonas();
   }, []);
+  
+  // Cargar proveedores desde dim_core_proveedor cuando requireCompanySelection es true
+  useEffect(() => {
+    if (requireCompanySelection) {
+      loadProveedores();
+    }
+  }, [requireCompanySelection]);
 
   const loadPersonas = async () => {
     try {
@@ -54,6 +75,19 @@ export const WorkerList: React.FC<WorkerListProps> = ({
       console.error('Error loading personas:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const loadProveedores = async () => {
+    try {
+      setLoadingProveedores(true);
+      const data = await fetchProveedores();
+      setProveedores(data);
+    } catch (error) {
+      console.error('Error loading proveedores:', error);
+      // Si falla, mantener el array companies como fallback
+    } finally {
+      setLoadingProveedores(false);
     }
   };
 
@@ -113,6 +147,35 @@ export const WorkerList: React.FC<WorkerListProps> = ({
       return;
     }
 
+    // Si es trabajador contratista (requireCompanySelection = true)
+    if (requireCompanySelection) {
+      // Validar campos requeridos
+      if (!contratistaNombre.trim()) {
+        alert("Por favor ingrese el nombre del trabajador");
+        return;
+      }
+      if (!contratistaRut.trim()) {
+        alert("Por favor ingrese el RUT del trabajador");
+        return;
+      }
+      
+      const newWorker: Worker = {
+        id: Date.now().toString(),
+        name: contratistaNombre.trim(),
+        type: WorkerType.EXTERNAL,
+        company: selectedCompany,
+        phone: contratistaTelefono.trim() || 'Sin contacto',
+        rut: contratistaRut.trim()
+      };
+      onAddWorker(newWorker);
+      // Reset campos contratista
+      setContratistaNombre('');
+      setContratistaRut('');
+      setContratistaTelefono('');
+      return;
+    }
+
+    // Comportamiento original para trabajadores internos de Myma
     if (selectedType === WorkerType.INTERNAL) {
       if (!selectedPersona) {
         alert("Por favor seleccione un colaborador de la lista");
@@ -122,9 +185,10 @@ export const WorkerList: React.FC<WorkerListProps> = ({
       const newWorker: Worker = {
         id: Date.now().toString(),
         name: selectedPersona.nombre_completo,
-        type: requireCompanySelection ? WorkerType.EXTERNAL : WorkerType.INTERNAL,
+        type: WorkerType.INTERNAL,
         phone: selectedPersona.telefono || '+56 9 XXXX XXXX',
-        company: requireCompanySelection ? selectedCompany : undefined
+        company: undefined,
+        rut: selectedPersona.rut
       };
       onAddWorker(newWorker);
       setSearchQuery('');
@@ -136,7 +200,7 @@ export const WorkerList: React.FC<WorkerListProps> = ({
         id: Date.now().toString(),
         name: extName,
         type: WorkerType.EXTERNAL,
-        company: requireCompanySelection ? selectedCompany : (extCompany || 'Empresa Externa'),
+        company: extCompany || 'Empresa Externa',
         phone: extPhone || 'Sin contacto'
       };
       onAddWorker(newWorker);
@@ -159,7 +223,10 @@ export const WorkerList: React.FC<WorkerListProps> = ({
       <div className="flex flex-col gap-1 mb-2">
         <h4 className="text-[#111318] text-sm font-bold">Agregar Trabajadores</h4>
         <p className="text-xs text-[#616f89]">
-          Agregue colaboradores a la lista. Puede buscar trabajadores internos existentes o registrar externos manualmente.
+          {requireCompanySelection 
+            ? "Ingrese los datos de los trabajadores contratistas manualmente."
+            : "Agregue colaboradores a la lista. Puede buscar trabajadores internos existentes o registrar externos manualmente."
+          }
         </p>
       </div>
 
@@ -227,73 +294,117 @@ export const WorkerList: React.FC<WorkerListProps> = ({
         {requireCompanySelection && (
           <div className="md:col-span-3 flex flex-col gap-2">
             <span className="text-[#111318] text-xs font-semibold">Empresa Contratista</span>
-            <select
-              value={selectedCompany}
-              onChange={(e) => setSelectedCompany(e.target.value)}
-              className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-            >
-              <option value="">Seleccione...</option>
-              {companies.map((company, index) => (
-                <option key={index} value={company}>{company}</option>
-              ))}
-            </select>
+            {loadingProveedores ? (
+              <div className="w-full px-3 py-2.5 border border-[#dbdfe6] rounded-lg bg-gray-50 flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs text-gray-500">Cargando proveedores...</span>
+              </div>
+            ) : (
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              >
+                <option value="">Seleccione...</option>
+                {empresasDisponibles.map((company, index) => (
+                  <option key={index} value={company}>{company}</option>
+                ))}
+              </select>
+            )}
           </div>
         )}
         
-        <div className={requireCompanySelection ? "md:col-span-6 flex flex-col gap-2 relative" : "md:col-span-9 flex flex-col gap-2 relative"}>
-          <span className="text-[#111318] text-xs font-semibold">Buscar / Nombre</span>
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
-            <input 
-              id="worker_search"
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onFocus={() => setShowDropdown(true)}
-              placeholder="Buscar por nombre o RUT..."
-              autoComplete="off"
-              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedPersona(null);
-                  setShowDropdown(true);
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            )}
-          </div>
-
-          {/* Dropdown de resultados */}
-          {showDropdown && (
-            <div className="dropdown-results absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
-              {filteredPersonas.length > 0 ? (
-                filteredPersonas.map(persona => (
-                  <button
-                    key={persona.id}
-                    type="button"
-                    onClick={() => handleSelectPersona(persona)}
-                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
-                      selectedPersona?.id === persona.id ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
-                    <div className="text-xs text-gray-500">{persona.rut}</div>
-                  </button>
-                ))
-              ) : (
-                <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                  No se encontraron colaboradores
-                </div>
+        {/* Campos para trabajadores contratistas */}
+        {requireCompanySelection ? (
+          <>
+            <div className="md:col-span-3 flex flex-col gap-2">
+              <span className="text-[#111318] text-xs font-semibold">Nombre <span className="text-red-500">*</span></span>
+              <input
+                type="text"
+                value={contratistaNombre}
+                onChange={(e) => setContratistaNombre(e.target.value)}
+                placeholder="Nombre completo"
+                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              />
+            </div>
+            <div className="md:col-span-3 flex flex-col gap-2">
+              <span className="text-[#111318] text-xs font-semibold">RUT <span className="text-red-500">*</span></span>
+              <input
+                type="text"
+                value={contratistaRut}
+                onChange={(e) => setContratistaRut(e.target.value)}
+                placeholder="12.345.678-9"
+                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              />
+            </div>
+            <div className="md:col-span-3 flex flex-col gap-2">
+              <span className="text-[#111318] text-xs font-semibold">Teléfono</span>
+              <input
+                type="text"
+                value={contratistaTelefono}
+                onChange={(e) => setContratistaTelefono(e.target.value)}
+                placeholder="+56 9 XXXX XXXX"
+                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              />
+            </div>
+          </>
+        ) : (
+          /* Campo de búsqueda para trabajadores internos de Myma (comportamiento original) */
+          <div className="md:col-span-9 flex flex-col gap-2 relative">
+            <span className="text-[#111318] text-xs font-semibold">Buscar / Nombre</span>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
+              <input 
+                id="worker_search"
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onFocus={() => setShowDropdown(true)}
+                placeholder="Buscar por nombre o RUT..."
+                autoComplete="off"
+                className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedPersona(null);
+                    setShowDropdown(true);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
               )}
             </div>
-          )}
-        </div>
+
+            {/* Dropdown de resultados */}
+            {showDropdown && (
+              <div className="dropdown-results absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
+                {filteredPersonas.length > 0 ? (
+                  filteredPersonas.map(persona => (
+                    <button
+                      key={persona.id}
+                      type="button"
+                      onClick={() => handleSelectPersona(persona)}
+                      className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                        selectedPersona?.id === persona.id ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
+                      <div className="text-xs text-gray-500">{persona.rut}</div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                    No se encontraron colaboradores
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         
         <div className="md:col-span-3 flex items-end">
           <button 
@@ -384,7 +495,7 @@ export const WorkerList: React.FC<WorkerListProps> = ({
           <span className="text-[#111318] text-[10px] font-bold uppercase tracking-wider text-gray-500">Resumen por Empresa</span>
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 rounded-lg p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {companies.map((company) => {
+              {empresasDisponibles.map((company) => {
                 const count = workers.filter(w => w.company === company).length;
                 if (count === 0) return null;
                 return (

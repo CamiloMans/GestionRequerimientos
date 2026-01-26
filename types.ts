@@ -125,6 +125,8 @@ export interface ProyectoTrabajador {
   codigo_proyecto: string;
   nombre_trabajador: string;
   categoria_empresa: 'MyMA' | 'Contratista';
+  rut?: string;
+  telefono?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -186,6 +188,7 @@ export interface Worker {
   type: WorkerType;
   phone?: string;
   company?: string;
+  rut?: string;
 }
 
 export interface RequestFormData {

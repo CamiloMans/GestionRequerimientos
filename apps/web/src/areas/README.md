@@ -186,3 +186,6 @@ Ver `apps/web/src/areas/finanzas/` para un ejemplo completo de implementación.
 
 
 
+
+
+

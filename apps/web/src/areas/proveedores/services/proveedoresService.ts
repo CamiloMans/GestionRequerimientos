@@ -212,7 +212,7 @@ export const createEspecialidad = async (nombreEspecialidad: string): Promise<{ 
  */
 export const fetchPersonas = async (): Promise<Persona[]> => {
   const { data, error } = await supabase
-    .from('persona')
+    .from('dim_core_persona')
     .select('*')
     .eq('estado', 'Activo')
     .order('nombre_completo', { ascending: true });

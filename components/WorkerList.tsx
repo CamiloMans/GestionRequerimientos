@@ -124,7 +124,8 @@ export const WorkerList: React.FC<WorkerListProps> = ({
         name: selectedPersona.nombre_completo,
         type: requireCompanySelection ? WorkerType.EXTERNAL : WorkerType.INTERNAL,
         phone: selectedPersona.telefono || '+56 9 XXXX XXXX',
-        company: requireCompanySelection ? selectedCompany : undefined
+        company: requireCompanySelection ? selectedCompany : undefined,
+        rut: selectedPersona.rut
       };
       onAddWorker(newWorker);
       setSearchQuery('');
