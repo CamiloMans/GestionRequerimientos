@@ -376,7 +376,23 @@ export interface EvaluacionServiciosData {
   correo_contacto?: string | null;
   nombre_contacto?: string | null;
   link_servicio_ejecutado?: string | null;
+  estado?: string | null;
 }
+
+/**
+ * Eliminar una evaluación de servicios de fct_proveedores_evaluacion_evt
+ */
+export const deleteEvaluacionServicios = async (id: number): Promise<void> => {
+  const { error } = await supabase
+    .from('fct_proveedores_evaluacion_evt')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error eliminando evaluación de servicios:', error);
+    throw error;
+  }
+};
 
 /**
  * Guardar una evaluación de servicios en fct_proveedores_evaluacion_evt

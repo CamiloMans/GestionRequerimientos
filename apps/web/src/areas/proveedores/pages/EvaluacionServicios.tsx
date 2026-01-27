@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, updateEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad, EvaluacionProveedor } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, updateEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad, EvaluacionProveedor, deleteEvaluacionServicios } from '../services/proveedoresService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -48,6 +48,9 @@ const EvaluacionServicios: React.FC = () => {
   const [evaluacionId, setEvaluacionId] = useState<number | null>(null); // ID de la evaluación que se está editando
   const [isEditMode, setIsEditMode] = useState(false); // Modo de edición (false = solo lectura)
   const [initialFormData, setInitialFormData] = useState<EvaluacionData | null>(null); // Estado inicial para detectar cambios
+  const [successMessage, setSuccessMessage] = useState<string | null>(null); // Mensaje de éxito para el popup
+  const [errorMessage, setErrorMessage] = useState<string | null>(null); // Mensaje de error para el popup
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // Mostrar popup de confirmación de eliminación
   const [formData, setFormData] = useState<EvaluacionData>({
     proveedorId: '',
     nombreContacto: '',
@@ -803,18 +806,27 @@ const EvaluacionServicios: React.FC = () => {
         correo_contacto: formData.correoContacto || null,
         nombre_contacto: formData.nombreContacto || null,
         link_servicio_ejecutado: formData.linkServicioEjecutado || null,
+        estado: 'Evaluado',
       };
 
       // Guardar o actualizar en Supabase
       let evaluacionGuardada;
+      let esNuevaEvaluacion = false;
       if (evaluacionId) {
         // Actualizar evaluación existente
         evaluacionGuardada = await updateEvaluacionServicios(evaluacionId, evaluacionData);
         console.log('✅ Evaluación actualizada en BD:', evaluacionGuardada);
+        setSuccessMessage('Evaluación del servicio editada correctamente');
       } else {
         // Crear nueva evaluación
         evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
         console.log('✅ Evaluación guardada en BD:', evaluacionGuardada);
+        esNuevaEvaluacion = true;
+        setSuccessMessage('Nuevo servicio evaluado guardado exitosamente');
+        // IMPORTANTE: Guardar el ID de la evaluación recién creada para futuras ediciones
+        if (evaluacionGuardada?.id) {
+          setEvaluacionId(evaluacionGuardada.id);
+        }
       }
       
       // Preparar payload JSON para enviar a la edge function
@@ -827,9 +839,15 @@ const EvaluacionServicios: React.FC = () => {
       
       console.log('📤 Enviando webhook a edge function "Envio-de-registro-de-Evaluacion-de-Servicio"');
       console.log('📦 Payload JSON:', JSON.stringify(webhookPayload, null, 2));
+
+      // Al guardar, salir de modo edición y deshabilitar botón Guardar
+      setIsEditMode(false);
+      setInitialFormData(JSON.parse(JSON.stringify(formData)));
       
-      // Mostrar mensaje de éxito inmediatamente después de guardar
-      alert('Evaluación guardada exitosamente');
+      // Auto-cerrar el mensaje después de 5 segundos
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
       
       // Enviar evaluación a n8n a través de edge function (asíncrono, no bloquea)
       // Esto se ejecuta en background sin esperar a que termine
@@ -855,7 +873,11 @@ const EvaluacionServicios: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error al guardar evaluación:', err);
-      alert(`Error al guardar la evaluación: ${err.message || 'Error desconocido'}`);
+      setErrorMessage(`Error al guardar la evaluación: ${err.message || 'Error desconocido'}`);
+      // Auto-cerrar el mensaje de error después de 5 segundos
+      setTimeout(() => {
+        setErrorMessage(null);
+      }, 5000);
     } finally {
       setLoading(false);
     }
@@ -1563,6 +1585,37 @@ const EvaluacionServicios: React.FC = () => {
     }
   };
 
+  // Eliminar evaluación actual (se llama desde el popup de confirmación)
+  const handleDelete = async () => {
+    if (!evaluacionId) return;
+
+    try {
+      setLoading(true);
+      await deleteEvaluacionServicios(evaluacionId);
+      setShowDeleteConfirm(false);
+      setSuccessMessage('Evaluación de servicio eliminada correctamente');
+
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+
+      const returnPath = location.state?.returnPath as string | undefined;
+      if (returnPath) {
+        navigate(returnPath);
+      } else {
+        navigate(getAreaPath('evaluaciones-tabla'));
+      }
+    } catch (err: any) {
+      console.error('Error al eliminar evaluación:', err);
+      setErrorMessage(`Error al eliminar la evaluación: ${err.message || 'Error desconocido'}`);
+      setTimeout(() => {
+        setErrorMessage(null);
+      }, 5000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -1586,7 +1639,7 @@ const EvaluacionServicios: React.FC = () => {
         </div>
 
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-6 lg:sticky lg:top-0 lg:z-20 lg:bg-[#f8fafc] lg:pt-2">
           <div className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-[#111318] mb-1">
@@ -1618,13 +1671,27 @@ const EvaluacionServicios: React.FC = () => {
                   <span>Editar</span>
                 </button>
               )}
-              <button 
-                onClick={handleExport}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
-              >
-                <span className="material-symbols-outlined text-lg">download</span>
-                <span>Exportar</span>
-              </button>
+
+              {/* Cuando no está en modo edición, mostrar Exportar. En modo edición, mostrar Eliminar */}
+              {!isEditMode ? (
+                <button 
+                  onClick={handleExport}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
+                >
+                  <span className="material-symbols-outlined text-lg">download</span>
+                  <span>Exportar</span>
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={loading || !evaluacionId}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">delete</span>
+                  <span>Eliminar</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2146,12 +2213,33 @@ const EvaluacionServicios: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Escriba aquí los detalles que sustentan la calificación global..."
                 />
+
+                {/* Acciones al final del formulario */}
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
+                  >
+                    <span className="material-symbols-outlined text-lg">close</span>
+                    <span>Cancelar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={loading || !isEditMode || !hasFormChanges()}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-lg">save</span>
+                    <span>Guardar Evaluación</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
 
           {/* Sidebar Derecho */}
-          <div className="space-y-6">
+          <div className="space-y-6 sticky top-24">
             {/* Resultado de Evaluación */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-6">
               <div className="mb-4">
@@ -2297,6 +2385,87 @@ const EvaluacionServicios: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup confirmación eliminación */}
+      {showDeleteConfirm && evaluacionId && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0">
+                <span className="material-symbols-outlined text-red-600 text-3xl">warning</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-[#111318] mb-1">
+                  Eliminar evaluación de servicio
+                </h3>
+                <p className="text-sm text-gray-600">
+                  ¿Estás seguro de que deseas eliminar esta evaluación de servicio? Esta acción no se puede deshacer.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] text-sm font-medium"
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+              >
+                Eliminar definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de éxito */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-[60] bg-green-50 border-2 border-green-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-green-900 mb-1">Guardado exitoso</h4>
+              <p className="text-sm text-green-700">{successMessage}</p>
+            </div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="flex-shrink-0 text-green-600 hover:text-green-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mensaje de error */}
+      {errorMessage && (
+        <div className="fixed top-4 right-4 z-[60] bg-red-50 border-2 border-red-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-red-600 text-2xl">error</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-red-900 mb-1">Error al guardar</h4>
+              <p className="text-sm text-red-700">{errorMessage}</p>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="flex-shrink-0 text-red-600 hover:text-red-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
           </div>
         </div>
       )}
