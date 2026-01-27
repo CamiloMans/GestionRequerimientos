@@ -441,7 +441,8 @@ const EvaluacionServicios: React.FC = () => {
   const estatusFinal = useMemo(() => {
     if (!clasificacion) return null;
     if (clasificacion === 'A') return 'Habilitado para contratación inmediata.';
-    if (clasificacion === 'B') return 'Habilitado con plan de mejora obligatorio.';
+    if (clasificacion === 'B')
+      return 'Contratación condicionada al acuerdo de mejoras en los ítems deficientes.';
     return 'INHABILITADO PARA CONTRATACIÓN.';
   }, [clasificacion]);
 
@@ -2200,7 +2201,7 @@ const EvaluacionServicios: React.FC = () => {
                     <div className="font-semibold text-yellow-700 mb-1">Categoría B</div>
                     <div className="text-xs text-yellow-600">50% ≤ cumplimiento ≤ 76%</div>
                     <div className="text-xs text-gray-600 mt-1">
-                      Habilitado con plan de mejora obligatorio.
+                      Contratación condicionada al acuerdo de mejoras en los ítems deficientes.
                     </div>
                   </div>
                 </div>

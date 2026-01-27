@@ -83,11 +83,13 @@ textarea {
 /* Mejoras para el scroll en móvil */
 .overflow-x-auto {
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  /* Hacer la barra de scroll horizontal más gruesa y cómoda */
+  scrollbar-width: auto;
 }
 
 .overflow-x-auto::-webkit-scrollbar {
-  height: 8px;
+  /* Grosor de la barra de scroll horizontal */
+  height: 14px;
 }
 
 .overflow-x-auto::-webkit-scrollbar-track {

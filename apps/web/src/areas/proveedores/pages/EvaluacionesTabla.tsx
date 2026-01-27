@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchAllEvaluaciones, EvaluacionProveedor, fetchEspecialidades } from '../services/proveedoresService';
@@ -34,6 +34,7 @@ const EvaluacionesTabla: React.FC = () => {
   const [especialidades, setEspecialidades] = useState<{ id: number; nombre: string }[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
@@ -119,9 +120,9 @@ const EvaluacionesTabla: React.FC = () => {
     return proveedores.sort();
   }, [servicios]);
 
-  // Filtrar servicios
+  // Filtrar servicios y agrupar/ordenar por proveedor (alfabético)
   const filteredServicios = useMemo(() => {
-    return servicios.filter((servicio) => {
+    const result = servicios.filter((servicio) => {
       const matchesSearch =
         servicio.nombreProveedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
         servicio.nombreProyecto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -135,6 +136,9 @@ const EvaluacionesTabla: React.FC = () => {
 
       return matchesSearch && matchesProveedor && matchesEspecialidad && matchesCategoria;
     });
+
+    // Ordenar alfabéticamente por nombre de proveedor para que queden agrupados
+    return result.sort((a, b) => a.nombreProveedor.localeCompare(b.nombreProveedor));
   }, [servicios, searchTerm, filterProveedor, filterEspecialidad, filterCategoria]);
 
   // Paginación
@@ -335,15 +339,33 @@ const EvaluacionesTabla: React.FC = () => {
 
         {/* Tabla de Servicios */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="relative">
+            {/* Flecha izquierda */}
+            <button
+              type="button"
+              className="hidden md:flex items-center justify-center absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/80 shadow-md border border-gray-200 hover:bg-white hover:shadow-lg transition-all"
+              onClick={() => {
+                const container = scrollContainerRef.current;
+                if (container) {
+                  container.scrollBy({ left: -300, behavior: 'smooth' });
+                }
+              }}
+            >
+              <span className="material-symbols-outlined text-lg text-gray-700">chevron_left</span>
+            </button>
+
+            <div
+              ref={scrollContainerRef}
+              className="overflow-x-auto"
+            >
+              <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">FECHA</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">PROVEEDOR</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">PROYECTO</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ACTIVIDAD</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">FECHA</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUADOR</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CATEGORÍA</th>
@@ -375,6 +397,19 @@ const EvaluacionesTabla: React.FC = () => {
                       }}
                     >
                       <td className="py-4 px-6">
+                        {servicio.fechaEvaluacion ? (
+                          <span className="text-sm text-[#111318]">
+                            {new Date(servicio.fechaEvaluacion).toLocaleDateString('es-CL', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit'
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
                         <div className="flex flex-col">
                           <span className="font-medium text-[#111318]">{servicio.nombreProveedor}</span>
                           {servicio.rut && (
@@ -403,19 +438,6 @@ const EvaluacionesTabla: React.FC = () => {
                       </td>
                       <td className="py-4 px-6">
                         <span className="text-sm text-gray-600 line-clamp-2 max-w-xs">{servicio.actividad || '—'}</span>
-                      </td>
-                      <td className="py-4 px-6">
-                        {servicio.fechaEvaluacion ? (
-                          <span className="text-sm text-[#111318]">
-                            {new Date(servicio.fechaEvaluacion).toLocaleDateString('es-CL', {
-                              year: 'numeric',
-                              month: '2-digit',
-                              day: '2-digit'
-                            })}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400">—</span>
-                        )}
                       </td>
                       <td className="py-4 px-6">
                         {servicio.evaluador ? (
@@ -492,6 +514,21 @@ const EvaluacionesTabla: React.FC = () => {
                 )}
               </tbody>
             </table>
+            </div>
+
+            {/* Flecha derecha */}
+            <button
+              type="button"
+              className="hidden md:flex items-center justify-center absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/80 shadow-md border border-gray-200 hover:bg-white hover:shadow-lg transition-all"
+              onClick={() => {
+                const container = scrollContainerRef.current;
+                if (container) {
+                  container.scrollBy({ left: 300, behavior: 'smooth' });
+                }
+              }}
+            >
+              <span className="material-symbols-outlined text-lg text-gray-700">chevron_right</span>
+            </button>
           </div>
 
           {/* Paginación */}

@@ -128,3 +128,5 @@ CREATE TRIGGER update_user_areas_updated_at
 
 
 
+
+

@@ -461,7 +461,9 @@ const Dashboard: React.FC = () => {
                 <div>
                   <h3 className="font-semibold text-yellow-700 mb-1">Categoría B</h3>
                   <p className="text-sm text-yellow-600 mb-1">50% ≤ cumplimiento ≤ 76%</p>
-                  <p className="text-xs text-gray-600">Habilitado con plan de mejora obligatorio.</p>
+                  <p className="text-xs text-gray-600">
+                    Contratación condicionada al acuerdo de mejoras en los ítems deficientes.
+                  </p>
                 </div>
               </div>
             </div>

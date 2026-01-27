@@ -69,9 +69,12 @@ export const fetchProveedores = async (): Promise<ProveedorResponse[]> => {
  * Crear un nuevo proveedor
  */
 export const createProveedor = async (proveedorData: ProveedorData): Promise<ProveedorResponse> => {
+  // No enviar al backend columnas que no existan en la tabla (ej: evaluacion, clasificacion)
+  const { evaluacion, clasificacion, ...dataWithoutEvalYClasificacion } = proveedorData;
+
   const { data, error } = await supabase
     .from('dim_core_proveedor')
-    .insert([proveedorData])
+    .insert([dataWithoutEvalYClasificacion])
     .select()
     .single();
 
@@ -90,10 +93,13 @@ export const updateProveedor = async (
   id: number,
   proveedorData: Partial<ProveedorData>
 ): Promise<ProveedorResponse> => {
+  // No enviar al backend columnas que no existan en la tabla (ej: evaluacion, clasificacion)
+  const { evaluacion, clasificacion, ...updateData } = proveedorData;
+
   const { data, error } = await supabase
     .from('dim_core_proveedor')
     .update({
-      ...proveedorData,
+      ...updateData,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -285,47 +291,55 @@ export const fetchEspecialidadesByProveedorId = async (proveedorId: number): Pro
 
 /**
  * Guardar las especialidades de un proveedor
- * Elimina las relaciones existentes y crea las nuevas
+ * Se guarda en la tabla brg_core_proveedor_especialidad
+ * Estrategia: eliminar registros actuales del proveedor y volver a insertar los seleccionados
  */
 export const saveProveedorEspecialidades = async (
-  proveedorId: number,
-  especialidadIds: number[]
+  nombreProveedor: string,
+  rut: string | null,
+  especialidades: string[]
 ): Promise<void> => {
   try {
-    // Eliminar todas las relaciones existentes
-    const { error: deleteError } = await supabase
-      .from('proveedor_especialidad')
-      .delete()
-      .eq('proveedor_id', proveedorId);
+    // Eliminar todas las relaciones existentes del proveedor
+    // Preferimos usar rut si está disponible; si no, usamos nombre_proveedor
+    let deleteQuery = supabase.from('brg_core_proveedor_especialidad').delete();
+    if (rut && rut.trim() !== '') {
+      deleteQuery = deleteQuery.eq('rut', rut.trim());
+    } else {
+      deleteQuery = deleteQuery.eq('nombre_proveedor', nombreProveedor);
+    }
+
+    const { error: deleteError } = await deleteQuery;
 
     if (deleteError && deleteError.code !== '42P01') {
       // Si el error no es "tabla no existe", lanzar el error
-      console.error('Error eliminando especialidades del proveedor:', deleteError);
+      console.error('Error eliminando especialidades del proveedor en brg_core_proveedor_especialidad:', deleteError);
       throw deleteError;
     }
 
     // Si no hay especialidades para guardar, terminar aquí
-    if (especialidadIds.length === 0) {
+    if (especialidades.length === 0) {
       return;
     }
 
-    // Crear las nuevas relaciones
-    const relaciones = especialidadIds.map((especialidadId) => ({
-      proveedor_id: proveedorId,
-      especialidad_id: especialidadId,
+    // Crear los nuevos registros
+    const registros = especialidades.map((especialidad) => ({
+      nombre_proveedor: nombreProveedor,
+      rut: rut?.trim() || null,
+      especialidad,
     }));
 
     const { error: insertError } = await supabase
-      .from('proveedor_especialidad')
-      .insert(relaciones);
+      .from('brg_core_proveedor_especialidad')
+      .insert(registros);
 
     if (insertError) {
       // Si la tabla no existe, solo loguear un warning
       if (insertError.code === '42P01') {
-        console.warn('Tabla proveedor_especialidad no existe aún. Las especialidades no se guardaron.');
+        console.warn('Tabla brg_core_proveedor_especialidad no existe aún. Las especialidades no se guardaron.');
         return;
       }
-      console.error('Error guardando especialidades del proveedor:', insertError);
+      console.error('Error guardando especialidades del proveedor en brg_core_proveedor_especialidad:', insertError);
       throw insertError;
     }
   } catch (err: any) {

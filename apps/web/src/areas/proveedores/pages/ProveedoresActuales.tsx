@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Proveedor, TipoProveedor, Especialidad, Clasificacion } from '../types';
 import { AreaId } from '@contracts/areas';
@@ -18,6 +18,7 @@ const ProveedoresActuales: React.FC = () => {
   const [loadingCategorias, setLoadingCategorias] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Mapear ProveedorResponse a Proveedor
   const mapProveedorResponseToProveedor = async (response: ProveedorResponse): Promise<Proveedor> => {
@@ -402,146 +403,181 @@ const ProveedoresActuales: React.FC = () => {
               <p>No se encontraron proveedores.</p>
             </div>
           ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
-                <tr>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">NOMBRE / RAZÓN SOCIAL</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">RUT / TIPO</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CONTACTO</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CLASIFICACIÓN</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># EVALUACIONES</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># A</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># B</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># C</th>
-                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedProveedores.map((proveedor) => (
-                  <tr
-                    key={proveedor.id}
-                    onClick={() => navigate(getAreaPath(`actuales/${proveedor.id}`))}
-                    className="border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors"
-                  >
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-[#111318]">{proveedor.nombre}</span>
-                        {proveedor.razonSocial && proveedor.razonSocial !== proveedor.nombre && (
-                          <span className="text-sm text-gray-500">{proveedor.razonSocial}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-[#111318]">{proveedor.rut}</span>
-                        <span className="text-xs text-gray-500">{proveedor.tipo}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      {proveedor.especialidad.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {proveedor.especialidad.map((esp, index) => (
-                            <span
-                              key={index}
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getEspecialidadColor(esp)}`}
-                            >
-                              {esp}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      {proveedor.contacto && (
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-gray-400 text-sm">email</span>
-                          <span className="text-sm text-[#111318] truncate max-w-[200px]">{proveedor.contacto}</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                          proveedor.tieneServiciosEjecutados
-                            ? 'bg-green-100 text-green-700 border-green-200'
-                            : 'bg-gray-100 text-gray-700 border-gray-200'
-                        }`}
-                      >
-                        {proveedor.tieneServiciosEjecutados ? 'Con servicios ejecutados' : 'Sin servicios ejecutados'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      {proveedor.tieneServiciosEjecutados ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-100 rounded-full h-2 max-w-[100px]">
-                            <div
-                              className={`h-2 rounded-full transition-all ${getEvaluacionColor(proveedor.evaluacion)}`}
-                              style={{ width: `${proveedor.evaluacion}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium text-[#111318] min-w-[40px]">
-                            {proveedor.evaluacion}%
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      {proveedor.tieneServiciosEjecutados ? (
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${getClasificacionColor(
-                            proveedor.clasificacion
-                          )}`}
-                        >
-                          {proveedor.clasificacion}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-sm font-medium text-[#111318]">
-                        {proveedor.total_evaluaciones ?? 0}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-sm font-medium text-[#111318]">
-                        {proveedor.cantidad_a ?? 0}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-sm font-medium text-[#111318]">
-                        {proveedor.cantidad_b ?? 0}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-sm font-medium text-[#111318]">
-                        {proveedor.cantidad_c ?? 0}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(getAreaPath(`actuales/${proveedor.id}/editar`));
-                        }}
-                        className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                        title="Editar"
-                      >
-                        <span className="material-symbols-outlined text-lg">edit</span>
-                      </button>
-                    </td>
+          <div className="relative">
+            {/* Flecha izquierda */}
+            <button
+              type="button"
+              className="hidden md:flex items-center justify-center absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/80 shadow-md border border-gray-200 hover:bg-white hover:shadow-lg transition-all"
+              onClick={() => {
+                const container = scrollContainerRef.current;
+                if (container) {
+                  container.scrollBy({ left: -300, behavior: 'smooth' });
+                }
+              }}
+            >
+              <span className="material-symbols-outlined text-lg text-gray-700">chevron_left</span>
+            </button>
+
+            <div
+              ref={scrollContainerRef}
+              className="overflow-x-auto"
+            >
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
+                  <tr>
+                    <th className="sticky left-0 z-20 text-left py-4 px-6 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50">
+                      NOMBRE / RAZÓN SOCIAL
+                    </th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">RUT / TIPO</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CONTACTO</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CLASIFICACIÓN</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># EVALUACIONES</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># A</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># B</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># C</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paginatedProveedores.map((proveedor) => (
+                    <tr
+                      key={proveedor.id}
+                      onClick={() => navigate(getAreaPath(`actuales/${proveedor.id}`))}
+                      className="group border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors"
+                    >
+                      <td className="sticky left-0 z-10 py-4 px-6 bg-white group-hover:bg-blue-50">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-[#111318]">{proveedor.nombre}</span>
+                          {proveedor.razonSocial && proveedor.razonSocial !== proveedor.nombre && (
+                            <span className="text-sm text-gray-500">{proveedor.razonSocial}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-[#111318]">{proveedor.rut}</span>
+                          <span className="text-xs text-gray-500">{proveedor.tipo}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        {proveedor.especialidad.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {proveedor.especialidad.map((esp, index) => (
+                              <span
+                                key={index}
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getEspecialidadColor(esp)}`}
+                              >
+                                {esp}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        {proveedor.contacto && (
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-gray-400 text-sm">email</span>
+                            <span className="text-sm text-[#111318] truncate max-w-[200px]">{proveedor.contacto}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            proveedor.tieneServiciosEjecutados
+                              ? 'bg-green-100 text-green-700 border-green-200'
+                              : 'bg-gray-100 text-gray-700 border-gray-200'
+                          }`}
+                        >
+                          {proveedor.tieneServiciosEjecutados ? 'Con servicios ejecutados' : 'Sin servicios ejecutados'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        {proveedor.tieneServiciosEjecutados ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-100 rounded-full h-2 max-w-[100px]">
+                              <div
+                                className={`h-2 rounded-full transition-all ${getEvaluacionColor(proveedor.evaluacion)}`}
+                                style={{ width: `${proveedor.evaluacion}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium text-[#111318] min-w-[40px]">
+                              {proveedor.evaluacion}%
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        {proveedor.tieneServiciosEjecutados ? (
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${getClasificacionColor(
+                              proveedor.clasificacion
+                            )}`}
+                          >
+                            {proveedor.clasificacion}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-medium text-[#111318]">
+                          {proveedor.total_evaluaciones ?? 0}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-medium text-[#111318]">
+                          {proveedor.cantidad_a ?? 0}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-medium text-[#111318]">
+                          {proveedor.cantidad_b ?? 0}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-medium text-[#111318]">
+                          {proveedor.cantidad_c ?? 0}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(getAreaPath(`actuales/${proveedor.id}/editar`));
+                          }}
+                          className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <span className="material-symbols-outlined text-lg">edit</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Flecha derecha */}
+            <button
+              type="button"
+              className="hidden md:flex items-center justify-center absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/80 shadow-md border border-gray-200 hover:bg-white hover:shadow-lg transition-all"
+              onClick={() => {
+                const container = scrollContainerRef.current;
+                if (container) {
+                  container.scrollBy({ left: 300, behavior: 'smooth' });
+                }
+              }}
+            >
+              <span className="material-symbols-outlined text-lg text-gray-700">chevron_right</span>
+            </button>
           </div>
           )}
 
@@ -597,7 +633,7 @@ const ProveedoresActuales: React.FC = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>© 2024 MyMALAB. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>

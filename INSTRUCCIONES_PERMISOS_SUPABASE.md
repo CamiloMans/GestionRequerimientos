@@ -104,3 +104,5 @@ Similarmente, usa la función RPC `has_permission` para verificar permisos espec
 
 
 
+
+

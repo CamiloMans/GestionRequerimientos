@@ -1,7 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { createProveedor, updateProveedor, fetchProveedorById, ProveedorData, calcularClasificacion, fetchEspecialidades, fetchEspecialidadesByProveedorId, saveProveedorEspecialidades } from '../services/proveedoresService';
+import {
+  createProveedor,
+  updateProveedor,
+  fetchProveedorById,
+  ProveedorData,
+  calcularClasificacion,
+  fetchEspecialidades,
+  fetchEspecialidadesByNombreProveedor,
+  saveProveedorEspecialidades,
+} from '../services/proveedoresService';
 
 const NuevoProveedor: React.FC = () => {
   const navigate = useNavigate();
@@ -91,9 +100,23 @@ const NuevoProveedor: React.FC = () => {
           clasificacion: clasificacionValue,
         });
 
-        // Cargar especialidades del proveedor
-        const especialidadesIds = await fetchEspecialidadesByProveedorId(Number(id));
-        setEspecialidadesSeleccionadas(especialidadesIds);
+        // Cargar especialidades del proveedor desde brg_core_proveedor_especialidad
+        try {
+          const especialidadesProveedor = await fetchEspecialidadesByNombreProveedor(
+            proveedor.nombre_proveedor || ''
+          );
+
+          // Convertir los nombres de especialidad a IDs según el catálogo cargado
+          setEspecialidadesSeleccionadas((prev) => {
+            // Usar el catálogo actual de especialidades para mapear nombres -> ids
+            const ids = especialidades
+              .filter((esp) => especialidadesProveedor.includes(esp.nombre))
+              .map((esp) => esp.id);
+            return ids;
+          });
+        } catch (err) {
+          console.warn('No se pudieron cargar las especialidades del proveedor:', err);
+        }
       } catch (err: any) {
         console.error('Error al cargar proveedor:', err);
         setError('Error al cargar los datos del proveedor');
@@ -103,7 +126,7 @@ const NuevoProveedor: React.FC = () => {
     };
 
     loadProveedor();
-  }, [id, isEditMode, navigate]);
+  }, [id, isEditMode, navigate, especialidades]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -164,17 +187,23 @@ const NuevoProveedor: React.FC = () => {
         clasificacion: clasificacionCalculada,
       };
 
-      let proveedorId: number;
       if (isEditMode && id) {
-        const updated = await updateProveedor(Number(id), dataToSend);
-        proveedorId = updated.id;
+        await updateProveedor(Number(id), dataToSend);
       } else {
-        const created = await createProveedor(dataToSend);
-        proveedorId = created.id;
+        await createProveedor(dataToSend);
       }
 
-      // Guardar las especialidades seleccionadas
-      await saveProveedorEspecialidades(proveedorId, especialidadesSeleccionadas);
+      // Obtener los nombres de las especialidades seleccionadas a partir de sus IDs
+      const especialidadesSeleccionadasNombres = especialidades
+        .filter((esp) => especialidadesSeleccionadas.includes(esp.id))
+        .map((esp) => esp.nombre);
+
+      // Guardar las especialidades seleccionadas en brg_core_proveedor_especialidad
+      await saveProveedorEspecialidades(
+        dataToSend.nombre_proveedor,
+        dataToSend.rut || null,
+        especialidadesSeleccionadasNombres
+      );
 
       // Redirigir a la lista de proveedores actuales
       navigate(getAreaPath('actuales'));
@@ -350,57 +379,7 @@ const NuevoProveedor: React.FC = () => {
               )}
             </div>
 
-            {/* Quinta fila: Evaluación y Clasificación */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Porcentaje de Evaluación */}
-              <div>
-                <label htmlFor="evaluacion" className="block text-sm font-medium text-gray-700 mb-2">
-                  Porcentaje de Evaluación (%)
-                </label>
-                <input
-                  type="number"
-                  id="evaluacion"
-                  name="evaluacion"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={formData.evaluacion !== null && formData.evaluacion !== undefined ? formData.evaluacion : ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                  placeholder="0-100"
-                />
-              </div>
-
-              {/* Clasificación (solo lectura, calculada automáticamente) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Clasificación
-                </label>
-                <div
-                  className={`w-full px-4 py-2 border rounded-lg flex items-center justify-center font-semibold text-lg ${
-                    clasificacionCalculada === 'A'
-                      ? 'bg-green-100 text-green-700 border-green-300'
-                      : clasificacionCalculada === 'B'
-                      ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
-                      : clasificacionCalculada === 'C'
-                      ? 'bg-orange-100 text-orange-700 border-orange-300'
-                      : clasificacionCalculada === 'D'
-                      ? 'bg-red-100 text-red-700 border-red-300'
-                      : 'bg-gray-100 text-gray-500 border-gray-300'
-                  }`}
-                >
-                  {clasificacionCalculada || 'N/A'}
-                  {clasificacionCalculada && (
-                    <span className="ml-2 text-sm font-normal">
-                      ({clasificacionCalculada === 'A' && '≥ 80%'}
-                      {clasificacionCalculada === 'B' && '60-79%'}
-                      {clasificacionCalculada === 'C' && '40-59%'}
-                      {clasificacionCalculada === 'D' && '< 40%'})
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+            {/* Quinta fila eliminada: Evaluación y Clasificación (no se muestra en esta pantalla) */}
 
             {/* Botones */}
             <div className="flex items-center justify-end gap-4 pt-3 border-t border-gray-200">
