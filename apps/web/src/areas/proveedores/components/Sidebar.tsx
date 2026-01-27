@@ -22,6 +22,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
   const isDashboardActive = activeView === 'dashboard';
   const isActualesActive = activeView === 'actuales';
   const isEvaluacionActive = activeView === 'evaluacion';
+  const isEvaluacion2025Active = activeView === 'evaluacion-2025';
   const isEvaluacionesTablaActive = activeView === 'evaluaciones-tabla';
 
   // Construir rutas del área
@@ -81,6 +82,11 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 
   const handleEvaluacionClick = () => {
     navigate(getAreaPath('evaluacion'));
+    onClose();
+  };
+
+  const handleEvaluacion2025Click = () => {
+    navigate(getAreaPath('evaluacion-2025'));
     onClose();
   };
 
@@ -244,6 +250,30 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
                   Evaluación
                 </span>
               </button>
+
+              {/* Evaluación 2025 - Oculto */}
+              {/* <button
+                onClick={handleEvaluacion2025Click}
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                  isEvaluacion2025Active
+                    ? 'bg-primary text-white hover:bg-primary-hover'
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
+                title="Evaluacion 2025"
+              >
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isEvaluacion2025Active ? 'fill' : ''}`}>
+                  grade
+                </span>
+                <span
+                  className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isEvaluacion2025Active
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100'
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  Evaluacion 2025
+                </span>
+              </button> */}
             </nav>
           </div>
 

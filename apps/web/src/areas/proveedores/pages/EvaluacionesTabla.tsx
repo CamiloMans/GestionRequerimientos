@@ -494,7 +494,20 @@ const EvaluacionesTabla: React.FC = () => {
                             e.stopPropagation();
                             const evaluacionOriginal = evaluaciones.find(e => e.id === servicio.id);
                             if (evaluacionOriginal) {
-                              navigate(getAreaPath('evaluacion'), {
+                              // Determinar la ruta según el año de la fecha de evaluación
+                              let rutaEvaluacion = 'evaluacion'; // Por defecto, vista normal (2026+)
+                              
+                              if (servicio.fechaEvaluacion) {
+                                const fechaEvaluacion = new Date(servicio.fechaEvaluacion);
+                                const añoEvaluacion = fechaEvaluacion.getFullYear();
+                                
+                                // Si es 2025 o menor, usar la vista 2025
+                                if (añoEvaluacion <= 2025) {
+                                  rutaEvaluacion = 'evaluacion-2025';
+                                }
+                              }
+                              
+                              navigate(getAreaPath(rutaEvaluacion), {
                                 state: {
                                   evaluacionData: evaluacionOriginal,
                                   returnPath: getAreaPath('evaluaciones-tabla'),
