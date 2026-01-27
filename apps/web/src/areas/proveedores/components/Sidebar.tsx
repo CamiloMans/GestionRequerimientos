@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
+import { usePermissions } from '@shared/rbac/usePermissions';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface SidebarProps {
 const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, hideOnDesktop = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission, loading: loadingPermissions } = usePermissions(AreaId.PROVEEDORES);
   const [user, setUser] = useState<User | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,6 +26,13 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
   const isEvaluacionActive = activeView === 'evaluacion';
   const isEvaluacion2025Active = activeView === 'evaluacion-2025';
   const isEvaluacionesTablaActive = activeView === 'evaluaciones-tabla';
+
+  // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
+  // También deshabilitar mientras se cargan los permisos
+  const onlyViewPermission = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:view`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:create`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:edit`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:delete`);
 
   // Construir rutas del área
   const getAreaPath = (path: string) => {
@@ -230,11 +239,12 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
               {/* Evaluación de Servicios */}
               <button
                 onClick={handleEvaluacionClick}
+                disabled={loadingPermissions || onlyViewPermission}
                 className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
                   isEvaluacionActive
                     ? 'bg-primary text-white hover:bg-primary-hover'
                     : 'text-[#616f89] hover:bg-gray-100'
-                }`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
                 title="Evaluación de Servicios"
               >
                 <span className={`material-symbols-outlined text-2xl pointer-events-none ${isEvaluacionActive ? 'fill' : ''}`}>

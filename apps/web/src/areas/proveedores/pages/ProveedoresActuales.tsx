@@ -3,10 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Proveedor, TipoProveedor, Especialidad, Clasificacion } from '../types';
 import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
+import { usePermissions } from '@shared/rbac/usePermissions';
 
 const ProveedoresActuales: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { hasPermission, loading: loadingPermissions } = usePermissions(AreaId.PROVEEDORES);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +21,13 @@ const ProveedoresActuales: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
+  // También deshabilitar mientras se cargan los permisos
+  const onlyViewPermission = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:view`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:create`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:edit`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:delete`);
 
   // Mapear ProveedorResponse a Proveedor
   const mapProveedorResponseToProveedor = async (response: ProveedorResponse): Promise<Proveedor> => {
@@ -295,7 +304,8 @@ const ProveedoresActuales: React.FC = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(getAreaPath('actuales/nuevo'))}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium"
+                disabled={loadingPermissions || onlyViewPermission}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">add</span>
                 <span>Nuevo Proveedor</span>
@@ -553,7 +563,8 @@ const ProveedoresActuales: React.FC = () => {
                             e.stopPropagation();
                             navigate(getAreaPath(`actuales/${proveedor.id}/editar`));
                           }}
-                          className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                          disabled={loadingPermissions || onlyViewPermission}
+                          className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Editar"
                         >
                           <span className="material-symbols-outlined text-lg">edit</span>

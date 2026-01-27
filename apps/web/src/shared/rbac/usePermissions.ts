@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../api-client/supabase';
 import { AreaId, AreaPermission } from './constants';
+import { getUserPermissions, areaIdToModuleCode, PermissionsByModule } from './permissionsService';
 
 /**
  * Hook para verificar permisos del usuario actual
+ * Basado en permisos de v_my_permissions
  */
 export const usePermissions = (areaId?: AreaId) => {
   const [permissions, setPermissions] = useState<AreaPermission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modulePermissions, setModulePermissions] = useState<PermissionsByModule>({});
 
   useEffect(() => {
     const fetchPermissions = async () => {
@@ -17,43 +20,44 @@ export const usePermissions = (areaId?: AreaId) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           setPermissions([]);
+          setModulePermissions({});
           setLoading(false);
           return;
         }
 
-        // TODO: Implementar consulta real a Supabase cuando se cree la tabla user_areas
-        // Por ahora, retornamos permisos básicos para desarrollo
-        
         if (!areaId) {
           setPermissions([]);
+          setModulePermissions({});
           setLoading(false);
           return;
         }
 
-        // Simulación: Por ahora todos tienen permisos de view
-        // Los admins tienen todos los permisos
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
+        // Consultar permisos desde v_my_permissions
+        const userPermissions = await getUserPermissions();
+        setModulePermissions(userPermissions);
 
-        if (profile?.role === 'admin') {
-          // Admins tienen todos los permisos
-          setPermissions([
-            `${areaId}:view`,
-            `${areaId}:create`,
-            `${areaId}:edit`,
-            `${areaId}:delete`,
-            `${areaId}:admin`,
-          ]);
-        } else {
-          // Usuarios normales tienen solo view
-          setPermissions([`${areaId}:view`]);
-        }
+        // Obtener permisos del módulo específico
+        const moduleCode = areaIdToModuleCode(areaId);
+        const modulePerms = userPermissions[moduleCode] || {
+          view: false,
+          create: false,
+          edit: false,
+          delete: false,
+        };
+
+        // Convertir a formato de permisos (areaId:action)
+        const permissionList: AreaPermission[] = [];
+        if (modulePerms.view) permissionList.push(`${areaId}:view`);
+        if (modulePerms.create) permissionList.push(`${areaId}:create`);
+        if (modulePerms.edit) permissionList.push(`${areaId}:edit`);
+        if (modulePerms.delete) permissionList.push(`${areaId}:delete`);
+        if (modulePerms.admin) permissionList.push(`${areaId}:admin`);
+
+        setPermissions(permissionList);
       } catch (err) {
         console.error('Error fetching permissions:', err);
         setPermissions([]);
+        setModulePermissions({});
       } finally {
         setLoading(false);
       }

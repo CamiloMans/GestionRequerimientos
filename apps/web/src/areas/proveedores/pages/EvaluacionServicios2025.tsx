@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, updateEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad, EvaluacionProveedor, deleteEvaluacionServicios } from '../services/proveedoresService';
+import { usePermissions } from '@shared/rbac/usePermissions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -35,6 +36,7 @@ interface EvaluacionData {
 const EvaluacionServicios2025: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasPermission, loading: loadingPermissions } = usePermissions(AreaId.PROVEEDORES);
   const [loading, setLoading] = useState(false);
   const [loadingProveedores, setLoadingProveedores] = useState(true);
   const [loadingEspecialidades, setLoadingEspecialidades] = useState(true);
@@ -51,6 +53,13 @@ const EvaluacionServicios2025: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null); // Mensaje de éxito para el popup
   const [errorMessage, setErrorMessage] = useState<string | null>(null); // Mensaje de error para el popup
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // Mostrar popup de confirmación de eliminación
+
+  // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
+  // También deshabilitar mientras se cargan los permisos
+  const onlyViewPermission = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:view`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:create`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:edit`) && 
+    !hasPermission(`${AreaId.PROVEEDORES}:delete`);
   const [formData, setFormData] = useState<EvaluacionData>({
     proveedorId: '',
     nombreContacto: '',
@@ -1680,13 +1689,8 @@ const EvaluacionServicios2025: React.FC = () => {
 
   // Función para navegar de vuelta
   const handleBack = () => {
-    // Si hay un estado previo en location.state, volver a esa ruta
-    if (location.state?.from) {
-      navigate(location.state.from);
-    } else {
-      // Si no, volver a la lista de proveedores
-      navigate(getAreaPath('actuales'));
-    }
+    // Navegar a evaluaciones-tabla
+    navigate(getAreaPath('evaluaciones-tabla'));
   };
 
   // Eliminar evaluación actual (se llama desde el popup de confirmación)
@@ -1756,7 +1760,7 @@ const EvaluacionServicios2025: React.FC = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSubmit}
-                disabled={loading || !isEditMode || !hasFormChanges()}
+                disabled={loading || loadingPermissions || !isEditMode || !hasFormChanges() || onlyViewPermission}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">save</span>
@@ -1769,7 +1773,8 @@ const EvaluacionServicios2025: React.FC = () => {
                     // Guardar el estado actual como inicial cuando se activa el modo edición
                     setInitialFormData(JSON.parse(JSON.stringify(formData)));
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
+                  disabled={loadingPermissions || onlyViewPermission}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-lg">edit</span>
                   <span>Editar</span>
@@ -1780,7 +1785,8 @@ const EvaluacionServicios2025: React.FC = () => {
               {!isEditMode ? (
                 <button 
                   onClick={handleExport}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium"
+                  disabled={loadingPermissions || onlyViewPermission}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-lg">download</span>
                   <span>Exportar</span>

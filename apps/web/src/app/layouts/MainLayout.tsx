@@ -4,6 +4,7 @@ import { useAreas } from '@shared/rbac/useAreas';
 import AreaSelector from '@shared/rbac/AreaSelector';
 import { useAuth } from '@shared/auth/useAuth';
 import { AreaId } from '@contracts/areas';
+import PermissionsDebug from '@shared/rbac/PermissionsDebug';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -66,6 +67,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Contenido */}
       {children}
+
+      {/* Componente de debug temporal para ver permisos */}
+      <PermissionsDebug />
     </div>
   );
 };

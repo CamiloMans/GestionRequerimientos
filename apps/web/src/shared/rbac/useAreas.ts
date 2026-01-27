@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../api-client/supabase';
 import { AreaId, AREAS } from '@contracts/areas';
+import { getUserPermissions, hasAreaAccess, PermissionsByModule } from './permissionsService';
 
 export interface UserArea {
   areaId: AreaId;
@@ -9,11 +10,13 @@ export interface UserArea {
 
 /**
  * Hook para obtener las áreas permitidas para el usuario actual
+ * Basado en permisos de v_my_permissions
  */
 export const useAreas = () => {
   const [areas, setAreas] = useState<AreaId[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<PermissionsByModule>({});
 
   useEffect(() => {
     const fetchUserAreas = async () => {
@@ -24,35 +27,47 @@ export const useAreas = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           setAreas([]);
+          setPermissions({});
           setLoading(false);
           return;
         }
 
-        // TODO: Implementar consulta real a Supabase cuando se cree la tabla user_areas
-        // Por ahora, retornamos todas las áreas para desarrollo
-        // En producción, esto debería consultar la tabla user_areas
-        
-        // Simulación: Por ahora todos los usuarios tienen acceso a acreditaciones
-        // Esto se cambiará cuando se implemente la tabla de permisos
-        try {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
+        // Consultar permisos desde v_my_permissions
+        const userPermissions = await getUserPermissions();
+        setPermissions(userPermissions);
 
-          // Por defecto, todos tienen acceso a acreditaciones y proveedores
-          // Los admins tienen acceso a todas las áreas
-          if (profile?.role === 'admin') {
-            setAreas(Object.values(AreaId));
-          } else {
-            // Por ahora, acreditaciones y proveedores para usuarios normales
-            setAreas([AreaId.ACREDITACION, AreaId.PROVEEDORES]);
+        // 🔍 DEBUG: Mostrar permisos en consola
+        console.log('🔐 ===== PERMISOS DEL USUARIO =====');
+        console.log('👤 Usuario:', user.email);
+        console.log('📋 Permisos raw de v_my_permissions:', userPermissions);
+        
+        // Determinar qué áreas mostrar basándose en permisos de view
+        const allowedAreas: AreaId[] = [];
+        
+        // Verificar cada área disponible
+        Object.values(AreaId).forEach((areaId) => {
+          const hasAccess = hasAreaAccess(userPermissions, areaId);
+          const moduleCode = areaId.toLowerCase();
+          const modulePerms = userPermissions[moduleCode];
+          console.log(`📋 Área "${areaId}" (módulo: "${moduleCode}"):`, {
+            tieneAcceso: hasAccess ? '✅ SÍ' : '❌ NO',
+            permisos: modulePerms || 'Sin permisos'
+          });
+          if (hasAccess) {
+            allowedAreas.push(areaId);
           }
-        } catch (profileError) {
-          // Si no existe la tabla profiles o hay error, dar acceso por defecto a acreditaciones y proveedores
-          console.warn('Error al obtener perfil, usando acceso por defecto:', profileError);
+        });
+
+        console.log('🎯 Áreas permitidas (visibles en el selector):', allowedAreas);
+        console.log('🔐 ========================================');
+
+        // Si no hay permisos específicos, usar fallback (para desarrollo/compatibilidad)
+        if (allowedAreas.length === 0) {
+          console.warn('⚠️ No se encontraron permisos en v_my_permissions, usando fallback');
+          // Fallback: dar acceso a acreditaciones y proveedores por defecto
           setAreas([AreaId.ACREDITACION, AreaId.PROVEEDORES]);
+        } else {
+          setAreas(allowedAreas);
         }
       } catch (err: any) {
         console.error('Error fetching user areas:', err);
@@ -84,12 +99,23 @@ export const useAreas = () => {
     return AREAS[areaId];
   };
 
+  const getModulePermissions = (moduleCode: string) => {
+    return permissions[moduleCode.toLowerCase()] || {
+      view: false,
+      create: false,
+      edit: false,
+      delete: false,
+    };
+  };
+
   return {
     areas,
     loading,
     error,
+    permissions,
     hasAccessToArea,
     getAreaInfo,
+    getModulePermissions,
   };
 };
 
