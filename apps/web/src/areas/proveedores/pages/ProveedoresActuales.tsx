@@ -24,10 +24,13 @@ const ProveedoresActuales: React.FC = () => {
 
   // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
   // También deshabilitar mientras se cargan los permisos
-  const onlyViewPermission = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:view`) && 
-    !hasPermission(`${AreaId.PROVEEDORES}:create`) && 
-    !hasPermission(`${AreaId.PROVEEDORES}:edit`) && 
+  const onlyViewPermission = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:view`) &&
+    !hasPermission(`${AreaId.PROVEEDORES}:create`) &&
+    !hasPermission(`${AreaId.PROVEEDORES}:edit`) &&
     !hasPermission(`${AreaId.PROVEEDORES}:delete`);
+
+  // Solo el admin de proveedores puede crear nuevos proveedores
+  const isProveedoresAdmin = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:admin`);
 
   // Mapear ProveedorResponse a Proveedor
   const mapProveedorResponseToProveedor = async (response: ProveedorResponse): Promise<Proveedor> => {
@@ -304,7 +307,7 @@ const ProveedoresActuales: React.FC = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(getAreaPath('actuales/nuevo'))}
-                disabled={loadingPermissions || onlyViewPermission}
+                disabled={loadingPermissions || !isProveedoresAdmin}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">add</span>
@@ -558,17 +561,19 @@ const ProveedoresActuales: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-4 px-6">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(getAreaPath(`actuales/${proveedor.id}/editar`));
-                          }}
-                          disabled={loadingPermissions || onlyViewPermission}
-                          className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Editar"
-                        >
-                          <span className="material-symbols-outlined text-lg">edit</span>
-                        </button>
+                        {isProveedoresAdmin && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(getAreaPath(`actuales/${proveedor.id}/editar`));
+                            }}
+                            disabled={loadingPermissions}
+                            className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Editar"
+                          >
+                            <span className="material-symbols-outlined text-lg">edit</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
