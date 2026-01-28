@@ -94,6 +94,8 @@ export const transformPermissions = (
         create: false,
         edit: false,
         delete: false,
+        // Inicializar admin para poder mapear correctamente action_code = 'admin'
+        admin: false,
       };
     }
     
