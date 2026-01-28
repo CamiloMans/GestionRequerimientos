@@ -76,10 +76,10 @@ El proyecto utiliza Supabase con las siguientes tablas principales:
 
 - `persona` - Colaboradores/trabajadores
 - `requerimientos` - Tipos de requerimientos (AUD, CTT, etc.)
-- `persona_requerimientos_sst` - Requerimientos asignados a personas
+- `brg_acreditacion_persona_requerimiento_sst` - Requerimientos asignados a personas
 - `solicitud_acreditacion` - Solicitudes de proyectos
 - `cliente` - Clientes/empresas
-- `empresa_requerimiento` - Requerimientos por empresa
+- `brg_acreditacion_cliente_requerimiento` - Requerimientos por empresa
 - `proyecto_requerimientos_acreditacion` - Tareas de proyectos
 
 ## 📱 Uso de la Aplicación

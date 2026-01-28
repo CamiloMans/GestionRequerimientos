@@ -75,7 +75,7 @@ export const testSupabaseConnection = async () => {
     // Test 4: Verificar tabla cliente
     console.log('4️⃣ Verificando tabla cliente...');
     const { data: clientesTest, error: clientesError } = await supabase
-      .from('cliente')
+      .from('dim_acreditacion_cliente')
       .select('*')
       .limit(1);
     
@@ -90,12 +90,12 @@ export const testSupabaseConnection = async () => {
     // Test 5: Verificar tablas de requerimientos
     console.log('5️⃣ Verificando tablas de requerimientos...');
     const { error: reqError } = await supabase
-      .from('empresa_requerimiento')
+      .from('brg_acreditacion_cliente_requerimiento')
       .select('*')
       .limit(1);
     
     if (reqError) {
-      console.warn('⚠️ Tabla empresa_requerimiento no existe');
+      console.warn('⚠️ Tabla brg_acreditacion_cliente_requerimiento no existe');
       console.log('💡 Esto es opcional, pero recomendado');
       console.log('💡 Ejecuta sql/create_project_requirements_tables.sql');
     } else {
