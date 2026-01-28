@@ -13,6 +13,7 @@ interface ServicioEvaluado {
   actividad: string | null;
   fechaEvaluacion: string | null;
   evaluador: string | null;
+   creadoPor: string | null;
   notaTotalPonderada: number | null;
   categoria: string | null;
   ordenCompra: string | null;
@@ -95,6 +96,7 @@ const EvaluacionesTabla: React.FC = () => {
           actividad: evaluacion.actividad || null,
           fechaEvaluacion: evaluacion.fecha_evaluacion || null,
           evaluador: evaluacion.evaluador || null,
+          creadoPor: evaluacion.profiles?.full_name || null,
           notaTotalPonderada: evaluacion.nota_total_ponderada || null,
           categoria: evaluacion.categoria_proveedor || null,
           ordenCompra: evaluacion.orden_compra || null,
@@ -367,6 +369,7 @@ const EvaluacionesTabla: React.FC = () => {
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ACTIVIDAD</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUADOR</th>
+                  <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CREADO POR</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CATEGORÍA</th>
                   <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ORDEN SERVICIO</th>
@@ -377,7 +380,7 @@ const EvaluacionesTabla: React.FC = () => {
               <tbody>
                 {paginatedServicios.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="py-8 text-center text-gray-500">
+                    <td colSpan={12} className="py-8 text-center text-gray-500">
                       No hay servicios evaluados que coincidan con los filtros.
                     </td>
                   </tr>
@@ -442,6 +445,13 @@ const EvaluacionesTabla: React.FC = () => {
                       <td className="py-4 px-6">
                         {servicio.evaluador ? (
                           <span className="text-sm text-[#111318]">{servicio.evaluador}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        {servicio.creadoPor ? (
+                          <span className="text-sm text-[#111318]">{servicio.creadoPor}</span>
                         ) : (
                           <span className="text-sm text-gray-400">—</span>
                         )}

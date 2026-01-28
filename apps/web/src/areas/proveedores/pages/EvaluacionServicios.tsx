@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, updateEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad, EvaluacionProveedor, deleteEvaluacionServicios } from '../services/proveedoresService';
 import { usePermissions } from '@shared/rbac/usePermissions';
+import { supabase } from '@shared/api-client/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -53,6 +54,14 @@ const EvaluacionServicios: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null); // Mensaje de éxito para el popup
   const [errorMessage, setErrorMessage] = useState<string | null>(null); // Mensaje de error para el popup
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // Mostrar popup de confirmación de eliminación
+
+  // Control de permisos avanzados: admin y delete
+  const isAdmin = hasPermission(`${AreaId.PROVEEDORES}:admin`);
+  const canDelete = hasPermission(`${AreaId.PROVEEDORES}:delete`);
+  const canEdit = hasPermission(`${AreaId.PROVEEDORES}:edit`);
+
+  // Guardar creador de la evaluación actual para validar ownership
+  const [createdBy, setCreatedBy] = useState<string | null>(null);
 
   // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
   // También deshabilitar mientras se cargan los permisos
@@ -144,6 +153,13 @@ const EvaluacionServicios: React.FC = () => {
   useEffect(() => {
     const evaluacionData = location.state?.evaluacionData as EvaluacionProveedor | undefined;
     
+    if (evaluacionData) {
+      // Guardar created_by de la evaluación actual (si viene desde EvaluacionesTabla / servicios)
+      // Aunque el tipo EvaluacionProveedor no lo declare explícito, viene como parte del registro base
+      // @ts-expect-error campo dinámico proveniente de Supabase
+      setCreatedBy(evaluacionData.created_by ?? null);
+    }
+
     if (evaluacionData && proveedores.length > 0 && especialidades.length > 0 && personas.length > 0) {
       console.log('📝 Cargando datos de evaluación para editar:', evaluacionData);
       
@@ -827,6 +843,11 @@ const EvaluacionServicios: React.FC = () => {
         console.log('✅ Evaluación actualizada en BD:', evaluacionGuardada);
         setSuccessMessage('Evaluación del servicio editada correctamente');
       } else {
+        // Crear nueva evaluación - obtener usuario actual para created_by
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          evaluacionData.created_by = user.id;
+        }
         // Crear nueva evaluación
         evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
         console.log('✅ Evaluación guardada en BD:', evaluacionGuardada);
@@ -1625,6 +1646,39 @@ const EvaluacionServicios: React.FC = () => {
     }
   };
 
+  // Determinar si el usuario actual es el creador de la evaluación (para restricciones de edición/eliminación)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setCurrentUserId(user?.id ?? null);
+      } catch (error) {
+        console.error('Error obteniendo usuario actual para validación de ownership:', error);
+        setCurrentUserId(null);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
+  const isOwner = createdBy && currentUserId ? createdBy === currentUserId : false;
+
+  // Regla: 
+  // - Admin: puede editar/eliminar siempre.
+  // - Usuarios con delete/edit pero NO admin: solo si son el owner (created_by === auth.uid()).
+  // - Viewer u otros: ya están restringidos por onlyViewPermission.
+  const canEditCurrent =
+    !loadingPermissions &&
+    canEdit &&
+    (isAdmin || isOwner);
+
+  const canDeleteCurrent =
+    !loadingPermissions &&
+    canDelete &&
+    (isAdmin || isOwner);
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -1641,7 +1695,7 @@ const EvaluacionServicios: React.FC = () => {
             onClick={() => navigate(getAreaPath('actuales'))}
             className="text-[#616f89] hover:text-primary text-sm font-medium transition-colors"
           >
-            Proveedores
+            Servicios
           </button>
           <span className="material-symbols-outlined text-[#616f89] text-base">chevron_right</span>
           <span className="text-[#111318] text-sm font-medium">Evaluación de Servicios</span>
@@ -1674,7 +1728,7 @@ const EvaluacionServicios: React.FC = () => {
                     // Guardar el estado actual como inicial cuando se activa el modo edición
                     setInitialFormData(JSON.parse(JSON.stringify(formData)));
                   }}
-                  disabled={loadingPermissions || onlyViewPermission}
+                  disabled={loadingPermissions || onlyViewPermission || !canEditCurrent}
                   className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-[#111318] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-lg">edit</span>
@@ -1696,7 +1750,7 @@ const EvaluacionServicios: React.FC = () => {
                 <button 
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  disabled={loading || !evaluacionId}
+                  disabled={loading || !evaluacionId || !canDeleteCurrent}
                   className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-lg">delete</span>

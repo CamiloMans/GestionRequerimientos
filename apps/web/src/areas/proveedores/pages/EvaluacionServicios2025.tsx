@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse, saveEvaluacionServicios, updateEvaluacionServicios, EvaluacionServiciosData, sendEvaluacionProveedorToN8n, fetchEspecialidades, fetchPersonas, Persona, createEspecialidad, EvaluacionProveedor, deleteEvaluacionServicios } from '../services/proveedoresService';
 import { usePermissions } from '@shared/rbac/usePermissions';
+import { supabase } from '@shared/api-client/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -931,6 +932,11 @@ const EvaluacionServicios2025: React.FC = () => {
         console.log('✅ Evaluación actualizada en BD:', evaluacionGuardada);
         setSuccessMessage('Evaluación del servicio editada correctamente');
       } else {
+        // Crear nueva evaluación - obtener usuario actual para created_by
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          evaluacionData.created_by = user.id;
+        }
         // Crear nueva evaluación
         evaluacionGuardada = await saveEvaluacionServicios(evaluacionData);
         console.log('✅ Evaluación guardada en BD:', evaluacionGuardada);

@@ -377,6 +377,7 @@ export interface EvaluacionServiciosData {
   nombre_contacto?: string | null;
   link_servicio_ejecutado?: string | null;
   estado?: string | null;
+  created_by?: string | null;
 }
 
 /**
@@ -518,6 +519,10 @@ export interface EvaluacionProveedor {
   link_servicio_ejecutado?: string | null;
   created_at: string;
   updated_at: string;
+  // Relación con la tabla profiles a través de created_by
+  profiles?: {
+    full_name?: string | null;
+  } | null;
 }
 
 /**
@@ -530,7 +535,7 @@ export const fetchEvaluacionesByNombreProveedor = async (
   
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
-    .select('*')
+    .select('*, profiles:created_by ( full_name )')
     .or(`nombre_proveedor.eq.${nombreProveedor},nombre.eq.${nombreProveedor}`)
     .order('fecha_evaluacion', { ascending: false });
 
@@ -557,7 +562,7 @@ export const fetchEvaluacionesByRutProveedor = async (
   
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
-    .select('*')
+    .select('*, profiles:created_by ( full_name )')
     .eq('rut', rutProveedor)
     .order('fecha_evaluacion', { ascending: false });
 
@@ -582,7 +587,7 @@ export const fetchAllEvaluaciones = async (): Promise<EvaluacionProveedor[]> => 
   
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
-    .select('*')
+    .select('*, profiles:created_by ( full_name )')
     .order('fecha_evaluacion', { ascending: false });
 
   if (error) {
