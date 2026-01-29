@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
-import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES, Persona } from '../types';
+import { Worker, RequestFormData, MOCK_COMPANIES, Persona } from '../types';
 import { createSolicitudAcreditacion, createProyectoTrabajadores, createProyectoHorarios, createProyectoConductores, fetchProveedores, fetchPersonas } from '../services/acreditacionService';
 
 interface Horario {
@@ -611,8 +611,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                 >
                   <option value="">Seleccione...</option>
-                  {PROJECT_MANAGERS.map(pm => (
-                    <option key={pm} value={pm}>{pm}</option>
+                  {personas.map(persona => (
+                    <option key={persona.id} value={persona.nombre_completo}>
+                      {persona.nombre_completo}
+                    </option>
                   ))}
                 </select>
               </label>

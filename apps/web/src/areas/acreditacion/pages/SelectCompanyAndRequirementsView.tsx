@@ -293,18 +293,32 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       // Guardar los requerimientos seleccionados en brg_acreditacion_solicitud_requerimiento
       // Sin responsables asignados todavía (se asignarán después)
       if (empresaRequerimientos.length > 0) {
-        await createProyectoRequerimientos(
-          project.projectCode,
-          selectedEmpresaNombre,
-          empresaRequerimientos,
-          {
-            jpro_nombre: undefined,
-            epr_nombre: undefined,
-            rrhh_nombre: undefined,
-            legal_nombre: undefined,
-          },
-          project.id // Pasar el id de fct_acreditacion_solicitud como id_proyecto
-        );
+        try {
+          console.log('📋 Guardando requerimientos...');
+          console.log(`   Total requerimientos: ${empresaRequerimientos.length}`);
+          console.log(`   Código proyecto: ${project.projectCode}`);
+          console.log(`   ID proyecto: ${project.id}`);
+          
+          await createProyectoRequerimientos(
+            project.projectCode,
+            selectedEmpresaNombre,
+            empresaRequerimientos,
+            {
+              jpro_nombre: undefined,
+              epr_nombre: undefined,
+              rrhh_nombre: undefined,
+              legal_nombre: undefined,
+            },
+            project.id // Pasar el id de fct_acreditacion_solicitud como id_proyecto
+          );
+          console.log('✅ Requerimientos guardados exitosamente');
+        } catch (error: any) {
+          console.error('❌ Error al guardar requerimientos:', error);
+          const errorMessage = error?.message || 'Error desconocido al guardar requerimientos';
+          setError(`Error al guardar requerimientos: ${errorMessage}`);
+          setTimeout(() => setError(null), 8000);
+          throw error; // Re-lanzar para que se maneje en el catch principal
+        }
       }
 
       // Éxito - mostrar mensaje y redirigir

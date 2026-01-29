@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import RequestList from './pages/RequestList';
 import RequestForm from './pages/RequestForm';
 import FieldRequestForm from './pages/FieldRequestForm';
@@ -21,6 +21,7 @@ import {
  */
 const AcreditacionRoutes: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [editingItem, setEditingItem] = React.useState<RequestItem | null>(null);
   const [requests, setRequests] = React.useState<RequestItem[]>([]);
   const [projects, setProjects] = React.useState<ProjectGalleryItem[]>([]);
@@ -60,6 +61,13 @@ const AcreditacionRoutes: React.FC = () => {
   React.useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  // Actualizar proyectos cuando se navega a la ruta "reports"
+  React.useEffect(() => {
+    if (location.pathname.includes('/reports')) {
+      loadProjects();
+    }
+  }, [location.pathname, loadProjects]);
 
   const handleEdit = (item: RequestItem) => {
     setEditingItem(item);

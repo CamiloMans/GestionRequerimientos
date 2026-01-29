@@ -1039,23 +1039,28 @@ export const createProyectoRequerimientos = async (
       console.log('═══════════════════════════════════════════════════\n');
       return;
     } else {
-      console.log('⏭️  SALIENDO SIN CREAR NUEVOS REQUERIMIENTOS (ya existen y no hay responsables para asignar)');
-      console.log('═══════════════════════════════════════════════════\n');
-      return;
+      // Si no hay responsables pero hay requerimientos existentes, continuar para crear nuevos
+      // (puede ser que se estén agregando nuevos requerimientos)
+      console.log('⚠️ Ya existen requerimientos pero no hay responsables asignados');
+      console.log('📝 Continuando para verificar si hay nuevos requerimientos que crear...');
+      // NO retornar aquí, continuar con la lógica de creación
     }
+  } else {
+    console.log('✅ No hay requerimientos existentes, procediendo a crear...');
   }
-  
-  console.log('✅ No hay requerimientos existentes, procediendo a crear...');
 
-  // Obtener el id_proyecto (id de fct_acreditacion_solicitud)
+  // Obtener el id_proyecto (id de fct_acreditacion_solicitud) y datos de la solicitud
   let proyectoId = idProyecto;
+  let requiereAcreditarEmpresa = false;
+  let requiereAcreditarContratista = false;
+  let razonSocialContratista: string | null = null;
   
   if (!proyectoId) {
     // Si no se pasó como parámetro, buscarlo en la base de datos
     console.log('\n🔍 Buscando fct_acreditacion_solicitud...');
     const { data: solicitud, error: solicitudError } = await supabase
       .from('fct_acreditacion_solicitud')
-      .select('id')
+      .select('id, requiere_acreditar_empresa, requiere_acreditar_contratista, razon_social_contratista')
       .eq('codigo_proyecto', codigoProyecto)
       .single();
 
@@ -1066,9 +1071,31 @@ export const createProyectoRequerimientos = async (
     }
 
     proyectoId = solicitud?.id;
+    requiereAcreditarEmpresa = solicitud?.requiere_acreditar_empresa === true;
+    requiereAcreditarContratista = solicitud?.requiere_acreditar_contratista === true;
+    razonSocialContratista = solicitud?.razon_social_contratista || null;
+  } else {
+    // Si tenemos el ID, obtener los datos de la solicitud
+    console.log('\n🔍 Obteniendo datos de la solicitud...');
+    const { data: solicitud, error: solicitudError } = await supabase
+      .from('fct_acreditacion_solicitud')
+      .select('requiere_acreditar_empresa, requiere_acreditar_contratista, razon_social_contratista')
+      .eq('id', proyectoId)
+      .single();
+
+    if (!solicitudError && solicitud) {
+      requiereAcreditarEmpresa = solicitud.requiere_acreditar_empresa === true;
+      requiereAcreditarContratista = solicitud.requiere_acreditar_contratista === true;
+      razonSocialContratista = solicitud.razon_social_contratista || null;
+    }
   }
   
   console.log(`✅ ID Proyecto encontrado: ${proyectoId}`);
+  console.log(`📋 Requiere acreditar empresa: ${requiereAcreditarEmpresa}`);
+  console.log(`📋 Requiere acreditar contratista: ${requiereAcreditarContratista}`);
+  if (razonSocialContratista) {
+    console.log(`📋 Razón social contratista: ${razonSocialContratista}`);
+  }
 
   // Obtener los trabajadores de fct_acreditacion_solicitud_trabajador_manual
   console.log('\n🔍 Buscando trabajadores en fct_acreditacion_solicitud_trabajador_manual...');
@@ -1126,16 +1153,41 @@ export const createProyectoRequerimientos = async (
     
     console.log(`    Nombre responsable asignado: ${nombreResponsable}`);
 
+    // Verificar si es categoría "Empresa" para duplicar si ambos flags son TRUE
+    const esCategoriaEmpresa = req.categoria_requerimiento?.toLowerCase() === 'empresa' || 
+                               req.categoria_requerimiento?.toLowerCase() === 'empresa myma' ||
+                               req.categoria_requerimiento?.toLowerCase() === 'empresa subcontrato';
+    
     // Si la categoría es "Trabajadores", crear un registro por cada trabajador de fct_acreditacion_solicitud_trabajador_manual
     const esTrabajadores = req.categoria_requerimiento?.toLowerCase() === 'trabajadores';
     console.log(`    ¿Es categoría Trabajadores?: ${esTrabajadores}`);
+    console.log(`    ¿Es categoría Empresa?: ${esCategoriaEmpresa}`);
     console.log(`    Trabajadores disponibles: ${trabajadoresProyecto.length}`);
+    
+    // Función auxiliar para crear un registro base
+    const crearRegistroBase = (empresaAcreditacionValue: string | null = null): any => {
+      return {
+        codigo_proyecto: codigoProyecto,
+        id_proyecto: proyectoId,
+        requerimiento: req.requerimiento,
+        responsable: req.responsable,
+        estado: 'Pendiente',
+        cliente: cliente,
+        categoria_requerimiento: req.categoria_requerimiento,
+        observaciones: req.observaciones || null,
+        nombre_responsable: nombreResponsable,
+        nombre_trabajador: null,
+        categoria_empresa: null,
+        id_proyecto_trabajador: null,
+        ...(empresaAcreditacionValue ? { empresa_acreditacion: empresaAcreditacionValue } : {})
+      };
+    };
     
     if (esTrabajadores && trabajadoresProyecto.length > 0) {
       console.log(`    👷 Creando ${trabajadoresProyecto.length} registros (uno por trabajador)`);
       
       trabajadoresProyecto.forEach((trabajador, tIndex) => {
-        const registro = {
+        const registro: any = {
           codigo_proyecto: codigoProyecto,
           id_proyecto: proyectoId,
           requerimiento: req.requerimiento,
@@ -1149,26 +1201,38 @@ export const createProyectoRequerimientos = async (
           categoria_empresa: trabajador.categoria_empresa,
           id_proyecto_trabajador: trabajador.id
         };
+        
         console.log(`      Trabajador ${tIndex + 1}: ${trabajador.nombre_trabajador}`);
         proyectoRequerimientos.push(registro);
       });
+    } else if (esCategoriaEmpresa) {
+      // Para categoría "Empresa", duplicar según los flags
+      console.log(`    🏢 Categoría Empresa detectada - Verificando duplicación...`);
+      
+      // Si requiere_acreditar_empresa es TRUE, crear registro con MyMA
+      if (requiereAcreditarEmpresa) {
+        const registroMyMA = crearRegistroBase('MyMA');
+        proyectoRequerimientos.push(registroMyMA);
+        console.log(`    ✅ Registro creado con empresa_acreditacion = "MyMA"`);
+      }
+      
+      // Si requiere_acreditar_contratista es TRUE y hay razón social, crear registro con contratista
+      if (requiereAcreditarContratista && razonSocialContratista) {
+        const registroContratista = crearRegistroBase(razonSocialContratista);
+        proyectoRequerimientos.push(registroContratista);
+        console.log(`    ✅ Registro creado con empresa_acreditacion = "${razonSocialContratista}"`);
+      }
+      
+      // Si ninguno de los dos es TRUE, crear un registro sin empresa_acreditacion
+      if (!requiereAcreditarEmpresa && !requiereAcreditarContratista) {
+        const registro = crearRegistroBase();
+        proyectoRequerimientos.push(registro);
+        console.log(`    📄 Registro creado sin empresa_acreditacion (ningún flag activo)`);
+      }
     } else {
       // Para otras categorías, crear solo un registro
       console.log(`    📄 Creando 1 registro (categoría normal)`);
-      const registro = {
-        codigo_proyecto: codigoProyecto,
-        id_proyecto: proyectoId,
-        requerimiento: req.requerimiento,
-        responsable: req.responsable,
-        estado: 'Pendiente',
-        cliente: cliente,
-        categoria_requerimiento: req.categoria_requerimiento,
-        observaciones: req.observaciones || null,
-        nombre_responsable: nombreResponsable,
-        nombre_trabajador: null,
-        categoria_empresa: null,
-        id_proyecto_trabajador: null
-      };
+      const registro = crearRegistroBase();
       proyectoRequerimientos.push(registro);
     }
   });
@@ -1177,8 +1241,12 @@ export const createProyectoRequerimientos = async (
   
   if (proyectoRequerimientos.length === 0) {
     console.error('❌ NO SE CONSTRUYERON REQUERIMIENTOS');
+    console.error('🔍 Posibles causas:');
+    console.error('   1. No hay requerimientos en empresaRequerimientos');
+    console.error('   2. La categoría no coincide con ninguna condición');
+    console.error('   3. Los flags requiere_acreditar_empresa y requiere_acreditar_contratista están en FALSE para categoría Empresa');
     console.log('═══════════════════════════════════════════════════\n');
-    return;
+    throw new Error('No se pudieron construir requerimientos para guardar. Verifica los logs anteriores.');
   }
   
   console.log('\nVista previa de los primeros 3 registros:');
@@ -1210,12 +1278,14 @@ export const createProyectoRequerimientos = async (
     console.error('Hint:', error.hint);
     console.error('Error completo:', JSON.stringify(error, null, 2));
     
-    // Si es error de duplicado, no es crítico
+    // Si es error de duplicado, puede ser por el constraint que no incluye empresa_acreditacion
     if (error.message.includes('duplicate') || error.message.includes('unique') || error.code === '23505') {
-      console.log('⚠️ Error de UNIQUE constraint - algunos requerimientos ya existen');
-      console.log('💡 Solución: Ejecuta sql/URGENTE_actualizar_constraint.sql');
-      console.log('═══════════════════════════════════════════════════\n');
-      return; // No lanzamos error
+      console.error('⚠️ Error de UNIQUE constraint - algunos requerimientos ya existen');
+      console.error('💡 El constraint actual no incluye empresa_acreditacion');
+      console.error('💡 Solución: Ejecuta sql/actualizar_constraint_con_empresa_acreditacion.sql en Supabase SQL Editor');
+      console.error('═══════════════════════════════════════════════════\n');
+      // Lanzar error para que el usuario sepa que necesita actualizar el constraint
+      throw new Error('Error de constraint UNIQUE. Necesitas actualizar el constraint para incluir empresa_acreditacion. Ejecuta el script sql/actualizar_constraint_con_empresa_acreditacion.sql en Supabase SQL Editor.');
     }
     
     console.log('═══════════════════════════════════════════════════\n');

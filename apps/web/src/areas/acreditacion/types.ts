@@ -103,6 +103,7 @@ export interface ProyectoRequerimientoAcreditacion {
   nombre_trabajador?: string; // Nombre del trabajador asignado a este requerimiento
   categoria_empresa?: string; // MyMA o Contratista
   id_proyecto_trabajador?: number; // ID del trabajador en fct_acreditacion_solicitud_trabajador_manual
+  empresa_acreditacion?: string; // Empresa de acreditación (MyMA, nombre del contratista, etc.)
   drive_doc_url?: string; // URL del documento en Google Drive
 }
 

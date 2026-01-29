@@ -13,6 +13,8 @@ interface ProjectRequirement {
   requerimiento: string;
   categoria: string;
   realizado: boolean;
+  estado?: string; // Estado del requerimiento (Pendiente, Completado, En Proceso, etc.)
+  empresa_acreditacion?: string; // Empresa de acreditación (MyMA, nombre del contratista, etc.)
   fechaFinalizada?: string;
   drive_doc_url?: string;
   localFileUrl?: string; // URL local del archivo subido (antes de que esté en Drive)
@@ -138,50 +140,73 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     loadRequerimientosConObservaciones();
   }, [project.projectCode]);
 
-  // Actualizar drive_doc_url cada 10 segundos
+  // Actualizar todos los requerimientos cada 5 segundos
   useEffect(() => {
     if (!project.projectCode) return;
 
-    const actualizarDriveDocUrls = async () => {
+    const actualizarRequerimientos = async () => {
       try {
         const proyectoRequerimientos = await fetchProyectoRequerimientos(project.projectCode);
         
-        // Actualizar solo el campo drive_doc_url de los requerimientos existentes
-        setRequirements(prev => prev.map(req => {
-          const requerimientoActualizado = proyectoRequerimientos.find(r => r.id === req.id);
-          if (requerimientoActualizado) {
-            const updatedReq = {
-              ...req,
-              drive_doc_url: requerimientoActualizado.drive_doc_url || undefined
-            };
-            
-            // Si se detecta el link de Drive, limpiar el archivo local y usar el link de Drive
-            if (requerimientoActualizado.drive_doc_url && req.localFileUrl) {
-              // Limpiar el objeto URL local si existe
-              URL.revokeObjectURL(req.localFileUrl);
-              updatedReq.localFileUrl = undefined;
-              updatedReq.localFileName = undefined;
-            }
-            
-            // Si no hay drive_doc_url en la tabla y había uno en el estado local, limpiarlo
-            if (!requerimientoActualizado.drive_doc_url && req.drive_doc_url) {
-              updatedReq.drive_doc_url = undefined;
-            }
-            
-            return updatedReq;
-          }
-          return req;
+        // Mapear los requerimientos actualizados al formato ProjectRequirement
+        const requerimientosActualizados: ProjectRequirement[] = proyectoRequerimientos.map(req => ({
+          id: req.id!,
+          responsable: req.responsable,
+          nombre_responsable: req.nombre_responsable,
+          nombre_trabajador: req.nombre_trabajador,
+          categoria_empresa: req.categoria_empresa,
+          id_proyecto_trabajador: req.id_proyecto_trabajador,
+          requerimiento: req.requerimiento,
+          categoria: req.categoria_requerimiento || '',
+          realizado: req.estado === 'Completado',
+          estado: req.estado || 'Pendiente',
+          empresa_acreditacion: req.empresa_acreditacion,
+          fechaFinalizada: req.updated_at && req.estado === 'Completado' 
+            ? req.updated_at.split('T')[0] 
+            : undefined,
+          drive_doc_url: req.drive_doc_url
         }));
+
+        // Actualizar el estado, pero preservar los archivos locales si existen
+        setRequirements(prev => {
+          return requerimientosActualizados.map(reqActualizado => {
+            // Buscar el requerimiento anterior para preservar archivos locales
+            const reqAnterior = prev.find(r => r.id === reqActualizado.id);
+            
+            if (reqAnterior) {
+              // Si hay un archivo local y ahora hay un drive_doc_url, limpiar el local
+              if (reqActualizado.drive_doc_url && reqAnterior.localFileUrl) {
+                URL.revokeObjectURL(reqAnterior.localFileUrl);
+                return {
+                  ...reqActualizado,
+                  localFileUrl: undefined,
+                  localFileName: undefined
+                };
+              }
+              
+              // Preservar archivos locales si no hay drive_doc_url
+              if (!reqActualizado.drive_doc_url && reqAnterior.localFileUrl) {
+                return {
+                  ...reqActualizado,
+                  localFileUrl: reqAnterior.localFileUrl,
+                  localFileName: reqAnterior.localFileName
+                };
+              }
+            }
+            
+            return reqActualizado;
+          });
+        });
       } catch (error) {
-        console.error('Error al actualizar drive_doc_url de requerimientos:', error);
+        console.error('Error al actualizar requerimientos:', error);
       }
     };
 
     // Ejecutar inmediatamente al montar
-    actualizarDriveDocUrls();
+    actualizarRequerimientos();
 
-    // Configurar intervalo para ejecutar cada 10 segundos
-    const interval = setInterval(actualizarDriveDocUrls, 10000);
+    // Configurar intervalo para ejecutar cada 5 segundos
+    const interval = setInterval(actualizarRequerimientos, 5000);
 
     // Limpiar el intervalo al desmontar
     return () => clearInterval(interval);
@@ -210,6 +235,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       requerimiento: task.requerimiento,
       categoria: task.categoria,
       realizado: task.realizado,
+      estado: task.realizado ? 'Completado' : 'Pendiente',
       fechaFinalizada: task.fechaFinalizada,
       drive_doc_url: task.drive_doc_url
     }))
@@ -292,6 +318,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
           return {
             ...req,
             realizado: newRealizado,
+            estado: newEstado, // Actualizar el estado también
             fechaFinalizada: newRealizado ? new Date().toISOString().split('T')[0] : undefined
           };
         }
@@ -1579,6 +1606,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                     </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Empresa Acreditación
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Documentos
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
@@ -1618,6 +1648,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                         </div>
                       )}
                     </div>
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Estado
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Fecha Finalizada
@@ -1711,6 +1744,21 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
                             {req.categoria}
                           </span>
+                        </td>
+
+                        {/* Empresa Acreditación */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {req.empresa_acreditacion ? (
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                              req.empresa_acreditacion === 'MyMA' 
+                                ? 'bg-teal-50 text-teal-700 border-teal-300' 
+                                : 'bg-purple-50 text-purple-700 border-purple-300'
+                            }`}>
+                              {req.empresa_acreditacion}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 italic text-xs">N/A</span>
+                          )}
                         </td>
 
                         {/* Documentos */}
@@ -1837,6 +1885,19 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                             )}
                             </button>
                           </div>
+                        </td>
+
+                        {/* Estado */}
+                        <td className="px-6 py-4 text-center">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                            req.estado === 'Completado' 
+                              ? 'bg-green-100 text-green-700 border-green-300' 
+                              : req.estado === 'En Proceso'
+                              ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                              : 'bg-gray-100 text-gray-600 border-gray-300'
+                          }`}>
+                            {req.estado || 'Pendiente'}
+                          </span>
                         </td>
 
                         {/* Fecha Finalizada */}

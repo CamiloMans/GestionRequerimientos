@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem } from '../types';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
 import ProjectDetailView from './ProjectDetailView';
 import SelectCompanyAndRequirementsView from './SelectCompanyAndRequirementsView';
-import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables } from '../services/acreditacionService';
+import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables, fetchProjectGalleryItems } from '../services/acreditacionService';
 
 interface ProjectGalleryV2Props {
   projects: ProjectGalleryItem[];
@@ -23,12 +23,50 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<{ title: string; message: string; details?: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Estado local para los proyectos (se actualiza automáticamente cada 10 segundos)
+  const [localProjects, setLocalProjects] = useState<ProjectGalleryItem[]>(projects);
+
+  // Sincronizar proyectos locales cuando cambian los props
+  useEffect(() => {
+    setLocalProjects(projects);
+  }, [projects]);
+
+  // Actualizar proyectos automáticamente cada 10 segundos para actualizar porcentajes de cumplimiento
+  useEffect(() => {
+    const actualizarProyectos = async () => {
+      try {
+        const proyectosActualizados = await fetchProjectGalleryItems();
+        setLocalProjects(proyectosActualizados);
+        
+        // Si hay un proyecto seleccionado, actualizarlo también
+        if (selectedProject) {
+          const proyectoActualizado = proyectosActualizados.find(p => p.id === selectedProject.id);
+          if (proyectoActualizado) {
+            setSelectedProject(proyectoActualizado);
+          }
+        }
+      } catch (error) {
+        console.error('Error al actualizar proyectos:', error);
+        // No mostrar error al usuario, solo loguear
+      }
+    };
+
+    // Ejecutar inmediatamente al montar
+    actualizarProyectos();
+
+    // Configurar intervalo para ejecutar cada 10 segundos
+    const interval = setInterval(actualizarProyectos, 10000);
+
+    // Limpiar el intervalo al desmontar
+    return () => clearInterval(interval);
+  }, [selectedProject]);
 
   // Obtener lista única de clientes
-  const uniqueClients = Array.from(new Set(projects.map(p => p.clientName))).sort();
+  const uniqueClients = Array.from(new Set(localProjects.map(p => p.clientName))).sort();
 
   // Filtrar proyectos
-  const filteredProjects = projects.filter(project => {
+  const filteredProjects = localProjects.filter(project => {
     const matchesSearch = 
       project.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.projectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -340,25 +378,25 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   };
 
   // Calcular estadísticas
-  const totalProjects = projects.length;
-  const totalWorkers = projects.reduce((sum, p) => sum + p.totalWorkers, 0);
-  const totalVehicles = projects.reduce((sum, p) => sum + p.totalVehicles, 0);
-  const totalTasksCompleted = projects.reduce((sum, p) => sum + (p.completedTasks || 0), 0);
-  const totalTasksAll = projects.reduce((sum, p) => sum + (p.totalTasks || 0), 0);
+  const totalProjects = localProjects.length;
+  const totalWorkers = localProjects.reduce((sum, p) => sum + p.totalWorkers, 0);
+  const totalVehicles = localProjects.reduce((sum, p) => sum + p.totalVehicles, 0);
+  const totalTasksCompleted = localProjects.reduce((sum, p) => sum + (p.completedTasks || 0), 0);
+  const totalTasksAll = localProjects.reduce((sum, p) => sum + (p.totalTasks || 0), 0);
   // Proyectos activos = todos los que NO estén cancelados ni finalizados
-  const activeProjects = projects.filter(p => {
+  const activeProjects = localProjects.filter(p => {
     const statusLower = p.status.toLowerCase();
     return !statusLower.includes('cancelado') && !statusLower.includes('finalizado');
   }).length;
   
   // Calcular proyectos atrasados: contar solo los que tienen estado "Atrasado"
-  const overdueProjects = projects.filter(p => {
+  const overdueProjects = localProjects.filter(p => {
     const statusLower = p.status.toLowerCase();
     return statusLower.includes('atrasado');
   }).length;
   
   // Calcular tiempo promedio de proyectos finalizados (en días)
-  const finishedProjects = projects.filter(p => p.status.toLowerCase().includes('finalizado'));
+  const finishedProjects = localProjects.filter(p => p.status.toLowerCase().includes('finalizado'));
   const averageDuration = finishedProjects.length > 0
     ? Math.round(
         finishedProjects.reduce((sum, p) => {
