@@ -260,8 +260,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         if (formData.numeroContrato) solicitudData.numero_contrato = formData.numeroContrato;
         if (formData.administradorContrato) solicitudData.administrador_contrato = formData.administradorContrato;
         
-        // Horarios de trabajo ya no se guardan aquí, se guardarán en proyecto_horarios después de crear la solicitud
-        // Vehículos ya no se guardan aquí, se guardarán en proyecto_conductores después de crear la solicitud
+        // Horarios de trabajo ya no se guardan aquí, se guardarán en fct_acreditacion_solicitud_horario_manual después de crear la solicitud
+        // Vehículos ya no se guardan aquí, se guardarán en fct_acreditacion_solicitud_conductor_manual después de crear la solicitud
       }
 
       // Información de Contratista
@@ -275,7 +275,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           if (formData.telefonoResponsableContratista) solicitudData.telefono_responsable_contratista = formData.telefonoResponsableContratista; // ← Nombre corregido
           if (formData.emailResponsableContratista) solicitudData.email_responsable_contratista = formData.emailResponsableContratista; // ← Nombre corregido
           
-          // Vehículos Contratista ya no se guardan aquí, se guardarán en proyecto_conductores después de crear la solicitud
+          // Vehículos Contratista ya no se guardan aquí, se guardarán en fct_acreditacion_solicitud_conductor_manual después de crear la solicitud
           
           // SST - Convertir a boolean
           solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes'; // ← Convertir a boolean
@@ -289,7 +289,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       
       console.log('✅ Solicitud guardada exitosamente:', result);
       
-      // Guardar trabajadores en proyecto_trabajadores
+      // Guardar trabajadores en fct_acreditacion_solicitud_trabajador_manual
       if (result.id && result.codigo_proyecto) {
         try {
           console.log('👷 Guardando trabajadores del proyecto...');
@@ -306,7 +306,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         }
       }
       
-      // Guardar horarios en proyecto_horarios
+      // Guardar horarios en fct_acreditacion_solicitud_horario_manual
       if (result.id && result.codigo_proyecto && horarios.length > 0 && formData.companyAccreditationRequired === 'yes') {
         try {
           console.log('⏰ Guardando horarios del proyecto...');
@@ -323,7 +323,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         }
       }
       
-      // Guardar vehículos MYMA en proyecto_conductores
+      // Guardar vehículos MYMA en fct_acreditacion_solicitud_conductor_manual
       if (result.id && result.codigo_proyecto && vehiculosMyma.length > 0 && formData.companyAccreditationRequired === 'yes') {
         try {
           console.log('🚗 Guardando vehículos MYMA del proyecto...');
@@ -340,7 +340,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         }
       }
       
-      // Guardar vehículos Contratista en proyecto_conductores
+      // Guardar vehículos Contratista en fct_acreditacion_solicitud_conductor_manual
       if (result.id && result.codigo_proyecto && vehiculosContratista.length > 0 && formData.requiereAcreditarContratista === 'yes') {
         try {
           console.log('🚗 Guardando vehículos Contratista del proyecto...');

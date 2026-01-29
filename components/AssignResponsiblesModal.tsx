@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchResponsablesRequerimiento } from '../services/supabaseService';
-import { ResponsableRequerimiento } from '../types';
+import { fetchPersonas } from '../services/supabaseService';
+import { Persona } from '../types';
 
 interface AssignResponsiblesModalProps {
   isOpen: boolean;
@@ -33,11 +33,15 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
   projectCode,
   currentResponsables,
 }) => {
-  const [responsables, setResponsables] = useState<ResponsableRequerimiento[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [searchJpro, setSearchJpro] = useState('');
+  const [searchEpr, setSearchEpr] = useState('');
+  const [searchRrhh, setSearchRrhh] = useState('');
+  const [searchLegal, setSearchLegal] = useState('');
   const [formData, setFormData] = useState<ResponsablesData>({
     empresa_id: currentResponsables?.empresa_id,
     empresa_nombre: currentResponsables?.empresa_nombre,
@@ -69,24 +73,33 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
-      const responsablesData = await fetchResponsablesRequerimiento();
-      setResponsables(responsablesData);
+      const personasData = await fetchPersonas();
+      setPersonas(personasData);
     } catch (error) {
-      console.error('Error cargando datos:', error);
+      console.error('Error cargando personas:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const filterPersonas = (search: string) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return personas;
+    return personas.filter(p =>
+      p.nombre_completo.toLowerCase().includes(term) ||
+      p.rut.toLowerCase().includes(term)
+    );
+  };
+
   const handleSelectChange = (role: keyof ResponsablesData, responsableId: string) => {
-    const selectedResponsable = responsables.find(r => r.id === parseInt(responsableId));
+    const selectedPersona = personas.find(p => p.id === parseInt(responsableId));
     const idKey = role;
     const nombreKey = role.replace('_id', '_nombre') as keyof ResponsablesData;
     
     setFormData(prev => ({
       ...prev,
       [idKey]: responsableId ? parseInt(responsableId) : undefined,
-      [nombreKey]: selectedResponsable ? selectedResponsable.nombre_responsable : undefined,
+      [nombreKey]: selectedPersona ? selectedPersona.nombre_completo : undefined,
     }));
   };
 
@@ -105,20 +118,20 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
       const dataToSave: ResponsablesData = { ...formData };
       
       if (formData.jpro_id) {
-        const responsable = responsables.find(r => r.id === formData.jpro_id);
-        dataToSave.jpro_nombre = responsable?.nombre_responsable;
+        const persona = personas.find(p => p.id === formData.jpro_id);
+        dataToSave.jpro_nombre = persona?.nombre_completo;
       }
       if (formData.epr_id) {
-        const responsable = responsables.find(r => r.id === formData.epr_id);
-        dataToSave.epr_nombre = responsable?.nombre_responsable;
+        const persona = personas.find(p => p.id === formData.epr_id);
+        dataToSave.epr_nombre = persona?.nombre_completo;
       }
       if (formData.rrhh_id) {
-        const responsable = responsables.find(r => r.id === formData.rrhh_id);
-        dataToSave.rrhh_nombre = responsable?.nombre_responsable;
+        const persona = personas.find(p => p.id === formData.rrhh_id);
+        dataToSave.rrhh_nombre = persona?.nombre_completo;
       }
       if (formData.legal_id) {
-        const responsable = responsables.find(r => r.id === formData.legal_id);
-        dataToSave.legal_nombre = responsable?.nombre_responsable;
+        const persona = personas.find(p => p.id === formData.legal_id);
+        dataToSave.legal_nombre = persona?.nombre_completo;
       }
 
       // Ejecutar onSave (puede ser async)
@@ -253,15 +266,25 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                     <p className="text-xs text-[#616f89]">Responsable principal del proyecto</p>
                   </div>
                 </div>
+                {/* Buscador JPRO */}
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    value={searchJpro}
+                    onChange={(e) => setSearchJpro(e.target.value)}
+                    placeholder="Buscar por nombre o RUT..."
+                    className="w-full mb-2 px-3 py-2 border border-[#dbdfe6] rounded-lg text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
                 <select
                   value={formData.jpro_id || ''}
                   onChange={(e) => handleSelectChange('jpro_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-[#111318]"
                 >
                   <option value="">Seleccionar responsable...</option>
-                  {responsables.map((responsable) => (
-                    <option key={responsable.id} value={responsable.id}>
-                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
+                  {filterPersonas(searchJpro).map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.nombre_completo} - {persona.rut}
                     </option>
                   ))}
                 </select>
@@ -280,15 +303,25 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                     <p className="text-xs text-[#616f89]">Responsable de seguridad y prevención</p>
                   </div>
                 </div>
+                {/* Buscador EPR */}
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    value={searchEpr}
+                    onChange={(e) => setSearchEpr(e.target.value)}
+                    placeholder="Buscar por nombre o RUT..."
+                    className="w-full mb-2 px-3 py-2 border border-[#dbdfe6] rounded-lg text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
                 <select
                   value={formData.epr_id || ''}
                   onChange={(e) => handleSelectChange('epr_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white text-[#111318]"
                 >
                   <option value="">Seleccionar responsable...</option>
-                  {responsables.map((responsable) => (
-                    <option key={responsable.id} value={responsable.id}>
-                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
+                  {filterPersonas(searchEpr).map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.nombre_completo} - {persona.rut}
                     </option>
                   ))}
                 </select>
@@ -307,15 +340,25 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                     <p className="text-xs text-[#616f89]">Responsable de gestión de personal</p>
                   </div>
                 </div>
+                {/* Buscador RRHH */}
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    value={searchRrhh}
+                    onChange={(e) => setSearchRrhh(e.target.value)}
+                    placeholder="Buscar por nombre o RUT..."
+                    className="w-full mb-2 px-3 py-2 border border-[#dbdfe6] rounded-lg text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
                 <select
                   value={formData.rrhh_id || ''}
                   onChange={(e) => handleSelectChange('rrhh_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all bg-white text-[#111318]"
                 >
                   <option value="">Seleccionar responsable...</option>
-                  {responsables.map((responsable) => (
-                    <option key={responsable.id} value={responsable.id}>
-                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
+                  {filterPersonas(searchRrhh).map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.nombre_completo} - {persona.rut}
                     </option>
                   ))}
                 </select>
@@ -334,15 +377,25 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                     <p className="text-xs text-[#616f89]">Responsable de asuntos legales</p>
                   </div>
                 </div>
+                {/* Buscador Legal */}
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    value={searchLegal}
+                    onChange={(e) => setSearchLegal(e.target.value)}
+                    placeholder="Buscar por nombre o RUT..."
+                    className="w-full mb-2 px-3 py-2 border border-[#dbdfe6] rounded-lg text-sm focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
                 <select
                   value={formData.legal_id || ''}
                   onChange={(e) => handleSelectChange('legal_id', e.target.value)}
                   className="w-full px-4 py-3 border border-[#dbdfe6] rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-white text-[#111318]"
                 >
                   <option value="">Seleccionar responsable...</option>
-                  {responsables.map((responsable) => (
-                    <option key={responsable.id} value={responsable.id}>
-                      {responsable.nombre_responsable} - {responsable.rut_responsable} ({responsable.cargo_responsable})
+                  {filterPersonas(searchLegal).map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.nombre_completo} - {persona.rut}
                     </option>
                   ))}
                 </select>

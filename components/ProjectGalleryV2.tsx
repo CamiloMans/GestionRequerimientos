@@ -191,12 +191,12 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       
       // 1. Guardar responsables en la base de datos (esto es lo PRINCIPAL)
       // Esto también cambiará el estado a "En proceso"
-      console.log('\n📝 Paso 1: Guardando responsables en solicitud_acreditacion...');
+      console.log('\n📝 Paso 1: Guardando responsables en fct_acreditacion_solicitud...');
       await updateResponsablesSolicitud(selectedProject.id, responsables);
       console.log('✅ Responsables guardados exitosamente');
 
-      // 2. Actualizar nombres de responsables en proyecto_requerimientos_acreditacion
-      console.log('\n📝 Paso 2: Actualizando responsables en proyecto_requerimientos_acreditacion...');
+      // 2. Actualizar nombres de responsables en brg_acreditacion_solicitud_requerimiento
+      console.log('\n📝 Paso 2: Actualizando responsables en brg_acreditacion_solicitud_requerimiento...');
       try {
         await updateProyectoRequerimientosResponsables(
           selectedProject.projectCode,
@@ -210,13 +210,13 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         console.log('✅ Responsables actualizados en requerimientos exitosamente');
       } catch (reqError) {
         console.error('❌ Error actualizando responsables en requerimientos:', reqError);
-        console.warn('⚠️ Los responsables se guardaron en solicitud_acreditacion, pero hubo un problema actualizando los requerimientos');
+        console.warn('⚠️ Los responsables se guardaron en fct_acreditacion_solicitud, pero hubo un problema actualizando los requerimientos');
       }
       
       // 3. Guardar requerimientos del proyecto si hay empresa y requerimientos (legacy - ya no se usa)
       if (responsables.empresa_nombre && responsables.empresaRequerimientos && responsables.empresaRequerimientos.length > 0) {
         try {
-          console.log('\n📋 Paso 2: Guardando requerimientos en proyecto_requerimientos_acreditacion...');
+          console.log('\n📋 Paso 2: Guardando requerimientos en brg_acreditacion_solicitud_requerimiento...');
           console.log(`Total de requerimientos a guardar: ${responsables.empresaRequerimientos.length}`);
           console.log('\nVista previa de los primeros 3 requerimientos:');
           
@@ -323,7 +323,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         if (error.message.includes('column') || error.message.includes('does not exist')) {
           errorMsg += ' Las columnas de responsables no existen en la base de datos. Ejecuta el script sql/add_responsables_columns.sql en Supabase SQL Editor.';
         } else if (error.message.includes('table') || error.message.includes('relation')) {
-          errorMsg += ' La tabla solicitud_acreditacion no existe. Verifica tu configuración de Supabase.';
+          errorMsg += ' La tabla fct_acreditacion_solicitud no existe. Verifica tu configuración de Supabase.';
         }
       } else {
         errorMsg = 'Error desconocido. Revisa la consola del navegador (F12)';

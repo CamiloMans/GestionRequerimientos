@@ -496,12 +496,12 @@ export const deletePersonaRequerimiento = async (id: number): Promise<void> => {
   }
 };
 
-// ===== FUNCIONES PARA SOLICITUD_ACREDITACION =====
+// ===== FUNCIONES PARA FCT_ACREDITACION_SOLICITUD (antes solicitud_acreditacion) =====
 
 // Función para obtener todas las solicitudes de acreditación
 export const fetchSolicitudesAcreditacion = async (): Promise<SolicitudAcreditacion[]> => {
   const { data, error } = await supabase
-    .from('solicitud_acreditacion')
+    .from('fct_acreditacion_solicitud')
     .select('*')
     .order('created_at', { ascending: false });
   
@@ -621,7 +621,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
 // Función para crear una nueva solicitud de acreditación
 export const createSolicitudAcreditacion = async (data: Partial<SolicitudAcreditacion>): Promise<SolicitudAcreditacion> => {
   const { data: result, error } = await supabase
-    .from('solicitud_acreditacion')
+    .from('fct_acreditacion_solicitud')
     .insert(data)
     .select()
     .single();
@@ -640,7 +640,7 @@ export const updateSolicitudAcreditacion = async (
   data: Partial<SolicitudAcreditacion>
 ): Promise<SolicitudAcreditacion> => {
   const { data: result, error } = await supabase
-    .from('solicitud_acreditacion')
+    .from('fct_acreditacion_solicitud')
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
@@ -657,7 +657,7 @@ export const updateSolicitudAcreditacion = async (
 // Función para eliminar una solicitud de acreditación
 export const deleteSolicitudAcreditacion = async (id: number): Promise<void> => {
   const { error } = await supabase
-    .from('solicitud_acreditacion')
+    .from('fct_acreditacion_solicitud')
     .delete()
     .eq('id', id);
   
@@ -704,7 +704,7 @@ export const updateResponsablesSolicitud = async (
   console.log('📦 Datos a guardar:', updateData);
 
   const { data, error } = await supabase
-    .from('solicitud_acreditacion')
+    .from('fct_acreditacion_solicitud')
     .update(updateData)
     .eq('id', id)
     .select()
@@ -819,7 +819,7 @@ export const fetchProyectoRequerimientoObservaciones = async (
   requerimiento: string
 ): Promise<string | null> => {
   const { data, error } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
+    .from('brg_acreditacion_solicitud_requerimiento')
     .select('observaciones')
     .eq('codigo_proyecto', codigoProyecto)
     .eq('requerimiento', requerimiento)
@@ -873,7 +873,7 @@ export const createProyectoRequerimientos = async (
   // Primero, verificar si ya existen requerimientos para este proyecto
   console.log('\n🔍 Verificando requerimientos existentes...');
   const { data: existingReqs, error: checkError } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
+    .from('brg_acreditacion_solicitud_requerimiento')
     .select('id, requerimiento, categoria_requerimiento, responsable')
     .eq('codigo_proyecto', codigoProyecto);
   
@@ -915,7 +915,7 @@ export const createProyectoRequerimientos = async (
         
         if (nombreResponsable) {
           const { error: updateError } = await supabase
-            .from('proyecto_requerimientos_acreditacion')
+            .from('brg_acreditacion_solicitud_requerimiento')
             .update({ nombre_responsable: nombreResponsable })
             .eq('id', req.id);
           
@@ -939,14 +939,14 @@ export const createProyectoRequerimientos = async (
   
   console.log('✅ No hay requerimientos existentes, procediendo a crear...');
 
-  // Obtener el id_proyecto (id de solicitud_acreditacion)
+  // Obtener el id_proyecto (id de fct_acreditacion_solicitud)
   let proyectoId = idProyecto;
   
   if (!proyectoId) {
     // Si no se pasó como parámetro, buscarlo en la base de datos
-    console.log('\n🔍 Buscando solicitud_acreditacion...');
+    console.log('\n🔍 Buscando fct_acreditacion_solicitud...');
     const { data: solicitud, error: solicitudError } = await supabase
-      .from('solicitud_acreditacion')
+      .from('fct_acreditacion_solicitud')
       .select('id')
       .eq('codigo_proyecto', codigoProyecto)
       .single();
@@ -962,13 +962,13 @@ export const createProyectoRequerimientos = async (
   
   console.log(`✅ ID Proyecto encontrado: ${proyectoId}`);
 
-  // Obtener los trabajadores de proyecto_trabajadores
-  console.log('\n🔍 Buscando trabajadores en proyecto_trabajadores...');
+  // Obtener los trabajadores de fct_acreditacion_solicitud_trabajador_manual
+  console.log('\n🔍 Buscando trabajadores en fct_acreditacion_solicitud_trabajador_manual...');
   let trabajadoresProyecto: ProyectoTrabajador[] = [];
   
   if (proyectoId) {
     const { data: trabajadores, error: trabajadoresError } = await supabase
-      .from('proyecto_trabajadores')
+      .from('fct_acreditacion_solicitud_trabajador_manual')
       .select('*')
       .eq('id_proyecto', proyectoId);
 
@@ -1018,7 +1018,7 @@ export const createProyectoRequerimientos = async (
     
     console.log(`    Nombre responsable asignado: ${nombreResponsable}`);
 
-    // Si la categoría es "Trabajadores", crear un registro por cada trabajador de proyecto_trabajadores
+    // Si la categoría es "Trabajadores", crear un registro por cada trabajador de fct_acreditacion_solicitud_trabajador_manual
     const esTrabajadores = req.categoria_requerimiento?.toLowerCase() === 'trabajadores';
     console.log(`    ¿Es categoría Trabajadores?: ${esTrabajadores}`);
     console.log(`    Trabajadores disponibles: ${trabajadoresProyecto.length}`);
@@ -1084,11 +1084,11 @@ export const createProyectoRequerimientos = async (
 
   // Insertar todos los requerimientos
   console.log('\n💾 INSERTANDO EN BASE DE DATOS...');
-  console.log(`Tabla: proyecto_requerimientos_acreditacion`);
+  console.log(`Tabla: brg_acreditacion_solicitud_requerimiento`);
   console.log(`Registros a insertar: ${proyectoRequerimientos.length}`);
   
   const { data, error } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
+    .from('brg_acreditacion_solicitud_requerimiento')
     .insert(proyectoRequerimientos)
     .select();
   
@@ -1134,7 +1134,7 @@ export const fetchProyectoRequerimientos = async (codigoProyecto: string): Promi
   console.log('🔍 Buscando requerimientos del proyecto:', codigoProyecto);
   
   const { data, error } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
+    .from('brg_acreditacion_solicitud_requerimiento')
     .select('*')
     .eq('codigo_proyecto', codigoProyecto)
     .order('created_at', { ascending: true });
@@ -1148,18 +1148,18 @@ export const fetchProyectoRequerimientos = async (codigoProyecto: string): Promi
   return data || [];
 };
 
-// Función para obtener solicitud_acreditacion por código de proyecto (para obtener drive_folder_id y drive_folder_url)
+// Función para obtener fct_acreditacion_solicitud por código de proyecto (para obtener drive_folder_id y drive_folder_url)
 export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string): Promise<Partial<SolicitudAcreditacion> | null> => {
-  console.log('🔍 Buscando solicitud_acreditacion para proyecto:', codigoProyecto);
+  console.log('🔍 Buscando fct_acreditacion_solicitud para proyecto:', codigoProyecto);
   
   const { data, error } = await supabase
-    .from('solicitud_acreditacion')
+    .from('fct_acreditacion_solicitud')
     .select('drive_folder_id, drive_folder_url, codigo_proyecto')
     .eq('codigo_proyecto', codigoProyecto)
     .single();
   
   if (error) {
-    console.error('❌ Error fetching solicitud_acreditacion:', error);
+    console.error('❌ Error fetching fct_acreditacion_solicitud:', error);
     console.error('❌ Código de proyecto buscado:', codigoProyecto);
     return null;
   }
@@ -1193,7 +1193,7 @@ export const updateRequerimientoEstado = async (
 
   // Primero, obtener el requerimiento para saber el código del proyecto
   const { data: requerimiento, error: fetchError } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
+    .from('brg_acreditacion_solicitud_requerimiento')
     .select('codigo_proyecto, id_proyecto')
     .eq('id', id)
     .single();
@@ -1205,7 +1205,7 @@ export const updateRequerimientoEstado = async (
 
   // Actualizar el requerimiento
   const { error } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
+    .from('brg_acreditacion_solicitud_requerimiento')
     .update(updateData)
     .eq('id', id);
   
@@ -1224,7 +1224,7 @@ export const updateRequerimientoEstado = async (
     try {
       // Obtener el estado actual del proyecto
       const { data: proyectoActual, error: proyectoError } = await supabase
-        .from('solicitud_acreditacion')
+        .from('fct_acreditacion_solicitud')
         .select('estado_solicitud_acreditacion')
         .eq('id', requerimiento.id_proyecto)
         .single();
@@ -1235,7 +1235,7 @@ export const updateRequerimientoEstado = async (
 
       // Obtener todos los requerimientos del proyecto
       const { data: todosRequerimientos, error: reqError } = await supabase
-        .from('proyecto_requerimientos_acreditacion')
+        .from('brg_acreditacion_solicitud_requerimiento')
         .select('estado')
         .eq('codigo_proyecto', requerimiento.codigo_proyecto);
 
@@ -1254,7 +1254,7 @@ export const updateRequerimientoEstado = async (
       if (allCompleted && !estadoProyectoActual.includes('finalizado')) {
         nuevoEstadoProyecto = 'Finalizado';
         const { error: updateProyectoError } = await supabase
-          .from('solicitud_acreditacion')
+          .from('fct_acreditacion_solicitud')
           .update({ 
             estado_solicitud_acreditacion: nuevoEstadoProyecto,
             fecha_finalizacion: new Date().toISOString(),
@@ -1272,7 +1272,7 @@ export const updateRequerimientoEstado = async (
       else if (!allCompleted && estadoProyectoActual.includes('finalizado')) {
         nuevoEstadoProyecto = 'En proceso';
         const { error: updateProyectoError } = await supabase
-          .from('solicitud_acreditacion')
+          .from('fct_acreditacion_solicitud')
           .update({ 
             estado_solicitud_acreditacion: nuevoEstadoProyecto,
             fecha_finalizacion: null,
@@ -1317,7 +1317,7 @@ export const updateProyectoRequerimientosResponsables = async (
 
   // Obtener todos los requerimientos del proyecto
   const { data: requerimientos, error: fetchError } = await supabase
-    .from('proyecto_requerimientos_acreditacion')
+    .from('brg_acreditacion_solicitud_requerimiento')
     .select('id, requerimiento, responsable')
     .eq('codigo_proyecto', codigoProyecto);
 
@@ -1360,7 +1360,7 @@ export const updateProyectoRequerimientosResponsables = async (
 
     if (nombreResponsable) {
       const { error: updateError } = await supabase
-        .from('proyecto_requerimientos_acreditacion')
+        .from('brg_acreditacion_solicitud_requerimiento')
         .update({ 
           nombre_responsable: nombreResponsable,
           updated_at: new Date().toISOString()
@@ -1388,7 +1388,7 @@ export const updateProyectoRequerimientosResponsables = async (
 export const createProyectoTrabajadores = async (
   idProyecto: number,
   codigoProyecto: string,
-  trabajadoresMyma: { name: string; rut?: string; phone?: string }[],
+  trabajadoresMyma: { name: string; rut?: string; phone?: string; personaId?: number }[],
   trabajadoresContratista: { name: string; rut?: string; phone?: string }[]
 ): Promise<void> => {
   console.log('👷 Guardando trabajadores del proyecto:', codigoProyecto);
@@ -1405,7 +1405,9 @@ export const createProyectoTrabajadores = async (
       nombre_trabajador: trabajador.name,
       categoria_empresa: 'MyMA',
       rut: trabajador.rut || null,
-      telefono: trabajador.phone || null
+      telefono: trabajador.phone || null,
+      // Nuevo: relacionar con dim_core_persona si viene desde buscador interno
+      persona_id: trabajador.personaId ?? null
     });
   });
 
@@ -1417,7 +1419,9 @@ export const createProyectoTrabajadores = async (
       nombre_trabajador: trabajador.name,
       categoria_empresa: 'Contratista',
       rut: trabajador.rut || null,
-      telefono: trabajador.phone || null
+      telefono: trabajador.phone || null,
+      // Para contratistas no tenemos persona en dim_core_persona
+      persona_id: null
     });
   });
 
@@ -1429,7 +1433,7 @@ export const createProyectoTrabajadores = async (
   console.log(`📦 Insertando ${trabajadores.length} trabajadores en total`);
 
   const { data, error } = await supabase
-    .from('proyecto_trabajadores')
+    .from('fct_acreditacion_solicitud_trabajador_manual')
     .insert(trabajadores)
     .select();
 
@@ -1469,7 +1473,7 @@ export const createProyectoHorarios = async (
   console.log(`📦 Insertando ${horariosData.length} horarios`);
 
   const { data, error } = await supabase
-    .from('proyecto_horarios')
+    .from('fct_acreditacion_solicitud_horario_manual')
     .insert(horariosData)
     .select();
 
@@ -1509,7 +1513,7 @@ export const createProyectoConductores = async (
   console.log(`📦 Insertando ${conductoresData.length} conductores`);
 
   const { data, error } = await supabase
-    .from('proyecto_conductores')
+    .from('fct_acreditacion_solicitud_conductor_manual')
     .insert(conductoresData)
     .select();
 

@@ -100,7 +100,7 @@ export interface ProyectoRequerimientoAcreditacion {
   nombre_responsable?: string;
   nombre_trabajador?: string; // Nombre del trabajador asignado a este requerimiento
   categoria_empresa?: string; // MyMA o Contratista
-  id_proyecto_trabajador?: number; // ID del trabajador en proyecto_trabajadores
+  id_proyecto_trabajador?: number; // ID del trabajador en fct_acreditacion_solicitud_trabajador_manual
   drive_doc_url?: string; // URL del documento en Google Drive
 }
 
@@ -189,6 +189,8 @@ export interface Worker {
   phone?: string;
   company?: string;
   rut?: string;
+  // ID de la persona en dim_core_persona (solo para trabajadores internos seleccionados desde BD)
+  personaId?: number;
 }
 
 export interface RequestFormData {

@@ -188,7 +188,9 @@ export const WorkerList: React.FC<WorkerListProps> = ({
         type: WorkerType.INTERNAL,
         phone: selectedPersona.telefono || '+56 9 XXXX XXXX',
         company: undefined,
-        rut: selectedPersona.rut
+        rut: selectedPersona.rut,
+        // Guardar el id real de la persona seleccionada para usarlo en fct_acreditacion_solicitud_trabajador_manual.persona_id
+        personaId: selectedPersona.id
       };
       onAddWorker(newWorker);
       setSearchQuery('');

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NewRequestPayload, RequestItem, Persona, Requerimiento, RequestStatus } from '../types';
-import { fetchPersonas, fetchRequerimientos, calculateStatus } from '../services/acreditacionService';
+import { fetchPersonas, fetchRequerimientos, calculateStatus, createRequerimiento, fetchCategoriasRequerimientos } from '../services/acreditacionService';
 
 interface RequestFormProps {
   onBack: () => void;
@@ -16,6 +16,9 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
   const [loading, setLoading] = useState(true);
   const [currentStatus, setCurrentStatus] = useState<RequestStatus | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showCreateRequerimientoModal, setShowCreateRequerimientoModal] = useState(false);
+  const [creatingRequerimiento, setCreatingRequerimiento] = useState(false);
+  const [showCreateCategoriaModal, setShowCreateCategoriaModal] = useState(false);
   
   // Estados para el buscador de colaboradores
   const [searchTerm, setSearchTerm] = useState('');
@@ -359,9 +362,19 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                     </div>
 
                     <div className="space-y-2">
-                      <label htmlFor="requerimiento_id" className="block text-sm font-medium text-[#111318]">
-                        Requerimiento <span className="text-red-500">*</span>
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="requerimiento_id" className="block text-sm font-medium text-[#111318]">
+                          Requerimiento <span className="text-red-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowCreateRequerimientoModal(true)}
+                          className="flex items-center gap-1.5 text-primary hover:text-primary-hover text-sm font-medium transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                          Crear Requerimiento
+                        </button>
+                      </div>
                       <select 
                         id="requerimiento_id" 
                         name="requerimiento_id" 
@@ -643,6 +656,353 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
           </div>
         </div>
       )}
+
+      {/* Modal de Crear Requerimiento */}
+      {showCreateRequerimientoModal && (
+        <CreateRequerimientoModal
+          isOpen={showCreateRequerimientoModal}
+          onClose={() => setShowCreateRequerimientoModal(false)}
+          onSave={async (newRequerimiento) => {
+            try {
+              setCreatingRequerimiento(true);
+              const created = await createRequerimiento(
+                newRequerimiento.requerimiento,
+                newRequerimiento.categoria_requerimiento,
+                newRequerimiento.dias_anticipacion_notificacion
+              );
+              // Actualizar lista de requerimientos
+              const updatedRequerimientos = await fetchRequerimientos();
+              setRequerimientos(updatedRequerimientos);
+              // Recargar categorías para incluir la nueva si no existía
+              const updatedCategorias = await fetchCategoriasRequerimientos();
+              // Seleccionar el nuevo requerimiento
+              setFormData({...formData, requerimiento_id: created.id});
+              setShowCreateRequerimientoModal(false);
+            } catch (error) {
+              console.error('Error creando requerimiento:', error);
+              alert('Error al crear el requerimiento. Por favor, intente nuevamente.');
+            } finally {
+              setCreatingRequerimiento(false);
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Componente Modal para Crear Requerimiento
+interface CreateRequerimientoModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (requerimiento: {
+    requerimiento: string;
+    categoria_requerimiento: string;
+    dias_anticipacion_notificacion?: number;
+  }) => Promise<void>;
+}
+
+const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isOpen, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    requerimiento: '',
+    categoria_requerimiento: '',
+    dias_anticipacion_notificacion: 60,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreateCategoriaModal, setShowCreateCategoriaModal] = useState(false);
+  const [categorias, setCategorias] = useState<string[]>([]);
+  const [loadingCategorias, setLoadingCategorias] = useState(true);
+
+  // Cargar categorías desde la base de datos cuando se abre el modal
+  useEffect(() => {
+    if (isOpen) {
+      loadCategorias();
+    }
+  }, [isOpen]);
+
+  const loadCategorias = async () => {
+    try {
+      setLoadingCategorias(true);
+      const categoriasData = await fetchCategoriasRequerimientos();
+      setCategorias(categoriasData);
+    } catch (error) {
+      console.error('Error cargando categorías:', error);
+      // Si hay error, usar categorías por defecto
+      setCategorias(['Exámenes', 'Cursos', 'Conducción', 'Legal', 'Trabajadores']);
+    } finally {
+      setLoadingCategorias(false);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'dias_anticipacion_notificacion' ? parseInt(value) || 60 : value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!formData.requerimiento || !formData.categoria_requerimiento) {
+      setError('Por favor complete todos los campos requeridos');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await onSave(formData);
+    } catch (err: any) {
+      setError(err.message || 'Error al crear el requerimiento');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="bg-primary px-6 py-5 flex items-center justify-between flex-shrink-0 rounded-t-xl">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-white text-3xl">add_circle</span>
+            <h2 className="text-xl font-bold text-white">Crear Nuevo Requerimiento</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto flex-1">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-red-600">error</span>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label htmlFor="requerimiento" className="block text-sm font-medium text-[#111318]">
+                Requerimiento <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="requerimiento"
+                name="requerimiento"
+                className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5 px-4"
+                placeholder="Ej: AUD, CTT, CCD, etc."
+                value={formData.requerimiento}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label htmlFor="categoria_requerimiento" className="block text-sm font-medium text-[#111318]">
+                  Categoría <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateCategoriaModal(true)}
+                  className="flex items-center gap-1.5 text-primary hover:text-primary-hover text-sm font-medium transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                  Crear Categoría
+                </button>
+              </div>
+              <select
+                id="categoria_requerimiento"
+                name="categoria_requerimiento"
+                className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5 px-4"
+                value={formData.categoria_requerimiento}
+                onChange={handleChange}
+                required
+                disabled={loadingCategorias}
+              >
+                <option value="">
+                  {loadingCategorias ? 'Cargando categorías...' : 'Seleccione una categoría...'}
+                </option>
+                {categorias.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              {loadingCategorias && (
+                <p className="text-xs text-gray-500 mt-1">Cargando categorías desde la base de datos...</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="dias_anticipacion_notificacion" className="block text-sm font-medium text-[#111318]">
+                Días de Anticipación para Notificación
+              </label>
+              <input
+                type="number"
+                id="dias_anticipacion_notificacion"
+                name="dias_anticipacion_notificacion"
+                className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5 px-4"
+                placeholder="60"
+                min="1"
+                value={formData.dias_anticipacion_notificacion}
+                onChange={handleChange}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Número de días antes del vencimiento para enviar notificaciones (por defecto: 60 días)
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+              >
+                {saving ? (
+                  <>
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-xl">save</span>
+                    Guardar Requerimiento
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Modal de Crear Categoría */}
+      {showCreateCategoriaModal && (
+        <CreateCategoriaModal
+          isOpen={showCreateCategoriaModal}
+          onClose={() => setShowCreateCategoriaModal(false)}
+          onSave={(nuevaCategoria) => {
+            if (!categorias.includes(nuevaCategoria)) {
+              setCategorias([...categorias, nuevaCategoria].sort());
+            }
+            setFormData({...formData, categoria_requerimiento: nuevaCategoria});
+            setShowCreateCategoriaModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Componente Modal para Crear Categoría
+interface CreateCategoriaModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (categoria: string) => void;
+}
+
+const CreateCategoriaModal: React.FC<CreateCategoriaModalProps> = ({ isOpen, onClose, onSave }) => {
+  const [categoria, setCategoria] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!categoria.trim()) {
+      setError('Por favor ingrese un nombre para la categoría');
+      return;
+    }
+
+    onSave(categoria.trim());
+    setCategoria('');
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        {/* Header */}
+        <div className="bg-primary px-6 py-4 flex items-center justify-between flex-shrink-0 rounded-t-xl">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-white text-2xl">add_circle</span>
+            <h2 className="text-lg font-bold text-white">Crear Nueva Categoría</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-red-600 text-lg">error</span>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label htmlFor="nueva_categoria" className="block text-sm font-medium text-[#111318]">
+                Nombre de la Categoría <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="nueva_categoria"
+                className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5 px-4"
+                placeholder="Ej: Capacitación, Seguridad, etc."
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center gap-2 text-sm"
+              >
+                <span className="material-symbols-outlined text-lg">save</span>
+                Guardar Categoría
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };

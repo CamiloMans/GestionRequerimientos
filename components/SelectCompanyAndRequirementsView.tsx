@@ -290,7 +290,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
         estado_solicitud_acreditacion: 'Por asignar responsables',
       });
 
-      // Guardar los requerimientos seleccionados en proyecto_requerimientos_acreditacion
+      // Guardar los requerimientos seleccionados en brg_acreditacion_solicitud_requerimiento
       // Sin responsables asignados todavía (se asignarán después)
       if (empresaRequerimientos.length > 0) {
         await createProyectoRequerimientos(
@@ -303,7 +303,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
             rrhh_nombre: undefined,
             legal_nombre: undefined,
           },
-          project.id // Pasar el id de solicitud_acreditacion como id_proyecto
+          project.id // Pasar el id de fct_acreditacion_solicitud como id_proyecto
         );
       }
 
