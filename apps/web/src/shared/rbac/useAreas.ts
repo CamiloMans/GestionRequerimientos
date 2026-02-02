@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../api-client/supabase';
 import { AreaId, AREAS } from '@contracts/areas';
 import { getUserPermissions, hasAreaAccess, PermissionsByModule } from './permissionsService';
+import { getCachedPermissions } from './permissionsCache';
 
 export interface UserArea {
   areaId: AreaId;
@@ -32,34 +33,31 @@ export const useAreas = () => {
           return;
         }
 
-        // Consultar permisos desde v_my_permissions
-        const userPermissions = await getUserPermissions();
+        // Intentar obtener permisos desde caché (usando el mismo caché que useHasPermissions)
+        const cached = getCachedPermissions(user.id);
+        let userPermissions: PermissionsByModule;
+
+        if (cached) {
+          console.log('✅ Usando permisos desde caché para áreas');
+          userPermissions = cached.permissions;
+        } else {
+          // Consultar permisos desde v_my_permissions solo si no hay caché
+          console.log('🔍 Consultando permisos desde la base de datos para áreas');
+          userPermissions = await getUserPermissions();
+        }
+
         setPermissions(userPermissions);
 
-        // 🔍 DEBUG: Mostrar permisos en consola
-        console.log('🔐 ===== PERMISOS DEL USUARIO =====');
-        console.log('👤 Usuario:', user.email);
-        console.log('📋 Permisos raw de v_my_permissions:', userPermissions);
-        
         // Determinar qué áreas mostrar basándose en permisos de view
         const allowedAreas: AreaId[] = [];
         
         // Verificar cada área disponible
         Object.values(AreaId).forEach((areaId) => {
           const hasAccess = hasAreaAccess(userPermissions, areaId);
-          const moduleCode = areaId.toLowerCase();
-          const modulePerms = userPermissions[moduleCode];
-          console.log(`📋 Área "${areaId}" (módulo: "${moduleCode}"):`, {
-            tieneAcceso: hasAccess ? '✅ SÍ' : '❌ NO',
-            permisos: modulePerms || 'Sin permisos'
-          });
           if (hasAccess) {
             allowedAreas.push(areaId);
           }
         });
-
-        console.log('🎯 Áreas permitidas (visibles en el selector):', allowedAreas);
-        console.log('🔐 ========================================');
 
         // Si no hay permisos, retornar array vacío (el onboarding se mostrará)
         setAreas(allowedAreas);
@@ -75,9 +73,12 @@ export const useAreas = () => {
 
     fetchUserAreas();
 
-    // Escuchar cambios en la autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      fetchUserAreas();
+    // Escuchar cambios en la autenticación (solo para invalidar caché, no recargar inmediatamente)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        // Solo recargar si hay cambio de sesión
+        fetchUserAreas();
+      }
     });
 
     return () => {

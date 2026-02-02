@@ -1,5 +1,6 @@
 import { supabase } from '../api-client/supabase';
 import { getUserPermissions } from './permissionsService';
+import { clearCachedPermissions } from './permissionsCache';
 
 /**
  * Interfaz para una solicitud de acceso
@@ -235,6 +236,10 @@ export const approveAccessRequest = async (
     }
 
     console.log('✅ Solicitud aprobada y roles asignados correctamente');
+
+    // Invalidar caché de permisos para que los cambios se reflejen
+    clearCachedPermissions();
+    console.log('🗑️ Caché de permisos invalidado');
   } catch (error) {
     console.error('Error in approveAccessRequest:', error);
     throw error;
