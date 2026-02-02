@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
+import { getUserPermissions, hasAreaAdminPermission } from '@shared/rbac/permissionsService';
+import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
+import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -22,6 +25,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   const [user, setUser] = useState<User | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showAccessRequestsModal, setShowAccessRequestsModal] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   
   // Determinar vista activa basada en la ruta
@@ -45,12 +51,29 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
     return `/app/area/${AreaId.ACREDITACION}/${path}`;
   };
 
-  // Obtener información del usuario
+  // Obtener información del usuario y verificar si es admin
   useEffect(() => {
     const getUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
+
+        // Verificar si el usuario es admin específicamente del módulo de Acreditación
+        if (user) {
+          const permissions = await getUserPermissions();
+          const isAcreditacionAdmin = hasAreaAdminPermission(permissions, AreaId.ACREDITACION);
+          setIsAdmin(isAcreditacionAdmin);
+
+          // Si es admin de Acreditación, cargar el contador de solicitudes pendientes
+          if (isAcreditacionAdmin) {
+            const requests = await fetchPendingAccessRequests();
+            // Filtrar solo solicitudes del módulo de Acreditación
+            const acreditacionRequests = requests.filter(
+              (req) => req.modulo_solicitado.toLowerCase() === 'acreditacion'
+            );
+            setPendingRequestsCount(acreditacionRequests.length);
+          }
+        }
       } catch (error) {
         console.error('Error obteniendo usuario:', error);
       }
@@ -61,12 +84,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
     // Escuchar cambios en la autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        getUser();
+      } else {
+        setIsAdmin(false);
+        setPendingRequestsCount(0);
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Actualizar contador periódicamente si es admin de Acreditación
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const updateCount = async () => {
+      try {
+        const requests = await fetchPendingAccessRequests();
+        // Filtrar solo solicitudes del módulo de Acreditación
+        const acreditacionRequests = requests.filter(
+          (req) => req.modulo_solicitado.toLowerCase() === 'acreditacion'
+        );
+        setPendingRequestsCount(acreditacionRequests.length);
+      } catch (error) {
+        console.error('Error updating requests count:', error);
+      }
+    };
+
+    // Actualizar inmediatamente y luego cada 30 segundos
+    updateCount();
+    const interval = setInterval(updateCount, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAdmin]);
 
   // Cerrar el menú cuando se hace click fuera
   useEffect(() => {
@@ -254,6 +307,32 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                   Solicitudes de acreditación
                 </span>
               </button>
+
+              {/* Solicitudes de acceso (solo para admins) */}
+              {isAdmin && (
+                <button 
+                  onClick={() => setShowAccessRequestsModal(true)}
+                  className="group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative text-[#616f89] hover:bg-gray-100"
+                  title="Solicitudes de acceso pendientes"
+                >
+                  <span className="material-symbols-outlined text-2xl pointer-events-none relative">
+                    gavel
+                    {pendingRequestsCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full">
+                        {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                      </span>
+                    )}
+                  </span>
+                  <span className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-50">
+                    Solicitudes de acceso
+                    {pendingRequestsCount > 0 && (
+                      <span className="ml-2 px-1.5 py-0.5 bg-red-500 rounded-full">
+                        {pendingRequestsCount}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              )}
             </nav>
           </div>
           
@@ -342,6 +421,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           </div>
         </div>
       </aside>
+
+      {/* Modal de solicitudes de acceso */}
+      <AccessRequestsModal
+        isOpen={showAccessRequestsModal}
+        onClose={() => {
+          setShowAccessRequestsModal(false);
+          // Actualizar contador al cerrar
+          if (isAdmin) {
+            fetchPendingAccessRequests().then((requests) => {
+              // Filtrar solo solicitudes del módulo de Acreditación
+              const acreditacionRequests = requests.filter(
+                (req) => req.modulo_solicitado.toLowerCase() === 'acreditacion'
+              );
+              setPendingRequestsCount(acreditacionRequests.length);
+            });
+          }
+        }}
+      />
     </>
   );
 };

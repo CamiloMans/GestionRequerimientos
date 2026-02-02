@@ -145,3 +145,25 @@ export const hasAreaAccess = (
   return hasModuleViewPermission(permissions, moduleCode);
 };
 
+/**
+ * Verificar si el usuario tiene permiso admin en un módulo específico
+ */
+export const hasModuleAdminPermission = (
+  permissions: PermissionsByModule,
+  moduleCode: string
+): boolean => {
+  const module = moduleCode.toLowerCase().trim();
+  return permissions[module]?.admin === true;
+};
+
+/**
+ * Verificar si el usuario tiene permiso admin en un área específica
+ */
+export const hasAreaAdminPermission = (
+  permissions: PermissionsByModule,
+  areaId: AreaId
+): boolean => {
+  const moduleCode = areaIdToModuleCode(areaId);
+  return hasModuleAdminPermission(permissions, moduleCode);
+};
+

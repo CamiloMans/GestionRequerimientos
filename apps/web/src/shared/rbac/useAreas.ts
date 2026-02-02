@@ -61,19 +61,13 @@ export const useAreas = () => {
         console.log('🎯 Áreas permitidas (visibles en el selector):', allowedAreas);
         console.log('🔐 ========================================');
 
-        // Si no hay permisos específicos, usar fallback (para desarrollo/compatibilidad)
-        if (allowedAreas.length === 0) {
-          console.warn('⚠️ No se encontraron permisos en v_my_permissions, usando fallback');
-          // Fallback: dar acceso a acreditaciones y proveedores por defecto
-          setAreas([AreaId.ACREDITACION, AreaId.PROVEEDORES]);
-        } else {
-          setAreas(allowedAreas);
-        }
+        // Si no hay permisos, retornar array vacío (el onboarding se mostrará)
+        setAreas(allowedAreas);
       } catch (err: any) {
         console.error('Error fetching user areas:', err);
         setError(err.message || 'Error al cargar áreas permitidas');
-        // Fallback: dar acceso a acreditaciones y proveedores
-        setAreas([AreaId.ACREDITACION, AreaId.PROVEEDORES]);
+        // En caso de error, retornar array vacío
+        setAreas([]);
       } finally {
         setLoading(false);
       }

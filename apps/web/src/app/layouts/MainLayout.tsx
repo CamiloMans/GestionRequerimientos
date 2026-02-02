@@ -3,8 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAreas } from '@shared/rbac/useAreas';
 import AreaSelector from '@shared/rbac/AreaSelector';
 import { useAuth } from '@shared/auth/useAuth';
+import { useHasPermissions } from '@shared/rbac/useHasPermissions';
 import { AreaId } from '@contracts/areas';
 import PermissionsDebug from '@shared/rbac/PermissionsDebug';
+import OnboardingView from '@shared/onboarding/OnboardingView';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -13,19 +15,40 @@ interface MainLayoutProps {
 /**
  * Layout principal de la aplicación
  * Incluye el header con selector de área y maneja la navegación inicial
+ * Muestra OnboardingView si el usuario no tiene permisos en ningún módulo
  */
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const { areas, loading } = useAreas();
+  const { areas, loading: areasLoading } = useAreas();
+  const { hasPermissions, loading: permissionsLoading } = useHasPermissions();
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  const loading = areasLoading || permissionsLoading;
+
   // Si está en la ruta raíz /app (sin /area/), redirigir a la primera área disponible
   React.useEffect(() => {
-    if (location.pathname === '/app' && !loading && areas.length > 0) {
+    if (location.pathname === '/app' && !loading && areas.length > 0 && hasPermissions) {
       navigate(`/app/area/${areas[0]}`, { replace: true });
     }
-  }, [location.pathname, areas, loading, navigate]);
+  }, [location.pathname, areas, loading, hasPermissions, navigate]);
+
+  // Mostrar loading mientras se verifican los permisos
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mb-4"></div>
+          <p className="text-gray-600">Verificando permisos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si el usuario no tiene permisos, mostrar la vista de onboarding
+  if (hasPermissions === false) {
+    return <OnboardingView />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
