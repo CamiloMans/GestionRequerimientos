@@ -130,6 +130,12 @@ const PermissionsDebug: React.FC = () => {
                 </span>
                 <span>Proveedores: {areas.includes(AreaId.PROVEEDORES) ? 'Visible' : 'Oculta'}</span>
               </div>
+              <div className="flex items-center gap-2">
+                <span className={areas.includes(AreaId.PERSONAS) ? 'text-green-600' : 'text-red-600'}>
+                  {areas.includes(AreaId.PERSONAS) ? '✅' : '❌'}
+                </span>
+                <span>Personas: {areas.includes(AreaId.PERSONAS) ? 'Visible' : 'Oculta'}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -45,6 +45,13 @@ export const AREA_PERMISSIONS: Record<AreaId, AreaPermission[]> = {
     'operaciones:delete',
     'operaciones:admin',
   ],
+  [AreaId.PERSONAS]: [
+    'personas:view',
+    'personas:create',
+    'personas:edit',
+    'personas:delete',
+    'personas:admin',
+  ],
 };
 
 /**

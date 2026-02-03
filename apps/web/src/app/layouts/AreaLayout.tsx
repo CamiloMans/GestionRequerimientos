@@ -6,6 +6,7 @@ import AreaSelector from '@shared/rbac/AreaSelector';
 // Importar sidebars de cada área dinámicamente
 import AcreditacionSidebar from '@areas/acreditacion/components/Sidebar';
 import ProveedoresSidebar from '@areas/proveedores/components/Sidebar';
+import PersonasSidebar from '@areas/personas/components/Sidebar';
 
 interface AreaLayoutProps {
   children: React.ReactNode;
@@ -22,7 +23,7 @@ const AreaLayout: React.FC<AreaLayoutProps> = ({ children }) => {
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
 
   // Determinar la vista activa basada en la ruta
-  const getActiveView = (): 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'dashboard' | 'actuales' | 'evaluacion' | 'evaluacion-2025' | 'evaluaciones-tabla' => {
+  const getActiveView = (): 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'dashboard' | 'actuales' | 'evaluacion' | 'evaluacion-2025' | 'evaluaciones-tabla' | 'directorio' | 'experiencia-profesional' | 'formacion-academica' | 'organigrama' | 'curriculum' => {
     const path = location.pathname;
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboards')) return 'dashboards';
@@ -34,6 +35,11 @@ const AreaLayout: React.FC<AreaLayoutProps> = ({ children }) => {
     if (path.includes('/evaluacion-2025')) return 'evaluacion-2025';
     if (path.includes('/evaluacion')) return 'evaluacion';
     if (path.includes('/dashboard')) return 'dashboard';
+    if (path.includes('/curriculum')) return 'curriculum';
+    if (path.includes('/organigrama')) return 'organigrama';
+    if (path.includes('/formacion-academica')) return 'formacion-academica';
+    if (path.includes('/experiencia-profesional')) return 'experiencia-profesional';
+    if (path.includes('/directorio')) return 'directorio';
     return 'list';
   };
 
@@ -54,6 +60,15 @@ const AreaLayout: React.FC<AreaLayoutProps> = ({ children }) => {
       case AreaId.PROVEEDORES:
         return (
           <ProveedoresSidebar
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            activeView={getActiveView() as any}
+            hideOnDesktop={isFilterSidebarOpen}
+          />
+        );
+      case AreaId.PERSONAS:
+        return (
+          <PersonasSidebar
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             activeView={getActiveView() as any}

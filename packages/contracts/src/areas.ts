@@ -7,6 +7,7 @@ export enum AreaId {
   PROVEEDORES = 'proveedores',
   FINANZAS = 'finanzas',
   OPERACIONES = 'operaciones',
+  PERSONAS = 'personas',
 }
 
 export interface Area {
@@ -45,6 +46,13 @@ export const AREAS: Record<AreaId, Area> = {
     displayName: 'Operaciones',
     icon: 'settings',
     description: 'Gestión de operaciones',
+  },
+  [AreaId.PERSONAS]: {
+    id: AreaId.PERSONAS,
+    name: 'personas',
+    displayName: 'Personas',
+    icon: 'people',
+    description: 'Gestión de personas y colaboradores',
   },
 };
 

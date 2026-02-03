@@ -77,6 +77,8 @@ export const transformPermissions = (
 ): PermissionsByModule => {
   const result: PermissionsByModule = {};
 
+  console.log('🔄 Transformando permisos raw:', permissions);
+
   permissions.forEach(({ module_code, action_code }) => {
     // Normalizar module_code (puede venir como 'acreditacion', 'proveedores', etc.)
     const module = module_code.toLowerCase().trim();
@@ -86,6 +88,9 @@ export const transformPermissions = (
     
     // Mapear action_code a tipo de permiso
     const permissionType = ACTION_CODE_MAP[action] || action as keyof ModulePermissions;
+    
+    // Debug: Log de cada permiso procesado
+    console.log(`🔄 Procesando permiso: module_code="${module_code}" -> module="${module}", action_code="${action_code}" -> action="${action}" -> permissionType="${permissionType}"`);
     
     // Inicializar módulo si no existe
     if (!result[module]) {
@@ -102,9 +107,13 @@ export const transformPermissions = (
     // Asignar permiso
     if (permissionType in result[module]) {
       (result[module] as any)[permissionType] = true;
+      console.log(`✅ Permiso asignado: ${module}.${permissionType} = true`);
+    } else {
+      console.warn(`⚠️ Tipo de permiso no reconocido: ${permissionType} para módulo ${module}`);
     }
   });
 
+  console.log('✅ Permisos transformados:', result);
   return result;
 };
 

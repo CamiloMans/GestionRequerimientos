@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../api-client/supabase';
 import { AreaId, AREAS } from '@contracts/areas';
-import { getUserPermissions, hasAreaAccess, PermissionsByModule } from './permissionsService';
-import { getCachedPermissions } from './permissionsCache';
+import { getUserPermissions, hasAreaAccess, PermissionsByModule, fetchUserPermissions } from './permissionsService';
+import { getCachedPermissions, saveCachedPermissions } from './permissionsCache';
 
 export interface UserArea {
   areaId: AreaId;
@@ -39,7 +39,22 @@ export const useAreas = () => {
 
         if (cached) {
           console.log('✅ Usando permisos desde caché para áreas');
+          console.log('📦 Caché contiene módulos:', Object.keys(cached.permissions));
           userPermissions = cached.permissions;
+          
+          // Verificar si el caché tiene el módulo "personas" pero debería tenerlo según los permisos raw
+          // Esto es una verificación adicional para detectar caché desactualizado
+          const rawPerms = await fetchUserPermissions();
+          const hasPersonasInRaw = rawPerms.some(p => p.module_code.toLowerCase().trim() === 'personas');
+          if (hasPersonasInRaw && !userPermissions['personas']) {
+            console.warn('⚠️ El caché no contiene el módulo "personas" pero los permisos raw sí, forzando recarga desde BD');
+            userPermissions = await getUserPermissions();
+            // Actualizar caché con los nuevos permisos
+            const hasAnyPermission = Object.values(userPermissions).some(
+              (modulePerms) => modulePerms.view === true
+            );
+            saveCachedPermissions(user.id, hasAnyPermission, userPermissions);
+          }
         } else {
           // Consultar permisos desde v_my_permissions solo si no hay caché
           console.log('🔍 Consultando permisos desde la base de datos para áreas');
@@ -48,16 +63,33 @@ export const useAreas = () => {
 
         setPermissions(userPermissions);
 
+        // Debug: Log de permisos recibidos
+        console.log('🔍 Permisos recibidos:', userPermissions);
+        console.log('🔍 Áreas disponibles en AreaId:', Object.values(AreaId));
+
         // Determinar qué áreas mostrar basándose en permisos de view
         const allowedAreas: AreaId[] = [];
         
         // Verificar cada área disponible
         Object.values(AreaId).forEach((areaId) => {
+          const moduleCode = areaId.toLowerCase();
+          const modulePerms = userPermissions[moduleCode];
           const hasAccess = hasAreaAccess(userPermissions, areaId);
+          
+          // Debug: Log de verificación por área
+          console.log(`🔍 Verificando área ${areaId}:`, {
+            moduleCode,
+            modulePerms,
+            hasAccess,
+            permissionsForModule: userPermissions[moduleCode]
+          });
+          
           if (hasAccess) {
             allowedAreas.push(areaId);
           }
         });
+        
+        console.log('✅ Áreas permitidas finales:', allowedAreas);
 
         // Si no hay permisos, retornar array vacío (el onboarding se mostrará)
         setAreas(allowedAreas);
