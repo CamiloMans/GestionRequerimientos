@@ -12,33 +12,68 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const location = useLocation();
 
   useEffect(() => {
+    let mounted = true;
+
     const checkAuth = async () => {
       try {
+        // Verificar si hay una sesión guardada en localStorage
+        // Supabase automáticamente verifica y renueva el token si es necesario
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error verificando sesión:', error);
-          setIsAuthenticated(false);
+          if (mounted) {
+            setIsAuthenticated(false);
+          }
         } else {
-          setIsAuthenticated(!!session);
+          if (mounted) {
+            setIsAuthenticated(!!session);
+          }
         }
       } catch (error) {
         console.error('Error en verificación de autenticación:', error);
-        setIsAuthenticated(false);
+        if (mounted) {
+          setIsAuthenticated(false);
+        }
       } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     };
 
+    // Verificar inmediatamente si hay una sesión guardada
     checkAuth();
 
     // Escuchar cambios en el estado de autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
+    // Esto se dispara cuando:
+    // - El usuario inicia sesión
+    // - El usuario cierra sesión
+    // - El token se renueva automáticamente
+    // - El usuario vuelve a la pestaña (si detectSessionInUrl está habilitado)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (mounted) {
+        console.log('Auth state changed:', event, session?.user?.email);
+        setIsAuthenticated(!!session);
+        setIsLoading(false);
+      }
     });
 
+    // Escuchar cuando la pestaña vuelve a estar activa
+    const handleVisibilityChange = () => {
+      if (!document.hidden && mounted) {
+        // Cuando la pestaña vuelve a estar visible, verificar la sesión
+        // Supabase automáticamente renueva el token si es necesario
+        checkAuth();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
+      mounted = false;
       subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

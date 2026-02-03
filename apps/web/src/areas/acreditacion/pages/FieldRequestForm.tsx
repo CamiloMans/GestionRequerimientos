@@ -111,6 +111,105 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     loadPersonas();
   }, []);
 
+  // Clave para el almacenamiento del formulario
+  const STORAGE_KEY = 'field_request_form_draft';
+
+  // Cargar datos guardados al montar el componente
+  useEffect(() => {
+    try {
+      const savedData = sessionStorage.getItem(STORAGE_KEY);
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        
+        // Restaurar formData
+        if (parsed.formData) {
+          setFormData(parsed.formData);
+        }
+        
+        // Restaurar workers
+        if (parsed.workers) {
+          setWorkers(parsed.workers);
+        }
+        
+        // Restaurar workersContratista
+        if (parsed.workersContratista) {
+          setWorkersContratista(parsed.workersContratista);
+        }
+        
+        // Restaurar targetWorkerCountMyma
+        if (parsed.targetWorkerCountMyma !== undefined) {
+          setTargetWorkerCountMyma(parsed.targetWorkerCountMyma);
+        }
+        
+        // Restaurar targetWorkerCountContratista
+        if (parsed.targetWorkerCountContratista !== undefined) {
+          setTargetWorkerCountContratista(parsed.targetWorkerCountContratista);
+        }
+        
+        // Restaurar horarios
+        if (parsed.horarios) {
+          setHorarios(parsed.horarios);
+        }
+        
+        // Restaurar vehiculosMyma
+        if (parsed.vehiculosMyma) {
+          setVehiculosMyma(parsed.vehiculosMyma);
+        }
+        
+        // Restaurar vehiculosContratista
+        if (parsed.vehiculosContratista) {
+          setVehiculosContratista(parsed.vehiculosContratista);
+        }
+        
+        // Restaurar selectedPersonaSolicitante
+        if (parsed.selectedPersonaSolicitante) {
+          setSelectedPersonaSolicitante(parsed.selectedPersonaSolicitante);
+        }
+        
+        // Restaurar searchQuerySolicitante
+        if (parsed.searchQuerySolicitante) {
+          setSearchQuerySolicitante(parsed.searchQuerySolicitante);
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando datos guardados del formulario:', error);
+    }
+  }, []);
+
+  // Guardar datos cuando cambian
+  useEffect(() => {
+    try {
+      const dataToSave = {
+        formData,
+        workers,
+        workersContratista,
+        targetWorkerCountMyma,
+        targetWorkerCountContratista,
+        horarios,
+        vehiculosMyma,
+        vehiculosContratista,
+        selectedPersonaSolicitante,
+        searchQuerySolicitante,
+        timestamp: Date.now(),
+      };
+      
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+    } catch (error) {
+      console.error('Error guardando datos del formulario:', error);
+    }
+  }, [
+    formData,
+    workers,
+    workersContratista,
+    targetWorkerCountMyma,
+    targetWorkerCountContratista,
+    horarios,
+    vehiculosMyma,
+    vehiculosContratista,
+    selectedPersonaSolicitante,
+    searchQuerySolicitante,
+  ]);
+
   // Filtrar personas cuando cambia el término de búsqueda del solicitante
   useEffect(() => {
     if (searchQuerySolicitante.trim() === '') {
@@ -359,6 +458,14 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       
       alert('¡Solicitud guardada exitosamente! ID: ' + result.id);
       
+      // Limpiar los datos guardados en sessionStorage después de enviar exitosamente
+      try {
+        sessionStorage.removeItem(STORAGE_KEY);
+        console.log('✅ Datos del formulario eliminados de sessionStorage');
+      } catch (storageError) {
+        console.error('Error limpiando sessionStorage:', storageError);
+      }
+      
       // Opcional: Resetear el formulario o redirigir
       // onBack(); // Descomentar si quieres volver atrás automáticamente
       
@@ -366,6 +473,15 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       console.error('❌ Error al guardar la solicitud:', error);
       alert('Error al guardar la solicitud. Por favor, revisa la consola para más detalles.');
     }
+  };
+
+  // Función para limpiar los datos guardados cuando el usuario vuelve atrás
+  const handleBack = () => {
+    // Opcional: Preguntar al usuario si quiere guardar antes de salir
+    // Por ahora, mantenemos los datos guardados para que pueda volver
+    // Si quieres limpiar al volver, descomenta la siguiente línea:
+    // sessionStorage.removeItem(STORAGE_KEY);
+    onBack();
   };
 
   return (
@@ -395,7 +511,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           </div>
           <div className="hidden lg:block">
             <button 
-              onClick={onBack}
+              onClick={handleBack}
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-[#616f89] border border-gray-200 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all"
             >
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
