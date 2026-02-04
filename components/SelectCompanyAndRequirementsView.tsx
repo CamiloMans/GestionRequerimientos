@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ProjectGalleryItem } from '../types';
 import { fetchClientes, fetchEmpresaRequerimientos, createProyectoRequerimientos, fetchCatalogoRequerimientos } from '../services/supabaseService';
 import { Cliente, EmpresaRequerimiento } from '../types';
@@ -53,6 +53,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   const [isOtroSelected, setIsOtroSelected] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLDivElement>(null);
+  const hasLoadedEmpresaRef = useRef(false);
 
   // Cerrar el dropdown cuando se hace click fuera
   useEffect(() => {
@@ -75,17 +76,6 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     loadData();
   }, []);
 
-  useEffect(() => {
-    // Cargar empresa seleccionada si ya existe
-    if ((project as any).empresa_id) {
-      setSelectedEmpresaId((project as any).empresa_id);
-      if ((project as any).empresa_nombre) {
-        setSelectedEmpresaNombre((project as any).empresa_nombre);
-        handleEmpresaChange((project as any).empresa_id, (project as any).empresa_nombre);
-      }
-    }
-  }, [project]);
-
   const loadData = async () => {
     try {
       setLoading(true);
@@ -102,7 +92,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     }
   };
 
-  const handleEmpresaChange = async (empresaId: string, empresaNombre?: string) => {
+  const handleEmpresaChange = useCallback(async (empresaId: string, empresaNombre?: string) => {
     const selectedCliente = clientes.find(c => c.id.toString() === empresaId);
     const nombre = empresaNombre || selectedCliente?.nombre || '';
     
@@ -125,7 +115,22 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     } else {
       setEmpresaRequerimientos([]);
     }
-  };
+  }, [clientes]);
+
+  useEffect(() => {
+    // Solo cargar una vez cuando el componente se monta y hay datos disponibles
+    const empresaId = (project as any).empresa_id;
+    const empresaNombre = (project as any).empresa_nombre;
+    
+    if (!hasLoadedEmpresaRef.current && clientes.length > 0 && empresaId) {
+      hasLoadedEmpresaRef.current = true;
+      setSelectedEmpresaId(empresaId);
+      if (empresaNombre) {
+        setSelectedEmpresaNombre(empresaNombre);
+        handleEmpresaChange(empresaId, empresaNombre);
+      }
+    }
+  }, [project.id, clientes.length, handleEmpresaChange]);
 
   const handleRequerimientoChange = (requerimientoId: string) => {
     // Si se selecciona "Otro"

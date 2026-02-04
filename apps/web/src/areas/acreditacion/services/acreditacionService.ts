@@ -1121,6 +1121,31 @@ export const createProyectoRequerimientos = async (
   } else {
     console.warn('⚠️ No se pudo obtener el ID del proyecto');
   }
+
+  // Obtener los conductores de fct_acreditacion_solicitud_conductor_manual
+  console.log('\n🔍 Buscando conductores en fct_acreditacion_solicitud_conductor_manual...');
+  let conductoresProyecto: any[] = [];
+  
+  if (proyectoId) {
+    const { data: conductores, error: conductoresError } = await supabase
+      .from('fct_acreditacion_solicitud_conductor_manual')
+      .select('*')
+      .eq('id_proyecto', proyectoId);
+
+    if (conductoresError) {
+      console.error('❌ Error obteniendo conductores:', conductoresError);
+    } else {
+      conductoresProyecto = conductores || [];
+      console.log(`✅ Conductores encontrados: ${conductoresProyecto.length}`);
+      if (conductoresProyecto.length > 0) {
+        conductoresProyecto.forEach((c, i) => {
+          console.log(`  ${i + 1}. ${c.nombre_conductor} (${c.categoria_empresa}) - Patente: ${c.patente}`);
+        });
+      }
+    }
+  } else {
+    console.warn('⚠️ No se pudo obtener el ID del proyecto');
+  }
   
   // Mapear cada requerimiento de empresa a uno o más requerimientos de proyecto
   console.log('\n🔧 Construyendo requerimientos...');
@@ -1160,9 +1185,13 @@ export const createProyectoRequerimientos = async (
     
     // Si la categoría es "Trabajadores", crear un registro por cada trabajador de fct_acreditacion_solicitud_trabajador_manual
     const esTrabajadores = req.categoria_requerimiento?.toLowerCase() === 'trabajadores';
+    // Si la categoría es "Conductores", crear un registro por cada conductor de fct_acreditacion_solicitud_conductor_manual
+    const esConductores = req.categoria_requerimiento?.toLowerCase() === 'conductores';
     console.log(`    ¿Es categoría Trabajadores?: ${esTrabajadores}`);
+    console.log(`    ¿Es categoría Conductores?: ${esConductores}`);
     console.log(`    ¿Es categoría Empresa?: ${esCategoriaEmpresa}`);
     console.log(`    Trabajadores disponibles: ${trabajadoresProyecto.length}`);
+    console.log(`    Conductores disponibles: ${conductoresProyecto.length}`);
     
     // Función auxiliar para crear un registro base
     const crearRegistroBase = (empresaAcreditacionValue: string | null = null): any => {
@@ -1187,6 +1216,17 @@ export const createProyectoRequerimientos = async (
       console.log(`    👷 Creando ${trabajadoresProyecto.length} registros (uno por trabajador)`);
       
       trabajadoresProyecto.forEach((trabajador, tIndex) => {
+        // Determinar empresa_acreditacion según la categoría del trabajador
+        let empresaAcreditacion: string | null = null;
+        if (trabajador.categoria_empresa?.toUpperCase() === 'MYMA') {
+          empresaAcreditacion = 'MyMA';
+          console.log(`      Trabajador ${tIndex + 1} (${trabajador.nombre_trabajador}): categoria_empresa = MyMA → empresa_acreditacion = "MyMA"`);
+        } else {
+          // Si es Contratista o distinto de MyMA, usar razon_social_contratista
+          empresaAcreditacion = razonSocialContratista || null;
+          console.log(`      Trabajador ${tIndex + 1} (${trabajador.nombre_trabajador}): categoria_empresa = ${trabajador.categoria_empresa} → empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
+        }
+        
         const registro: any = {
           codigo_proyecto: codigoProyecto,
           id_proyecto: proyectoId,
@@ -1199,10 +1239,43 @@ export const createProyectoRequerimientos = async (
           nombre_responsable: nombreResponsable,
           nombre_trabajador: trabajador.nombre_trabajador,
           categoria_empresa: trabajador.categoria_empresa,
-          id_proyecto_trabajador: trabajador.id
+          id_proyecto_trabajador: trabajador.id,
+          ...(empresaAcreditacion ? { empresa_acreditacion: empresaAcreditacion } : {})
         };
         
-        console.log(`      Trabajador ${tIndex + 1}: ${trabajador.nombre_trabajador}`);
+        proyectoRequerimientos.push(registro);
+      });
+    } else if (esConductores && conductoresProyecto.length > 0) {
+      console.log(`    🚗 Creando ${conductoresProyecto.length} registros (uno por conductor)`);
+      
+      conductoresProyecto.forEach((conductor, cIndex) => {
+        // Determinar empresa_acreditacion según la categoría del conductor
+        let empresaAcreditacion: string | null = null;
+        if (conductor.categoria_empresa?.toUpperCase() === 'MYMA') {
+          empresaAcreditacion = 'MyMA';
+          console.log(`      Conductor ${cIndex + 1} (${conductor.nombre_conductor}): categoria_empresa = MyMA → empresa_acreditacion = "MyMA"`);
+        } else {
+          // Si es Contratista o distinto de MyMA, usar razon_social_contratista
+          empresaAcreditacion = razonSocialContratista || null;
+          console.log(`      Conductor ${cIndex + 1} (${conductor.nombre_conductor}): categoria_empresa = ${conductor.categoria_empresa} → empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
+        }
+        
+        const registro: any = {
+          codigo_proyecto: codigoProyecto,
+          id_proyecto: proyectoId,
+          requerimiento: req.requerimiento,
+          responsable: req.responsable,
+          estado: 'Pendiente',
+          cliente: cliente,
+          categoria_requerimiento: req.categoria_requerimiento,
+          observaciones: req.observaciones || null,
+          nombre_responsable: nombreResponsable,
+          nombre_trabajador: null,
+          categoria_empresa: null,
+          id_proyecto_trabajador: null,
+          ...(empresaAcreditacion ? { empresa_acreditacion: empresaAcreditacion } : {})
+        };
+        
         proyectoRequerimientos.push(registro);
       });
     } else if (esCategoriaEmpresa) {
@@ -1256,6 +1329,7 @@ export const createProyectoRequerimientos = async (
     console.log(`    Responsable: ${r.responsable} (${r.nombre_responsable})`);
     console.log(`    Categoría: ${r.categoria_requerimiento}`);
     console.log(`    Trabajador: ${r.nombre_trabajador || 'N/A'}`);
+    console.log(`    Empresa Acreditación: ${r.empresa_acreditacion || 'NULL'}`);
   });
 
   // Insertar todos los requerimientos
