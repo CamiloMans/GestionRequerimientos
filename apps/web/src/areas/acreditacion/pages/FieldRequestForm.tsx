@@ -771,7 +771,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100 w-full">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
-                  ¿Se requiere acreditar empresa?
+                  ¿Se requiere acreditar a Myma?
                 </span>
                 <div className="flex gap-6 mt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1000,9 +1000,17 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               )}
             </div>
           </div>
+            </>
+          )}
 
-          {/* Pregunta sobre Acreditación de Contratista */}
+          {/* Section: Acreditación Contratista */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">shield</span>
+                Acreditación Contratista
+              </h3>
+            </div>
             <div className="p-6">
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
@@ -1037,8 +1045,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Mostrar secciones de contratista solo si se requiere acreditar */}
-          {formData.requiereAcreditarContratista === 'yes' && (
+          {/* Mostrar secciones de contratista cuando se selecciona Sí o No */}
+          {formData.requiereAcreditarContratista && (
             <>
           {/* Section 9: Información del Contrato */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
@@ -1262,8 +1270,6 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               </div>
             </div>
           </div>
-            </>
-          )}
             </>
           )}
 
