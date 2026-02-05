@@ -5,15 +5,17 @@ import { fetchPersonas, fetchRequerimientos, calculateStatus } from '../services
 interface RequestFormProps {
   onBack: () => void;
   onSave: (data: NewRequestPayload) => void;
+  onDelete?: () => void;
   initialData?: RequestItem | null;
 }
 
-const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }) => {
+const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, initialData }) => {
   const isEditing = !!initialData;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentStatus, setCurrentStatus] = useState<RequestStatus | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // Estados para el buscador de colaboradores
   const [searchTerm, setSearchTerm] = useState('');
@@ -73,6 +75,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
     fecha_vigencia: initialData?.adjudicationDate || '',
     fecha_vencimiento: initialData?.expirationDate || '',
     estado: undefined as RequestStatus | undefined,
+    link: initialData?.link || '',
   });
 
   useEffect(() => {
@@ -408,6 +411,20 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
                       <p className="text-sm font-medium text-gray-900">{initialData.category}</p>
                     </div>
                   </div>
+                  
+                  {/* Botón Eliminar (debajo de la información del registro) */}
+                  {onDelete && (
+                    <div className="mt-4 flex justify-start">
+                      <button 
+                        type="button" 
+                        onClick={() => setShowDeleteModal(true)}
+                        className="px-5 py-2.5 rounded-lg border-2 border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-400 font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                        Eliminar Registro
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <hr className="border-gray-100" />
@@ -520,25 +537,113 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, initialData }
               )}
             </div>
 
+            {/* Section 3 - Link de Google Drive */}
+            <div>
+              <h2 className="text-base lg:text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">link</span>
+                Link de Google Drive (Opcional)
+              </h2>
+              <div className="space-y-2">
+                <label htmlFor="link" className="block text-sm font-medium text-[#111318]">
+                  URL del Documento
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-[20px]">description</span>
+                  <input 
+                    type="url" 
+                    id="link" 
+                    name="link" 
+                    className="w-full pl-10 rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5"
+                    placeholder="https://drive.google.com/..."
+                    value={formData.link}
+                    onChange={handleChange}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Ingrese el link completo del documento en Google Drive. El documento se mostrará como un ícono en la tabla de solicitudes.
+                </p>
+              </div>
+            </div>
+
             <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
-              <button 
-                type="button" 
-                onClick={onBack}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
-              >
-                Cancelar
-              </button>
-              <button 
-                type="submit" 
-                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm"
-              >
-                <span className="material-symbols-outlined text-[20px]">save</span>
-                {isEditing ? 'Actualizar' : 'Guardar'}
-              </button>
+              {/* Botones de acción */}
+              <div className="flex flex-col-reverse sm:flex-row items-center gap-3 w-full sm:w-auto">
+                <button 
+                  type="button" 
+                  onClick={onBack}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  {isEditing ? 'Actualizar' : 'Guardar'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
       </div>
+
+      {/* Modal de Confirmación de Eliminación */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 sm:p-8">
+            <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mx-auto mb-4">
+              <span className="material-symbols-outlined text-red-600 text-4xl">warning</span>
+            </div>
+            
+            <h2 className="text-2xl font-bold text-[#111318] text-center mb-2">
+              ¿Eliminar Registro?
+            </h2>
+            
+            <p className="text-[#616f89] text-center mb-6">
+              Esta acción no se puede deshacer. Se eliminará permanentemente el registro de:
+            </p>
+            
+            {initialData && (
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">Colaborador</p>
+                    <p className="text-sm font-medium text-gray-900">{initialData.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase font-semibold">Requerimiento</p>
+                    <p className="text-sm font-medium text-gray-900">{initialData.requirement}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="w-full sm:flex-1 px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDelete) {
+                    onDelete();
+                    setShowDeleteModal(false);
+                  }
+                }}
+                className="w-full sm:flex-1 px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium shadow-sm transition-all flex items-center justify-center gap-2 text-sm"
+              >
+                <span className="material-symbols-outlined text-[20px]">delete</span>
+                Sí, Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
