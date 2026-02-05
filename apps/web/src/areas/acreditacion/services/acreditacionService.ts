@@ -1322,20 +1322,61 @@ export const createProyectoRequerimientos = async (
     throw new Error('No se pudieron construir requerimientos para guardar. Verifica los logs anteriores.');
   }
   
-  console.log('\nVista previa de los primeros 3 registros:');
-  proyectoRequerimientos.slice(0, 3).forEach((r, i) => {
-    console.log(`\n  Registro ${i + 1}:`);
-    console.log(`    Requerimiento: ${r.requerimiento}`);
-    console.log(`    Responsable: ${r.responsable} (${r.nombre_responsable})`);
-    console.log(`    Categoría: ${r.categoria_requerimiento}`);
-    console.log(`    Trabajador: ${r.nombre_trabajador || 'N/A'}`);
-    console.log(`    Empresa Acreditación: ${r.empresa_acreditacion || 'NULL'}`);
+  // Logs detallados de TODOS los registros antes de insertar
+  console.log('\n📋 DETALLE COMPLETO DE TODOS LOS REGISTROS A INSERTAR:');
+  proyectoRequerimientos.forEach((r, i) => {
+    console.log(`\n  📝 Registro ${i + 1}/${proyectoRequerimientos.length}:`);
+    console.log(`    codigo_proyecto: "${r.codigo_proyecto}"`);
+    console.log(`    requerimiento: "${r.requerimiento}"`);
+    console.log(`    id_proyecto_trabajador: ${r.id_proyecto_trabajador ?? 'NULL'} (COALESCE → ${r.id_proyecto_trabajador ?? -1})`);
+    console.log(`    empresa_acreditacion: "${r.empresa_acreditacion ?? 'NULL'}" (COALESCE → "${r.empresa_acreditacion ?? ''}")`);
+    console.log(`    categoria_requerimiento: "${r.categoria_requerimiento}"`);
+    console.log(`    responsable: "${r.responsable}"`);
+    console.log(`    nombre_trabajador: "${r.nombre_trabajador || 'NULL'}"`);
+    console.log(`    ────────────────────────────────────────────────`);
+    console.log(`    🔑 CLAVE ÚNICA (constraint):`);
+    console.log(`       (codigo_proyecto="${r.codigo_proyecto}", requerimiento="${r.requerimiento}", id_trabajador=${r.id_proyecto_trabajador ?? -1}, empresa="${r.empresa_acreditacion ?? ''}")`);
   });
+
+  // Verificar si hay registros duplicados en la base de datos ANTES de insertar
+  console.log('\n🔍 VERIFICANDO REGISTROS EXISTENTES EN BD...');
+  const valoresUnicos = proyectoRequerimientos.map(r => ({
+    codigo_proyecto: r.codigo_proyecto,
+    requerimiento: r.requerimiento,
+    id_proyecto_trabajador: r.id_proyecto_trabajador ?? -1,
+    empresa_acreditacion: r.empresa_acreditacion ?? ''
+  }));
+  
+  console.log(`   Buscando ${valoresUnicos.length} combinaciones únicas...`);
+  
+  // Verificar cada combinación única
+  for (const valorUnico of valoresUnicos) {
+    const { data: existentes, error: checkError } = await supabase
+      .from('brg_acreditacion_solicitud_requerimiento')
+      .select('id, codigo_proyecto, requerimiento, id_proyecto_trabajador, empresa_acreditacion')
+      .eq('codigo_proyecto', valorUnico.codigo_proyecto)
+      .eq('requerimiento', valorUnico.requerimiento)
+      .eq('id_proyecto_trabajador', valorUnico.id_proyecto_trabajador === -1 ? null : valorUnico.id_proyecto_trabajador)
+      .eq('empresa_acreditacion', valorUnico.empresa_acreditacion || null);
+    
+    if (checkError) {
+      console.error(`   ⚠️ Error verificando:`, checkError);
+    } else if (existentes && existentes.length > 0) {
+      console.error(`   ❌ CONFLICTO DETECTADO:`);
+      console.error(`      codigo_proyecto: "${valorUnico.codigo_proyecto}"`);
+      console.error(`      requerimiento: "${valorUnico.requerimiento}"`);
+      console.error(`      id_proyecto_trabajador: ${valorUnico.id_proyecto_trabajador}`);
+      console.error(`      empresa_acreditacion: "${valorUnico.empresa_acreditacion}"`);
+      console.error(`      Registros existentes en BD:`, existentes);
+    }
+  }
 
   // Insertar todos los requerimientos
   console.log('\n💾 INSERTANDO EN BASE DE DATOS...');
   console.log(`Tabla: brg_acreditacion_solicitud_requerimiento`);
   console.log(`Registros a insertar: ${proyectoRequerimientos.length}`);
+  console.log(`\n📦 Datos completos a insertar (JSON):`);
+  console.log(JSON.stringify(proyectoRequerimientos, null, 2));
   
   const { data, error } = await supabase
     .from('brg_acreditacion_solicitud_requerimiento')
@@ -1352,14 +1393,26 @@ export const createProyectoRequerimientos = async (
     console.error('Hint:', error.hint);
     console.error('Error completo:', JSON.stringify(error, null, 2));
     
-    // Si es error de duplicado, puede ser por el constraint que no incluye empresa_acreditacion
+    // Si es error de duplicado, mostrar información detallada
     if (error.message.includes('duplicate') || error.message.includes('unique') || error.code === '23505') {
-      console.error('⚠️ Error de UNIQUE constraint - algunos requerimientos ya existen');
-      console.error('💡 El constraint actual no incluye empresa_acreditacion');
-      console.error('💡 Solución: Ejecuta sql/actualizar_constraint_con_empresa_acreditacion.sql en Supabase SQL Editor');
+      console.error('\n⚠️ ERROR DE UNIQUE CONSTRAINT DETECTADO');
+      console.error('═══════════════════════════════════════════════════');
+      console.error('El constraint está bloqueando la inserción porque:');
+      console.error('  1. Ya existe un registro con la misma combinación de:');
+      console.error('     - codigo_proyecto');
+      console.error('     - requerimiento');
+      console.error('     - id_proyecto_trabajador (o -1 si es NULL)');
+      console.error('     - empresa_acreditacion (o "" si es NULL)');
+      console.error('\n  2. Posibles causas:');
+      console.error('     a) El constraint NO incluye empresa_acreditacion (ejecuta el script SQL)');
+      console.error('     b) Estás intentando insertar un registro que ya existe');
+      console.error('     c) Hay un constraint antiguo que no se eliminó');
+      console.error('\n  3. Registros que se intentaron insertar:');
+      proyectoRequerimientos.forEach((r, i) => {
+        console.error(`     ${i + 1}. (${r.codigo_proyecto}, "${r.requerimiento}", ${r.id_proyecto_trabajador ?? -1}, "${r.empresa_acreditacion ?? ''}")`);
+      });
       console.error('═══════════════════════════════════════════════════\n');
-      // Lanzar error para que el usuario sepa que necesita actualizar el constraint
-      throw new Error('Error de constraint UNIQUE. Necesitas actualizar el constraint para incluir empresa_acreditacion. Ejecuta el script sql/actualizar_constraint_con_empresa_acreditacion.sql en Supabase SQL Editor.');
+      throw new Error('Error de constraint UNIQUE. Revisa la consola para ver los detalles. Ejecuta el script sql/actualizar_constraint_con_empresa_acreditacion.sql en Supabase SQL Editor si aún no lo has hecho.');
     }
     
     console.log('═══════════════════════════════════════════════════\n');

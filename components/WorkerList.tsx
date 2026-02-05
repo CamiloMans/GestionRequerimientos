@@ -8,6 +8,7 @@ interface WorkerListProps {
   onRemoveWorker: (id: string) => void;
   requireCompanySelection?: boolean; // Para mostrar selector de empresa contratista
   companies?: string[]; // Lista de empresas contratistas
+  selectedCompany?: string; // Empresa contratista seleccionada desde el formulario padre
   targetWorkerCount?: number; // Cantidad objetivo de trabajadores
   onTargetWorkerCountChange?: (count: number) => void; // Callback para cambiar la cantidad objetivo
 }
@@ -18,6 +19,7 @@ export const WorkerList: React.FC<WorkerListProps> = ({
   onRemoveWorker,
   requireCompanySelection = false,
   companies = [],
+  selectedCompany: selectedCompanyProp = '',
   targetWorkerCount = 0,
   onTargetWorkerCountChange
 }) => {
@@ -36,8 +38,8 @@ export const WorkerList: React.FC<WorkerListProps> = ({
   const [extName, setExtName] = useState('');
   const [extPhone, setExtPhone] = useState('');
 
-  // Empresa contratista seleccionada
-  const [selectedCompany, setSelectedCompany] = useState('');
+  // Usar la empresa seleccionada desde el prop (viene del formulario padre)
+  const selectedCompany = selectedCompanyProp;
 
   // Cargar personas de Supabase
   useEffect(() => {
@@ -227,23 +229,7 @@ export const WorkerList: React.FC<WorkerListProps> = ({
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-        {requireCompanySelection && (
-          <div className="md:col-span-3 flex flex-col gap-2">
-            <span className="text-[#111318] text-xs font-semibold">Empresa Contratista</span>
-            <select
-              value={selectedCompany}
-              onChange={(e) => setSelectedCompany(e.target.value)}
-              className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm text-[#111318] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-            >
-              <option value="">Seleccione...</option>
-              {companies.map((company, index) => (
-                <option key={index} value={company}>{company}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        
-        <div className={requireCompanySelection ? "md:col-span-6 flex flex-col gap-2 relative" : "md:col-span-9 flex flex-col gap-2 relative"}>
+        <div className={requireCompanySelection ? "md:col-span-9 flex flex-col gap-2 relative" : "md:col-span-9 flex flex-col gap-2 relative"}>
           <span className="text-[#111318] text-xs font-semibold">Buscar / Nombre</span>
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
@@ -380,42 +366,6 @@ export const WorkerList: React.FC<WorkerListProps> = ({
           )}
         </div>
       </div>
-
-      {/* Resumen por Empresa - Solo mostrar si hay empresas */}
-      {requireCompanySelection && workers.length > 0 && (
-        <div className="mt-4 flex flex-col gap-2">
-          <span className="text-[#111318] text-[10px] font-bold uppercase tracking-wider text-gray-500">Resumen por Empresa</span>
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 rounded-lg p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {companies.map((company) => {
-                const count = workers.filter(w => w.company === company).length;
-                if (count === 0) return null;
-                return (
-                  <div key={company} className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="material-symbols-outlined text-orange-600 text-lg flex-shrink-0">business</span>
-                        <span className="text-xs font-medium text-gray-700 truncate">{company}</span>
-                      </div>
-                      <div className="flex items-center gap-1 ml-2">
-                        <span className="material-symbols-outlined text-blue-600 text-sm">group</span>
-                        <span className="text-sm font-bold text-primary">{count}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-3 pt-3 border-t border-blue-200 flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Total Trabajadores</span>
-              <span className="text-lg font-bold text-primary flex items-center gap-1">
-                <span className="material-symbols-outlined text-primary text-xl">group</span>
-                {workers.length}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

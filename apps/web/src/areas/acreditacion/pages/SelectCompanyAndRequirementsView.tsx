@@ -299,10 +299,18 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       // Sin responsables asignados todavía (se asignarán después)
       if (empresaRequerimientos.length > 0) {
         try {
-          console.log('📋 Guardando requerimientos...');
-          console.log(`   Total requerimientos: ${empresaRequerimientos.length}`);
+          console.log('═══════════════════════════════════════════════════');
+          console.log('📋 INICIANDO GUARDADO DE REQUERIMIENTOS');
+          console.log('═══════════════════════════════════════════════════');
+          console.log(`   Total requerimientos seleccionados: ${empresaRequerimientos.length}`);
           console.log(`   Código proyecto: ${project.projectCode}`);
           console.log(`   ID proyecto: ${project.id}`);
+          console.log(`   Empresa seleccionada: ${selectedEmpresaNombre} (ID: ${selectedEmpresaId})`);
+          console.log('\n   Requerimientos seleccionados:');
+          empresaRequerimientos.forEach((req, i) => {
+            console.log(`     ${i + 1}. ${req.requerimiento} (${req.categoria_requerimiento}) - Responsable: ${req.responsable}`);
+          });
+          console.log('═══════════════════════════════════════════════════\n');
           
           await createProyectoRequerimientos(
             project.projectCode,
@@ -318,7 +326,13 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
           );
           console.log('✅ Requerimientos guardados exitosamente');
         } catch (error: any) {
-          console.error('❌ Error al guardar requerimientos:', error);
+          console.error('═══════════════════════════════════════════════════');
+          console.error('❌ ERROR AL GUARDAR REQUERIMIENTOS');
+          console.error('═══════════════════════════════════════════════════');
+          console.error('Error completo:', error);
+          console.error('Mensaje:', error?.message);
+          console.error('Stack:', error?.stack);
+          console.error('═══════════════════════════════════════════════════\n');
           const errorMessage = error?.message || 'Error desconocido al guardar requerimientos';
           setError(`Error al guardar requerimientos: ${errorMessage}`);
           setTimeout(() => setError(null), 8000);

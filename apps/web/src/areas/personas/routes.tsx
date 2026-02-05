@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import DashboardEjecutivo from './pages/DashboardEjecutivo';
 import DirectorioPersonas from './pages/DirectorioPersonas';
 import ExperienciaProfesional from './pages/ExperienciaProfesional';
 import FormacionAcademica from './pages/FormacionAcademica';
@@ -12,6 +13,10 @@ import Curriculum from './pages/Curriculum';
 const PersonasRoutes: React.FC = () => {
   return (
     <Routes>
+      <Route
+        path="dashboard"
+        element={<DashboardEjecutivo />}
+      />
       <Route
         path="directorio"
         element={<DirectorioPersonas />}
@@ -32,8 +37,8 @@ const PersonasRoutes: React.FC = () => {
         path="curriculum"
         element={<Curriculum />}
       />
-      <Route path="/" element={<Navigate to="directorio" replace />} />
-      <Route path="*" element={<Navigate to="directorio" replace />} />
+      <Route path="/" element={<Navigate to="dashboard" replace />} />
+      <Route path="*" element={<Navigate to="dashboard" replace />} />
     </Routes>
   );
 };

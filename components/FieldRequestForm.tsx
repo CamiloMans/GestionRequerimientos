@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
-import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES, Persona } from '../types';
+import { Worker, WorkerType, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES, Persona } from '../types';
 import { createSolicitudAcreditacion, createProyectoTrabajadores, createProyectoHorarios, createProyectoConductores, fetchProveedores, fetchPersonas } from '../services/supabaseService';
 
 interface Horario {
@@ -36,7 +36,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     accreditationFollowUp: '',
     fieldStartDate: '',
     riskPreventionNotice: '',
-    companyAccreditationRequired: '',
+    companyAccreditationRequired: 'yes',
     contractAdmin: '',
     // Información del Contrato
     nombreContrato: '',
@@ -49,7 +49,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     cantidadVehiculos: '',
     placaPatente: '',
     // Pregunta sobre Contratista
-    requiereAcreditarContratista: '',
+    requiereAcreditarContratista: 'yes',
     // Información del Contrato (Contratista)
     modalidadContrato: '',
     razonSocialContratista: '',
@@ -219,6 +219,126 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   const handleRemoveWorkerContratista = (id: string) => {
     setWorkersContratista(prev => prev.filter(w => w.id !== id));
+  };
+
+  // Función para normalizar texto para correos electrónicos (eliminar tildes y caracteres especiales)
+  const normalizeEmail = (text: string): string => {
+    return text
+      .toLowerCase()
+      .normalize('NFD') // Normaliza caracteres con tildes
+      .replace(/[\u0300-\u036f]/g, '') // Elimina diacríticos (tildes)
+      .replace(/ñ/g, 'n') // Reemplaza ñ por n
+      .replace(/[^a-z0-9\s]/g, '') // Elimina caracteres especiales excepto letras, números y espacios
+      .replace(/\s+/g, '.') // Reemplaza espacios por puntos
+      .trim();
+  };
+
+  // Función para rellenar el formulario con datos aleatorios
+  const fillRandomData = () => {
+    const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const randomItem = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+    
+    // Generar fechas aleatorias
+    const today = new Date();
+    const randomDate = (daysOffset: number) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + daysOffset);
+      return date.toISOString().split('T')[0];
+    };
+
+    // Nombres y datos aleatorios
+    const nombres = ['Juan Pérez', 'María González', 'Carlos Ruiz', 'Ana Silva', 'Pedro Martínez', 'Laura Sánchez'];
+    const empresas = ['CODELCO', 'BHP', 'Antofagasta Minerals', 'KINROSS', 'LAS CENIZAS', 'AGQ'];
+    const requisitos = ['Acreditación', 'Carpeta de arranque', 'Acreditación y Carpeta de arranque', 'Pase de visita'];
+    const modalidades = ['honorarios', 'contratista'];
+    const diasSemana = ['Lunes a Viernes', 'Lunes a Jueves', 'Lunes a Sábado', 'Martes a Viernes'];
+    const horarios = ['08:00 - 18:00', '07:00 - 17:00', '09:00 - 19:00', '06:00 - 16:00'];
+    const placas = ['ABCD12', 'EFGH34', 'IJKL56', 'MNOP78', 'QRST90', 'UVWX12'];
+    const nombresConductores = ['Roberto Silva', 'Patricia Muñoz', 'Fernando Torres', 'Carmen Díaz'];
+
+    // Seleccionar una persona aleatoria para el solicitante
+    const personaAleatoria = personas.length > 0 ? randomItem(personas) : null;
+
+    // Generar correos sin tildes
+    const nombreCliente = randomItem(nombres);
+    const empresaCliente = randomItem(empresas);
+    const nombreResponsable = randomItem(nombres);
+
+    // Rellenar formData
+    setFormData({
+      requestDate: randomDate(0),
+      requesterName: personaAleatoria?.nombre_completo || randomItem(nombres),
+      kickoffDate: randomDate(randomInt(1, 7)),
+      projectCode: `PRJ-${new Date().getFullYear()}-${String(randomInt(100, 999)).padStart(3, '0')}`,
+      requirement: randomItem(requisitos),
+      clientName: empresaCliente,
+      clientContactName: nombreCliente,
+      clientContactEmail: `${normalizeEmail(nombreCliente)}@${normalizeEmail(empresaCliente)}.cl`,
+      projectManager: PROJECT_MANAGERS.length > 0 ? randomItem(PROJECT_MANAGERS) : randomItem(nombres),
+      accreditationFollowUp: randomItem(nombres),
+      fieldStartDate: randomDate(randomInt(7, 30)),
+      riskPreventionNotice: 'yes',
+      companyAccreditationRequired: 'yes',
+      contractAdmin: randomItem(nombres),
+      nombreContrato: `Contrato ${randomItem(['Servicios', 'Obra', 'Suministro'])} ${new Date().getFullYear()}`,
+      numeroContrato: `CON-${new Date().getFullYear()}-${String(randomInt(100, 999)).padStart(3, '0')}`,
+      administradorContrato: randomItem(nombres),
+      jornadaTrabajo: `${randomInt(8, 12)} horas`,
+      horarioTrabajo: randomItem(horarios),
+      cantidadVehiculos: String(randomInt(1, 5)),
+      placaPatente: '',
+      requiereAcreditarContratista: 'yes',
+      modalidadContrato: randomItem(modalidades),
+      razonSocialContratista: proveedores.length > 0 ? randomItem(proveedores) : randomItem(empresas),
+      nombreResponsableContratista: nombreResponsable,
+      telefonoResponsableContratista: `+56 9 ${randomInt(1000, 9999)} ${randomInt(1000, 9999)}`,
+      emailResponsableContratista: `${normalizeEmail(nombreResponsable)}@contratista.cl`,
+      cantidadVehiculosContratista: String(randomInt(1, 3)),
+      placasVehiculosContratista: '',
+      registroSstTerreo: 'yes',
+    });
+
+    // Rellenar solicitante si hay personas disponibles
+    if (personaAleatoria) {
+      setSelectedPersonaSolicitante(personaAleatoria);
+      setSearchQuerySolicitante(`${personaAleatoria.nombre_completo} - ${personaAleatoria.rut}`);
+    }
+
+    // Rellenar horarios
+    const numHorarios = randomInt(1, 3);
+    setHorarios(Array.from({ length: numHorarios }, () => ({
+      dias: randomItem(diasSemana),
+      horario: randomItem(horarios),
+    })));
+
+    // Rellenar vehículos MYMA
+    const numVehiculosMyma = randomInt(1, 5);
+    setVehiculosMyma(Array.from({ length: numVehiculosMyma }, () => ({
+      placa: randomItem(placas),
+      conductor: randomItem(nombresConductores),
+    })));
+    setFormData(prev => ({ ...prev, cantidadVehiculos: String(numVehiculosMyma) }));
+
+    // Rellenar vehículos Contratista
+    const numVehiculosContratista = randomInt(1, 3);
+    setVehiculosContratista(Array.from({ length: numVehiculosContratista }, () => ({
+      placa: randomItem(placas),
+      conductor: randomItem(nombresConductores),
+    })));
+    setFormData(prev => ({ ...prev, cantidadVehiculosContratista: String(numVehiculosContratista) }));
+
+    // Agregar algunos trabajadores aleatorios
+    if (personas.length > 0) {
+      const trabajadoresAleatorios = personas.slice(0, randomInt(2, 4)).map((persona, index) => ({
+        id: `worker-${Date.now()}-${index}`,
+        name: persona.nombre_completo,
+        phone: `+56 9 ${randomInt(1000, 9999)} ${randomInt(1000, 9999)}`,
+        type: WorkerType.INTERNAL,
+        personaId: persona.id,
+      }));
+      setWorkers(trabajadoresAleatorios);
+      setTargetWorkerCountMyma(trabajadoresAleatorios.length);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -393,7 +513,15 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               Ingrese los datos requeridos para la gestión de terreno y acreditación.
             </p>
           </div>
-          <div className="hidden lg:block">
+          <div className="hidden lg:flex items-center gap-3">
+            <button 
+              type="button"
+              onClick={fillRandomData}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all"
+            >
+              <span className="material-symbols-outlined text-[20px]">auto_fix_high</span>
+              Rellenar Datos
+            </button>
             <button 
               onClick={onBack}
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-[#616f89] border border-gray-200 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all"
@@ -1040,6 +1168,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 onRemoveWorker={handleRemoveWorkerContratista}
                 requireCompanySelection={true}
                 companies={proveedores.length > 0 ? proveedores : MOCK_COMPANIES.map(c => c.name)}
+                selectedCompany={formData.razonSocialContratista}
                 targetWorkerCount={targetWorkerCountContratista}
                 onTargetWorkerCountChange={setTargetWorkerCountContratista}
               />
