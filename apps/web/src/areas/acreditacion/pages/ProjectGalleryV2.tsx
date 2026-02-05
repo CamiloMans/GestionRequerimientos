@@ -209,7 +209,17 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   };
 
   const handleSaveResponsables = async (responsables: ResponsablesData) => {
-    if (!selectedProject) return;
+    // Validación inicial
+    if (!selectedProject) {
+      console.error('❌ No hay proyecto seleccionado');
+      throw new Error('No hay proyecto seleccionado');
+    }
+
+    // Validar que el proyecto tenga un ID válido
+    if (!selectedProject.id || typeof selectedProject.id !== 'number') {
+      console.error('❌ El proyecto no tiene un ID válido:', selectedProject);
+      throw new Error(`El proyecto ${selectedProject.projectCode || 'desconocido'} no tiene un ID válido. Por favor, recarga la página.`);
+    }
 
     try {
       setSaving(true);
@@ -217,6 +227,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       console.log('═══════════════════════════════════════════════════');
       console.log('💾 GUARDANDO RESPONSABLES Y REQUERIMIENTOS');
       console.log('═══════════════════════════════════════════════════');
+      console.log('Proyecto ID:', selectedProject.id);
       console.log('Proyecto:', selectedProject.projectCode);
       console.log('Empresa:', responsables.empresa_nombre);
       console.log('Responsables seleccionados:', {
@@ -227,12 +238,69 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         Acreditación: responsables.acreditacion_nombre || 'Sin asignar'
       });
       console.log('Requerimientos recibidos:', responsables.empresaRequerimientos?.length || 0);
+      console.log('Datos completos a guardar:', JSON.stringify(responsables, null, 2));
       
       // 1. Guardar responsables en la base de datos (esto es lo PRINCIPAL)
       // Esto también cambiará el estado a "En proceso"
       console.log('\n📝 Paso 1: Guardando responsables en fct_acreditacion_solicitud...');
-      await updateResponsablesSolicitud(selectedProject.id, responsables);
+      console.log('   ID del proyecto:', selectedProject.id);
+      console.log('   Datos a guardar:', {
+        empresa_id: responsables.empresa_id,
+        empresa_nombre: responsables.empresa_nombre,
+        jpro_id: responsables.jpro_id,
+        jpro_nombre: responsables.jpro_nombre,
+        epr_id: responsables.epr_id,
+        epr_nombre: responsables.epr_nombre,
+        rrhh_id: responsables.rrhh_id,
+        rrhh_nombre: responsables.rrhh_nombre,
+        legal_id: responsables.legal_id,
+        legal_nombre: responsables.legal_nombre,
+        acreditacion_id: responsables.acreditacion_id,
+        acreditacion_nombre: responsables.acreditacion_nombre,
+      });
+      
+      const result = await updateResponsablesSolicitud(selectedProject.id, responsables);
       console.log('✅ Responsables guardados exitosamente');
+      console.log('📊 Resultado de la actualización:', result);
+      
+      // Actualizar el proyecto seleccionado con los nuevos datos
+      if (result) {
+        setSelectedProject({
+          ...selectedProject,
+          empresa_id: result.empresa_id,
+          empresa_nombre: result.empresa_nombre,
+          jpro_id: result.jpro_id,
+          jpro_nombre: result.jpro_nombre,
+          epr_id: result.epr_id,
+          epr_nombre: result.epr_nombre,
+          rrhh_id: result.rrhh_id,
+          rrhh_nombre: result.rrhh_nombre,
+          legal_id: result.legal_id,
+          legal_nombre: result.legal_nombre,
+        } as ProjectGalleryItem);
+        
+        // Actualizar también en la lista local de proyectos
+        setLocalProjects(prevProjects => 
+          prevProjects.map(p => 
+            p.id === selectedProject.id 
+              ? {
+                  ...p,
+                  empresa_id: result.empresa_id,
+                  empresa_nombre: result.empresa_nombre,
+                  jpro_id: result.jpro_id,
+                  jpro_nombre: result.jpro_nombre,
+                  epr_id: result.epr_id,
+                  epr_nombre: result.epr_nombre,
+                  rrhh_id: result.rrhh_id,
+                  rrhh_nombre: result.rrhh_nombre,
+                  legal_id: result.legal_id,
+                  legal_nombre: result.legal_nombre,
+                } as ProjectGalleryItem
+              : p
+          )
+        );
+        console.log('🔄 Proyecto actualizado en el estado local');
+      }
 
       // 2. Actualizar nombres de responsables en brg_acreditacion_solicitud_requerimiento
       console.log('\n📝 Paso 2: Actualizando responsables en brg_acreditacion_solicitud_requerimiento...');
@@ -320,8 +388,11 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       }
       
       // 3. Notificar al componente padre para que recargue los datos
+      console.log('🔄 Notificando al componente padre para recargar datos...');
       if (onProjectUpdate) {
         onProjectUpdate();
+        // Esperar un momento para que el componente padre tenga tiempo de recargar
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
       
       // 4. Preparar mensaje de éxito con detalles
@@ -345,12 +416,15 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
         details: responsablesDetails.length > 0 ? responsablesDetails : undefined
       });
       
-      // Cerrar modal después de un breve delay
-      setTimeout(() => {
-        handleCloseModal();
-        // Ocultar mensaje de éxito después de 5 segundos
-        setTimeout(() => setSuccess(null), 5000);
-      }, 500);
+      // Cerrar modal después de un breve delay para que el usuario vea el mensaje
+      console.log('⏳ Esperando antes de cerrar el modal...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      console.log('🚪 Cerrando modal...');
+      handleCloseModal();
+      
+      // Ocultar mensaje de éxito después de 5 segundos
+      setTimeout(() => setSuccess(null), 5000);
     } catch (error) {
       console.error('❌ Error guardando responsables:', error);
       
@@ -863,7 +937,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       </div>
 
       {/* Modal de Asignación de Responsables */}
-      {selectedProject && (
+      {selectedProject && selectedProject.id && typeof selectedProject.id === 'number' && (
         <AssignResponsiblesModal
           isOpen={isModalOpen}
           onClose={handleCloseModal}

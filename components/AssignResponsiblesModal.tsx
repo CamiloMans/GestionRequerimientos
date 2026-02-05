@@ -111,6 +111,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
     try {
       setIsLoading(true);
 
+      console.log('🔄 Iniciando guardado de responsables...');
+      console.log('📋 Datos del formulario:', formData);
+      console.log('📝 Proyecto:', projectCode);
+
       // Simular un pequeño delay para mejor UX (opcional)
       await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -120,34 +124,69 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
       if (formData.jpro_id) {
         const persona = personas.find(p => p.id === formData.jpro_id);
         dataToSave.jpro_nombre = persona?.nombre_completo;
+        console.log('👤 JPRO encontrado:', persona?.nombre_completo || 'No encontrado');
       }
       if (formData.epr_id) {
         const persona = personas.find(p => p.id === formData.epr_id);
         dataToSave.epr_nombre = persona?.nombre_completo;
+        console.log('👤 EPR encontrado:', persona?.nombre_completo || 'No encontrado');
       }
       if (formData.rrhh_id) {
         const persona = personas.find(p => p.id === formData.rrhh_id);
         dataToSave.rrhh_nombre = persona?.nombre_completo;
+        console.log('👤 RRHH encontrado:', persona?.nombre_completo || 'No encontrado');
       }
       if (formData.legal_id) {
         const persona = personas.find(p => p.id === formData.legal_id);
         dataToSave.legal_nombre = persona?.nombre_completo;
+        console.log('👤 Legal encontrado:', persona?.nombre_completo || 'No encontrado');
+      }
+
+      console.log('📤 Datos completos a guardar:', JSON.stringify(dataToSave, null, 2));
+
+      // Validar que existe la función onSave
+      if (!onSave) {
+        console.error('❌ No hay función onSave definida');
+        throw new Error('No hay función de guardado definida. Por favor, contacta al administrador.');
       }
 
       // Ejecutar onSave (puede ser async)
-      if (onSave) {
-        await Promise.resolve(onSave(dataToSave));
+      console.log('💾 Ejecutando función onSave...');
+      try {
+        const result = await Promise.resolve(onSave(dataToSave));
+        console.log('✅ Función onSave completada exitosamente');
+        console.log('📊 Resultado:', result);
+      } catch (saveError: any) {
+        console.error('❌ Error en función onSave:', saveError);
+        console.error('   Tipo:', typeof saveError);
+        console.error('   Mensaje:', saveError?.message);
+        console.error('   Stack:', saveError?.stack);
+        // Re-lanzar el error para que sea capturado por el catch externo
+        throw saveError;
       }
 
       // Mostrar mensaje de éxito
       setSuccess('Responsables asignados exitosamente.');
+      console.log('✅ Guardado completado exitosamente');
       
       // Esperar un momento para que el usuario vea el mensaje
       await new Promise(resolve => setTimeout(resolve, 1000));
 
+      console.log('🚪 Cerrando modal...');
       onClose();
     } catch (error: any) {
-      console.error('Error guardando responsables:', error);
+      console.error('═══════════════════════════════════════════════════');
+      console.error('❌ ERROR AL GUARDAR RESPONSABLES');
+      console.error('═══════════════════════════════════════════════════');
+      console.error('Error completo:', error);
+      console.error('Tipo:', typeof error);
+      
+      if (error instanceof Error) {
+        console.error('Mensaje:', error.message);
+        console.error('Stack:', error.stack);
+      }
+      console.error('═══════════════════════════════════════════════════');
+      
       const errorMessage = error?.message || 'Error al guardar responsables. Por favor intenta nuevamente.';
       setError(errorMessage);
       
@@ -155,6 +194,7 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
       setTimeout(() => setError(null), 8000);
     } finally {
       setIsLoading(false);
+      console.log('🏁 Proceso de guardado finalizado');
     }
   };
 

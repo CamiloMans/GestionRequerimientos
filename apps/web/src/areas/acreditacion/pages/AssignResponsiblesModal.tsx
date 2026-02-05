@@ -98,19 +98,69 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
     }
   }, [isOpen]);
 
+  // Inicializar formData cuando se abre el modal por primera vez
   useEffect(() => {
-    if (currentResponsables) {
-      setFormData({
-        empresa_id: currentResponsables.empresa_id,
-        empresa_nombre: currentResponsables.empresa_nombre,
-        jpro_id: currentResponsables.jpro_id,
-        epr_id: currentResponsables.epr_id,
-        rrhh_id: currentResponsables.rrhh_id,
-        legal_id: currentResponsables.legal_id,
-        acreditacion_id: currentResponsables.acreditacion_id,
+    if (isOpen && currentResponsables) {
+      // Solo inicializar si el formData está vacío o si los IDs no coinciden
+      setFormData(prev => {
+        // Si ya hay datos en formData y coinciden, no sobrescribir
+        if (prev.jpro_id === currentResponsables.jpro_id && 
+            prev.epr_id === currentResponsables.epr_id &&
+            prev.rrhh_id === currentResponsables.rrhh_id &&
+            prev.legal_id === currentResponsables.legal_id &&
+            prev.acreditacion_id === currentResponsables.acreditacion_id) {
+          return prev;
+        }
+        // Si no, inicializar con los valores de currentResponsables
+        return {
+          empresa_id: currentResponsables.empresa_id,
+          empresa_nombre: currentResponsables.empresa_nombre,
+          jpro_id: currentResponsables.jpro_id,
+          epr_id: currentResponsables.epr_id,
+          rrhh_id: currentResponsables.rrhh_id,
+          legal_id: currentResponsables.legal_id,
+          acreditacion_id: currentResponsables.acreditacion_id,
+        };
       });
     }
-  }, [currentResponsables]);
+  }, [isOpen]); // Solo ejecutar cuando se abre el modal
+
+  // Inicializar los searchTerms cuando las personas se cargan y hay responsables seleccionados
+  useEffect(() => {
+    if (isOpen && personas.length > 0 && currentResponsables) {
+      // Solo inicializar si el searchTerm está vacío
+      if (!searchTermJpro && currentResponsables.jpro_id && currentResponsables.jpro_nombre) {
+        const jproPersona = personas.find(p => p.id === currentResponsables.jpro_id);
+        if (jproPersona) {
+          setSearchTermJpro(`${jproPersona.nombre_completo} - ${jproPersona.rut}`);
+        }
+      }
+      if (!searchTermEpr && currentResponsables.epr_id && currentResponsables.epr_nombre) {
+        const eprPersona = personas.find(p => p.id === currentResponsables.epr_id);
+        if (eprPersona) {
+          setSearchTermEpr(`${eprPersona.nombre_completo} - ${eprPersona.rut}`);
+        }
+      }
+      if (!searchTermRrhh && currentResponsables.rrhh_id && currentResponsables.rrhh_nombre) {
+        const rrhhPersona = personas.find(p => p.id === currentResponsables.rrhh_id);
+        if (rrhhPersona) {
+          setSearchTermRrhh(`${rrhhPersona.nombre_completo} - ${rrhhPersona.rut}`);
+        }
+      }
+      if (!searchTermLegal && currentResponsables.legal_id && currentResponsables.legal_nombre) {
+        const legalPersona = personas.find(p => p.id === currentResponsables.legal_id);
+        if (legalPersona) {
+          setSearchTermLegal(`${legalPersona.nombre_completo} - ${legalPersona.rut}`);
+        }
+      }
+      if (!searchTermAcreditacion && currentResponsables.acreditacion_id && currentResponsables.acreditacion_nombre) {
+        const acreditacionPersona = personas.find(p => p.id === currentResponsables.acreditacion_id);
+        if (acreditacionPersona) {
+          setSearchTermAcreditacion(`${acreditacionPersona.nombre_completo} - ${acreditacionPersona.rut}`);
+        }
+      }
+    }
+  }, [isOpen, personas]); // Solo cuando se cargan las personas
 
   // Filtrar personas cuando cambia el término de búsqueda de JPRO
   useEffect(() => {
@@ -290,13 +340,23 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
 
   // Manejar la búsqueda de colaboradores JPRO
   const handleSearchChangeJpro = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTermJpro(e.target.value);
+    const newValue = e.target.value;
+    setSearchTermJpro(newValue);
     const position = calculateDropdownPosition(inputJproRef);
     setDropdownPositionJpro(position);
     setShowDropdownJpro(true);
-    // Si se borra el texto, resetear la selección
-    if (e.target.value === '') {
+    // Solo resetear la selección si el usuario borra completamente el texto
+    // y no coincide con el nombre del responsable seleccionado
+    if (newValue === '') {
       setFormData(prev => ({...prev, jpro_id: undefined, jpro_nombre: undefined}));
+    } else if (formData.jpro_id && formData.jpro_nombre) {
+      // Si hay un responsable seleccionado y el texto no coincide, mantener la selección
+      // pero permitir buscar otro
+      const expectedText = `${formData.jpro_nombre} - `;
+      if (!newValue.startsWith(expectedText.split(' - ')[0])) {
+        // El usuario está escribiendo algo diferente, mantener la búsqueda pero no resetear aún
+        // Solo resetear si el campo está completamente vacío
+      }
     }
   };
 
@@ -407,6 +467,10 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
     try {
       setIsLoading(true);
 
+      console.log('🔄 Iniciando guardado de responsables...');
+      console.log('📋 Datos del formulario:', formData);
+      console.log('📝 Proyecto:', projectCode);
+
       // Simular un pequeño delay para mejor UX (opcional)
       await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -416,38 +480,74 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
       if (formData.jpro_id) {
         const persona = personas.find(p => p.id === formData.jpro_id);
         dataToSave.jpro_nombre = persona?.nombre_completo;
+        console.log('👤 JPRO encontrado:', persona?.nombre_completo || 'No encontrado');
       }
       if (formData.epr_id) {
         const persona = personas.find(p => p.id === formData.epr_id);
         dataToSave.epr_nombre = persona?.nombre_completo;
+        console.log('👤 EPR encontrado:', persona?.nombre_completo || 'No encontrado');
       }
       if (formData.rrhh_id) {
         const persona = personas.find(p => p.id === formData.rrhh_id);
         dataToSave.rrhh_nombre = persona?.nombre_completo;
+        console.log('👤 RRHH encontrado:', persona?.nombre_completo || 'No encontrado');
       }
       if (formData.legal_id) {
         const persona = personas.find(p => p.id === formData.legal_id);
         dataToSave.legal_nombre = persona?.nombre_completo;
+        console.log('👤 Legal encontrado:', persona?.nombre_completo || 'No encontrado');
       }
       if (formData.acreditacion_id) {
         const persona = personas.find(p => p.id === formData.acreditacion_id);
         dataToSave.acreditacion_nombre = persona?.nombre_completo;
+        console.log('👤 Acreditación encontrado:', persona?.nombre_completo || 'No encontrado');
+      }
+
+      console.log('📤 Datos completos a guardar:', JSON.stringify(dataToSave, null, 2));
+
+      // Validar que existe la función onSave
+      if (!onSave) {
+        console.error('❌ No hay función onSave definida');
+        throw new Error('No hay función de guardado definida. Por favor, contacta al administrador.');
       }
 
       // Ejecutar onSave (puede ser async)
-      if (onSave) {
-        await Promise.resolve(onSave(dataToSave));
+      console.log('💾 Ejecutando función onSave...');
+      try {
+        const result = await Promise.resolve(onSave(dataToSave));
+        console.log('✅ Función onSave completada exitosamente');
+        console.log('📊 Resultado:', result);
+      } catch (saveError: any) {
+        console.error('❌ Error en función onSave:', saveError);
+        console.error('   Tipo:', typeof saveError);
+        console.error('   Mensaje:', saveError?.message);
+        console.error('   Stack:', saveError?.stack);
+        // Re-lanzar el error para que sea capturado por el catch externo
+        throw saveError;
       }
 
       // Mostrar mensaje de éxito
       setSuccess('Responsables asignados exitosamente.');
+      console.log('✅ Guardado completado exitosamente');
       
       // Esperar un momento para que el usuario vea el mensaje
       await new Promise(resolve => setTimeout(resolve, 1000));
 
+      console.log('🚪 Cerrando modal...');
       onClose();
     } catch (error: any) {
-      console.error('Error guardando responsables:', error);
+      console.error('═══════════════════════════════════════════════════');
+      console.error('❌ ERROR AL GUARDAR RESPONSABLES');
+      console.error('═══════════════════════════════════════════════════');
+      console.error('Error completo:', error);
+      console.error('Tipo:', typeof error);
+      
+      if (error instanceof Error) {
+        console.error('Mensaje:', error.message);
+        console.error('Stack:', error.stack);
+      }
+      console.error('═══════════════════════════════════════════════════');
+      
       const errorMessage = error?.message || 'Error al guardar responsables. Por favor intenta nuevamente.';
       setError(errorMessage);
       
@@ -455,6 +555,7 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
       setTimeout(() => setError(null), 8000);
     } finally {
       setIsLoading(false);
+      console.log('🏁 Proceso de guardado finalizado');
     }
   };
 
@@ -575,8 +676,8 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                       type="text"
                       className={`w-full pl-10 pr-10 rounded-lg text-sm focus:ring-primary shadow-sm py-2.5 ${
                         !formData.jpro_id 
-                          ? 'border-2 border-orange-400 focus:border-orange-500' 
-                          : 'border-gray-200 focus:border-primary'
+                          ? 'border-2 border-blue-400 focus:border-blue-500 bg-blue-50/30' 
+                          : 'border border-green-300 focus:border-green-400 bg-green-50/20'
                       }`}
                       placeholder="Buscar por nombre o RUT..."
                       value={searchTermJpro}
@@ -652,7 +753,7 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
               </div>
 
               {/* EPR - Especialista en Prevención de Riesgo */}
-              <div className="bg-gray-50/50 border border-[#e5e7eb] rounded-xl p-5 hover:border-orange-300 hover:shadow-sm transition-all relative z-10">
+              <div className="bg-gray-50/50 border border-[#e5e7eb] rounded-xl p-5 hover:border-gray-300 hover:shadow-sm transition-all relative z-10">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
                     <span className="material-symbols-outlined text-orange-600 text-2xl">health_and_safety</span>
@@ -673,8 +774,8 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                       type="text"
                       className={`w-full pl-10 pr-10 rounded-lg text-sm focus:ring-primary shadow-sm py-2.5 ${
                         !formData.epr_id 
-                          ? 'border-2 border-orange-400 focus:border-orange-500' 
-                          : 'border-gray-200 focus:border-primary'
+                          ? 'border-2 border-blue-400 focus:border-blue-500 bg-blue-50/30' 
+                          : 'border border-green-300 focus:border-green-400 bg-green-50/20'
                       }`}
                       placeholder="Buscar por nombre o RUT..."
                       value={searchTermEpr}
@@ -771,8 +872,8 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                       type="text"
                       className={`w-full pl-10 pr-10 rounded-lg text-sm focus:ring-primary shadow-sm py-2.5 ${
                         !formData.rrhh_id 
-                          ? 'border-2 border-orange-400 focus:border-orange-500' 
-                          : 'border-gray-200 focus:border-primary'
+                          ? 'border-2 border-blue-400 focus:border-blue-500 bg-blue-50/30' 
+                          : 'border border-green-300 focus:border-green-400 bg-green-50/20'
                       }`}
                       placeholder="Buscar por nombre o RUT..."
                       value={searchTermRrhh}
@@ -869,8 +970,8 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                       type="text"
                       className={`w-full pl-10 pr-10 rounded-lg text-sm focus:ring-primary shadow-sm py-2.5 ${
                         !formData.legal_id 
-                          ? 'border-2 border-orange-400 focus:border-orange-500' 
-                          : 'border-gray-200 focus:border-primary'
+                          ? 'border-2 border-blue-400 focus:border-blue-500 bg-blue-50/30' 
+                          : 'border border-green-300 focus:border-green-400 bg-green-50/20'
                       }`}
                       placeholder="Buscar por nombre o RUT..."
                       value={searchTermLegal}
@@ -967,8 +1068,8 @@ const AssignResponsiblesModal: React.FC<AssignResponsiblesModalProps> = ({
                       type="text"
                       className={`w-full pl-10 pr-10 rounded-lg text-sm focus:ring-primary shadow-sm py-2.5 ${
                         !formData.acreditacion_id 
-                          ? 'border-2 border-orange-400 focus:border-orange-500' 
-                          : 'border-gray-200 focus:border-primary'
+                          ? 'border-2 border-blue-400 focus:border-blue-500 bg-blue-50/30' 
+                          : 'border border-green-300 focus:border-green-400 bg-green-50/20'
                       }`}
                       placeholder="Buscar por nombre o RUT..."
                       value={searchTermAcreditacion}

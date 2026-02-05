@@ -810,27 +810,110 @@ export const updateResponsablesSolicitud = async (
   };
 
   console.log('📦 Datos a guardar:', updateData);
+  console.log('🔍 Ejecutando actualización en Supabase...');
+  console.log('   ID del registro a actualizar:', id);
 
-  const { data, error } = await supabase
-    .from('fct_acreditacion_solicitud')
-    .update(updateData)
-    .eq('id', id)
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('❌ Error al actualizar responsables:', error);
-    console.error('📊 Detalles del error:', {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code
-    });
-    throw error;
+  try {
+    // Primero, ejecutar la actualización sin select para verificar que se ejecute
+    const { error: updateError, count } = await supabase
+      .from('fct_acreditacion_solicitud')
+      .update(updateData)
+      .eq('id', id);
+    
+    console.log('📡 Respuesta de actualización recibida');
+    console.log('   Error:', updateError);
+    console.log('   Count (filas afectadas):', count);
+    
+    if (updateError) {
+      console.error('═══════════════════════════════════════════════════');
+      console.error('❌ ERROR AL ACTUALIZAR RESPONSABLES EN SUPABASE');
+      console.error('═══════════════════════════════════════════════════');
+      console.error('Error completo:', updateError);
+      console.error('📊 Detalles del error:', {
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+        code: updateError.code
+      });
+      console.error('═══════════════════════════════════════════════════');
+      throw updateError;
+    }
+    
+    if (count === 0) {
+      console.error('⚠️ No se actualizó ninguna fila. Verificando si el registro existe...');
+      // Verificar si el registro existe
+      const { data: existingData, error: checkError } = await supabase
+        .from('fct_acreditacion_solicitud')
+        .select('id, codigo_proyecto')
+        .eq('id', id)
+        .single();
+      
+      if (checkError) {
+        console.error('❌ Error al verificar existencia del registro:', checkError);
+        throw new Error(`No se pudo verificar si el registro existe: ${checkError.message}`);
+      }
+      
+      if (!existingData) {
+        throw new Error(`El registro con ID ${id} no existe en la base de datos.`);
+      }
+      
+      console.warn('⚠️ El registro existe pero no se actualizó. Posibles causas:');
+      console.warn('   - Los datos son idénticos a los ya guardados');
+      console.warn('   - Problemas con RLS (Row Level Security)');
+      console.warn('   - Problemas con permisos de escritura');
+    } else {
+      console.log(`✅ Se actualizaron ${count} fila(s)`);
+    }
+    
+    // Ahora obtener los datos actualizados para verificar
+    const { data, error: selectError } = await supabase
+      .from('fct_acreditacion_solicitud')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (selectError) {
+      console.error('❌ Error al obtener datos actualizados:', selectError);
+      throw new Error(`La actualización se ejecutó pero no se pudieron obtener los datos actualizados: ${selectError.message}`);
+    }
+    
+    if (!data) {
+      console.error('⚠️ No se obtuvieron datos después de la actualización');
+      throw new Error('La actualización se ejecutó pero no se pudieron obtener los datos actualizados.');
+    }
+    
+    console.log('✅ Responsables actualizados exitosamente');
+    console.log('📊 Datos actualizados en BD:', JSON.stringify({
+      id: data.id,
+      codigo_proyecto: data.codigo_proyecto,
+      empresa_id: data.empresa_id,
+      empresa_nombre: data.empresa_nombre,
+      jpro_id: data.jpro_id,
+      jpro_nombre: data.jpro_nombre,
+      epr_id: data.epr_id,
+      epr_nombre: data.epr_nombre,
+      rrhh_id: data.rrhh_id,
+      rrhh_nombre: data.rrhh_nombre,
+      legal_id: data.legal_id,
+      legal_nombre: data.legal_nombre,
+      estado_solicitud_acreditacion: data.estado_solicitud_acreditacion,
+      updated_at: data.updated_at
+    }, null, 2));
+    
+    return data;
+  } catch (err: any) {
+    console.error('═══════════════════════════════════════════════════');
+    console.error('❌ EXCEPCIÓN AL ACTUALIZAR RESPONSABLES');
+    console.error('═══════════════════════════════════════════════════');
+    console.error('Error:', err);
+    console.error('Tipo:', typeof err);
+    if (err instanceof Error) {
+      console.error('Mensaje:', err.message);
+      console.error('Stack:', err.stack);
+    }
+    console.error('═══════════════════════════════════════════════════');
+    throw err;
   }
-  
-  console.log('✅ Responsables actualizados exitosamente');
-  return data;
 };
 
 // Función para obtener requerimientos estándar de una empresa
