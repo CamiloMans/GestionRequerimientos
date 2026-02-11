@@ -36,7 +36,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     accreditationFollowUp: '',
     fieldStartDate: '',
     riskPreventionNotice: '',
-    companyAccreditationRequired: 'yes',
+    companyAccreditationRequired: '', // Iniciar sin selección
     contractAdmin: '',
     // Información del Contrato
     nombreContrato: '',
@@ -49,7 +49,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     cantidadVehiculos: '',
     placaPatente: '',
     // Pregunta sobre Contratista
-    requiereAcreditarContratista: 'yes',
+    requiereAcreditarContratista: '', // Iniciar sin selección
     // Información del Contrato (Contratista)
     modalidadContrato: '',
     razonSocialContratista: '',
@@ -60,7 +60,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     cantidadVehiculosContratista: '',
     placasVehiculosContratista: '',
     // SST
-    registroSstTerreo: '',
+    registroSstTerreo: '', // Iniciar sin selección
   });
 
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -78,6 +78,64 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [searchQuerySolicitante, setSearchQuerySolicitante] = useState('');
   const [selectedPersonaSolicitante, setSelectedPersonaSolicitante] = useState<Persona | null>(null);
   const [showDropdownSolicitante, setShowDropdownSolicitante] = useState(false);
+
+  // Limpiar todos los campos cuando se monta el componente
+  useEffect(() => {
+    // Limpiar sessionStorage para evitar cargar borradores previos
+    const STORAGE_KEY = 'field_request_form_draft';
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      console.log('🧹 Formulario limpiado: sessionStorage eliminado');
+    } catch (error) {
+      console.error('Error limpiando sessionStorage:', error);
+    }
+
+    // Resetear todos los campos del formulario a valores vacíos
+    setFormData({
+      requestDate: '',
+      requesterName: '',
+      kickoffDate: '',
+      projectCode: '',
+      requirement: '',
+      clientName: '',
+      clientContactName: '',
+      clientContactEmail: '',
+      projectManager: '',
+      accreditationFollowUp: '',
+      fieldStartDate: '',
+      riskPreventionNotice: '',
+      companyAccreditationRequired: '', // Limpiar campo de radio (ninguno seleccionado)
+      contractAdmin: '',
+      nombreContrato: '',
+      numeroContrato: '',
+      administradorContrato: '',
+      jornadaTrabajo: '',
+      horarioTrabajo: '',
+      cantidadVehiculos: '',
+      placaPatente: '',
+      requiereAcreditarContratista: '', // Limpiar campo de radio (ninguno seleccionado)
+      modalidadContrato: '',
+      razonSocialContratista: '',
+      nombreResponsableContratista: '',
+      telefonoResponsableContratista: '',
+      emailResponsableContratista: '',
+      cantidadVehiculosContratista: '',
+      placasVehiculosContratista: '',
+      registroSstTerreo: '', // Limpiar campo de radio (ninguno seleccionado)
+    });
+    
+    // Limpiar otros estados
+    setWorkers([]);
+    setWorkersContratista([]);
+    setTargetWorkerCountMyma(0);
+    setTargetWorkerCountContratista(0);
+    setHorarios([]);
+    setVehiculosMyma([]);
+    setVehiculosContratista([]);
+    setSearchQuerySolicitante('');
+    setSelectedPersonaSolicitante(null);
+    setShowDropdownSolicitante(false);
+  }, []); // Solo se ejecuta al montar el componente
 
   // Cargar proveedores desde la base de datos
   useEffect(() => {
@@ -842,7 +900,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   name="numeroContrato"
                   value={formData.numeroContrato}
                   onChange={handleInputChange}
-                  placeholder="Ej: CON-2025-001"
+                  placeholder="Ej: +56 9 1234 5678"
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>

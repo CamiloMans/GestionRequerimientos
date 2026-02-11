@@ -9,7 +9,23 @@ const DirectorioPersonas: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(11);
   const [viewMode, setViewMode] = useState<'basic' | 'detailed'>('basic');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  // Estados para el modal y formulario
+  const [showModal, setShowModal] = useState(false);
+  const [editingPersonaId, setEditingPersonaId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    rut: '',
+    nombres: '',
+    apellidos: '',
+    fecha_nacimiento: '',
+    correo: '',
+    telefono: '',
+    genero: '',
+    estado: 'Activo',
+    gerencia_id: '',
+    cargo_myma_id: '',
+    reporta_a_id: '',
+  });
 
   useEffect(() => {
     loadPersonas();
@@ -53,9 +69,166 @@ const DirectorioPersonas: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleExport = () => {
-    // Implementar exportación a CSV/Excel
-    alert('Función de exportación próximamente disponible');
+  const handleAddPersona = () => {
+    setEditingPersonaId(null);
+    setFormData({
+      rut: '',
+      nombres: '',
+      apellidos: '',
+      fecha_nacimiento: '',
+      correo: '',
+      telefono: '',
+      genero: '',
+      estado: 'Activo',
+      gerencia_id: '',
+      cargo_myma_id: '',
+      reporta_a_id: '',
+    });
+    setShowModal(true);
+  };
+
+  const handleEditPersona = (persona: PersonaWithDetails) => {
+    setEditingPersonaId(persona.id);
+    
+    // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD para el input date
+    let fechaNacimientoFormato = '';
+    if (persona.fecha_nacimiento) {
+      const partes = persona.fecha_nacimiento.split('/');
+      if (partes.length === 3) {
+        fechaNacimientoFormato = `${partes[2]}-${partes[1]}-${partes[0]}`;
+      }
+    }
+
+    setFormData({
+      rut: persona.rut || '',
+      nombres: persona.nombres || '',
+      apellidos: persona.apellidos || '',
+      fecha_nacimiento: fechaNacimientoFormato,
+      correo: persona.correo || '',
+      telefono: persona.telefono || '',
+      genero: persona.genero && persona.genero !== '-' ? persona.genero : '',
+      estado: persona.estado || 'Activo',
+      gerencia_id: persona.gerencia_id || '',
+      cargo_myma_id: persona.cargo_myma_id || '',
+      reporta_a_id: persona.reporta_a_id ? persona.reporta_a_id.toString() : '',
+    });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingPersonaId(null);
+    setFormData({
+      rut: '',
+      nombres: '',
+      apellidos: '',
+      fecha_nacimiento: '',
+      correo: '',
+      telefono: '',
+      genero: '',
+      estado: 'Activo',
+      gerencia_id: '',
+      cargo_myma_id: '',
+      reporta_a_id: '',
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validar campos obligatorios
+    if (!formData.rut || !formData.nombres || !formData.apellidos || !formData.fecha_nacimiento || !formData.correo || !formData.estado) {
+      alert('Por favor, complete todos los campos obligatorios.');
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.correo)) {
+      alert('Por favor, ingrese un correo electrónico válido.');
+      return;
+    }
+
+    // Calcular edad y nombre completo
+    const fechaNac = new Date(formData.fecha_nacimiento);
+    const hoy = new Date();
+    let edad = hoy.getFullYear() - fechaNac.getFullYear();
+    const mesDiff = hoy.getMonth() - fechaNac.getMonth();
+    if (mesDiff < 0 || (mesDiff === 0 && hoy.getDate() < fechaNac.getDate())) {
+      edad--;
+    }
+
+    const nombreCompleto = `${formData.nombres} ${formData.apellidos}`.trim();
+    
+    // Formatear fecha DD/MM/YYYY
+    const day = String(fechaNac.getDate()).padStart(2, '0');
+    const month = String(fechaNac.getMonth() + 1).padStart(2, '0');
+    const year = fechaNac.getFullYear();
+    const fechaNacimientoFormateada = `${day}/${month}/${year}`;
+
+    if (editingPersonaId) {
+      // Modo edición: actualizar persona existente
+      const personaActualizada: PersonaWithDetails = {
+        ...personas.find(p => p.id === editingPersonaId)!,
+        rut: formData.rut,
+        nombres: formData.nombres,
+        apellidos: formData.apellidos,
+        nombre_completo: nombreCompleto,
+        fecha_nacimiento: fechaNacimientoFormateada,
+        correo: formData.correo,
+        telefono: formData.telefono || undefined,
+        genero: formData.genero || '-',
+        estado: formData.estado,
+        gerencia_id: formData.gerencia_id || '',
+        cargo_myma_id: formData.cargo_myma_id || '',
+        updated_at: new Date().toISOString(),
+        cargo_nombre: formData.cargo_myma_id ? personas.find(p => p.cargo_myma_id === formData.cargo_myma_id)?.cargo_nombre || '' : '',
+        gerencia_nombre: formData.gerencia_id ? personas.find(p => p.gerencia_id === formData.gerencia_id)?.gerencia_nombre || '' : '',
+        reporta_a_nombre: formData.reporta_a_id ? personas.find(p => p.id.toString() === formData.reporta_a_id)?.nombre_completo || '' : '',
+        reporta_a_id: formData.reporta_a_id ? parseInt(formData.reporta_a_id) : undefined,
+        edad: edad,
+      };
+
+      // Actualizar en la lista
+      setPersonas(personas.map(p => p.id === editingPersonaId ? personaActualizada : p));
+    } else {
+      // Modo creación: crear nueva persona
+      const maxId = personas.length > 0 ? Math.max(...personas.map(p => p.id)) : 0;
+      const nuevaPersona: PersonaWithDetails = {
+        id: maxId + 1,
+        rut: formData.rut,
+        nombres: formData.nombres,
+        apellidos: formData.apellidos,
+        nombre_completo: nombreCompleto,
+        fecha_nacimiento: fechaNacimientoFormateada,
+        correo: formData.correo,
+        telefono: formData.telefono || undefined,
+        genero: formData.genero || '-',
+        estado: formData.estado,
+        gerencia_id: formData.gerencia_id || '',
+        comuna_id: '',
+        cargo_myma_id: formData.cargo_myma_id || '',
+        especialidad_id: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        cargo_nombre: formData.cargo_myma_id ? personas.find(p => p.cargo_myma_id === formData.cargo_myma_id)?.cargo_nombre || '' : '',
+        gerencia_nombre: formData.gerencia_id ? personas.find(p => p.gerencia_id === formData.gerencia_id)?.gerencia_nombre || '' : '',
+        reporta_a_nombre: formData.reporta_a_id ? personas.find(p => p.id.toString() === formData.reporta_a_id)?.nombre_completo || '' : '',
+        reporta_a_id: formData.reporta_a_id ? parseInt(formData.reporta_a_id) : undefined,
+        edad: edad,
+        nacionalidad: 'Chilena',
+        estudios_pregrado: '-',
+        anos_experiencia: 0,
+        antiguedad_myma: 0,
+        fecha_titulacion: '-',
+      };
+
+      // Agregar a la lista (al inicio)
+      setPersonas([nuevaPersona, ...personas]);
+    }
+    
+    // Cerrar modal y limpiar formulario
+    handleCloseModal();
   };
 
   if (loading) {
@@ -95,22 +268,13 @@ const DirectorioPersonas: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-primary hover:bg-gray-50 transition-colors"
-            >
-              <span className="material-symbols-outlined text-lg">filter_list</span>
-              <span>Filtros avanzados</span>
-            </button>
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors"
-            >
-              <span className="material-symbols-outlined text-lg">download</span>
-              <span>Exportar</span>
-            </button>
-          </div>
+          <button
+            onClick={handleAddPersona}
+            className="flex items-center gap-2 px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors whitespace-nowrap"
+          >
+            <span className="material-symbols-outlined text-lg">add</span>
+            <span>Agregar Persona</span>
+          </button>
         </div>
 
         {/* View Mode Toggle */}
@@ -188,7 +352,11 @@ const DirectorioPersonas: React.FC = () => {
                     {viewMode === 'basic' ? (
                       <>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <button className="text-gray-400 hover:text-primary transition-colors">
+                          <button
+                            onClick={() => handleEditPersona(persona)}
+                            className="text-gray-400 hover:text-primary transition-colors"
+                            title="Editar persona"
+                          >
                             <span className="material-symbols-outlined text-lg">edit</span>
                           </button>
                         </td>
@@ -299,6 +467,253 @@ const DirectorioPersonas: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal para agregar persona */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-[#111318]">
+                {editingPersonaId ? 'Editar Persona' : 'Agregar Nueva Persona'}
+              </h2>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <span className="material-symbols-outlined text-2xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Información Básica */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* RUT */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    RUT <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.rut}
+                    onChange={(e) => setFormData({ ...formData, rut: e.target.value })}
+                    placeholder="Ej: 12345678-9"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                {/* Estado */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.estado}
+                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  >
+                    <option value="Activo">Activo</option>
+                    <option value="Inactivo">Inactivo</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Nombres y Apellidos */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Nombres */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombres <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.nombres}
+                    onChange={(e) => setFormData({ ...formData, nombres: e.target.value })}
+                    placeholder="Ej: Juan Carlos"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                {/* Apellidos */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Apellidos <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.apellidos}
+                    onChange={(e) => setFormData({ ...formData, apellidos: e.target.value })}
+                    placeholder="Ej: Pérez González"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Fecha de Nacimiento y Género */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Fecha de Nacimiento */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha de Nacimiento <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.fecha_nacimiento}
+                    onChange={(e) => setFormData({ ...formData, fecha_nacimiento: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                {/* Género */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Género
+                  </label>
+                  <select
+                    value={formData.genero}
+                    onChange={(e) => setFormData({ ...formData, genero: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">Seleccione...</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Femenino">Femenino</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Contacto */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Correo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Correo Electrónico <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.correo}
+                    onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
+                    placeholder="Ej: juan.perez@email.com"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                {/* Teléfono */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Teléfono
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.telefono}
+                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                    placeholder="Ej: +56 9 1234 5678"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Organizacional */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Gerencia */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Gerencia
+                  </label>
+                  <select
+                    value={formData.gerencia_id}
+                    onChange={(e) => setFormData({ ...formData, gerencia_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">Seleccione una gerencia</option>
+                    {(() => {
+                      const gerenciasMap = new Map<string, string>();
+                      personas.forEach(p => {
+                        if (p.gerencia_id && p.gerencia_nombre) {
+                          gerenciasMap.set(p.gerencia_id, p.gerencia_nombre);
+                        }
+                      });
+                      return Array.from(gerenciasMap.entries()).map(([id, nombre]) => (
+                        <option key={id} value={id}>
+                          {nombre}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+
+                {/* Cargo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cargo
+                  </label>
+                  <select
+                    value={formData.cargo_myma_id}
+                    onChange={(e) => setFormData({ ...formData, cargo_myma_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">Seleccione un cargo</option>
+                    {(() => {
+                      const cargosMap = new Map<string, string>();
+                      personas.forEach(p => {
+                        if (p.cargo_myma_id && p.cargo_nombre) {
+                          cargosMap.set(p.cargo_myma_id, p.cargo_nombre);
+                        }
+                      });
+                      return Array.from(cargosMap.entries()).map(([id, nombre]) => (
+                        <option key={id} value={id}>
+                          {nombre}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+              </div>
+
+              {/* Reporta A */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reporta A
+                </label>
+                <select
+                  value={formData.reporta_a_id}
+                  onChange={(e) => setFormData({ ...formData, reporta_a_id: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="">Seleccione una persona</option>
+                  {personas.map((persona) => (
+                    <option key={persona.id} value={persona.id.toString()}>
+                      {persona.nombre_completo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors font-medium"
+                >
+                  {editingPersonaId ? 'Guardar Cambios' : 'Agregar Persona'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

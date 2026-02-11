@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchFormacionesAcademicas } from '../services/formacionAcademicaService';
-import { FormacionAcademica } from '../types';
+import { fetchPersonas } from '../services/personasService';
+import { FormacionAcademica, PersonaWithDetails } from '../types';
 
 // Colores para los tags de tipo
 const TIPO_COLORS: Record<string, string> = {
@@ -31,10 +32,30 @@ const FormacionAcademicaPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(6);
+  
+  // Estados para el modal y formulario
+  const [showModal, setShowModal] = useState(false);
+  const [personas, setPersonas] = useState<PersonaWithDetails[]>([]);
+  const [loadingPersonas, setLoadingPersonas] = useState(false);
+  const [formData, setFormData] = useState({
+    persona_id: '',
+    nombre_estudio: '',
+    universidad_institucion: '',
+    tipo: 'Pregrado' as FormacionAcademica['tipo'],
+    ano: '',
+    etiquetas_texto: '',
+  });
 
   useEffect(() => {
     loadFormaciones();
   }, []);
+
+  // Cargar personas cuando se abre el modal
+  useEffect(() => {
+    if (showModal && personas.length === 0) {
+      loadPersonas();
+    }
+  }, [showModal]);
 
   const loadFormaciones = async () => {
     try {
@@ -46,6 +67,19 @@ const FormacionAcademicaPage: React.FC = () => {
       setFormaciones([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPersonas = async () => {
+    try {
+      setLoadingPersonas(true);
+      const data = await fetchPersonas();
+      setPersonas(data);
+    } catch (error) {
+      console.error('Error loading personas:', error);
+      alert('Error al cargar las personas. Por favor, intente nuevamente.');
+    } finally {
+      setLoadingPersonas(false);
     }
   };
 
@@ -75,8 +109,76 @@ const FormacionAcademicaPage: React.FC = () => {
   };
 
   const handleAddFormacion = () => {
-    // TODO: Implementar modal o formulario para agregar formación
-    alert('Función de agregar formación académica próximamente disponible');
+    setFormData({
+      persona_id: '',
+      nombre_estudio: '',
+      universidad_institucion: '',
+      tipo: 'Pregrado',
+      ano: '',
+      etiquetas_texto: '',
+    });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setFormData({
+      persona_id: '',
+      nombre_estudio: '',
+      universidad_institucion: '',
+      tipo: 'Pregrado',
+      ano: '',
+      etiquetas_texto: '',
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validar campos obligatorios
+    if (!formData.persona_id || !formData.nombre_estudio || !formData.universidad_institucion || !formData.ano) {
+      alert('Por favor, complete todos los campos obligatorios.');
+      return;
+    }
+
+    // Validar año
+    const ano = parseInt(formData.ano);
+    if (isNaN(ano) || ano < 1900 || ano > new Date().getFullYear() + 1) {
+      alert('Por favor, ingrese un año válido.');
+      return;
+    }
+
+    // Obtener la persona seleccionada
+    const personaSeleccionada = personas.find(p => p.id.toString() === formData.persona_id);
+    if (!personaSeleccionada) {
+      alert('Error: No se encontró la persona seleccionada.');
+      return;
+    }
+
+    // Procesar etiquetas
+    const etiquetas = formData.etiquetas_texto
+      ? formData.etiquetas_texto.split(',').map(e => e.trim()).filter(e => e.length > 0)
+      : [];
+
+    // Crear nueva formación académica
+    const maxId = formaciones.length > 0 ? Math.max(...formaciones.map(f => f.id)) : 0;
+    const nuevaFormacion: FormacionAcademica = {
+      id: maxId + 1,
+      persona_id: parseInt(formData.persona_id),
+      nombre_completo: personaSeleccionada.nombre_completo,
+      nombre_estudio: formData.nombre_estudio,
+      universidad_institucion: formData.universidad_institucion,
+      tipo: formData.tipo,
+      ano: ano,
+      etiquetas: etiquetas.length > 0 ? etiquetas : undefined,
+      etiquetas_texto: formData.etiquetas_texto || undefined,
+    };
+
+    // Agregar a la lista (al inicio)
+    setFormaciones([nuevaFormacion, ...formaciones]);
+    
+    // Cerrar modal y limpiar formulario
+    handleCloseModal();
   };
 
   // Función para obtener color de tag de etiqueta basado en el índice
@@ -283,6 +385,153 @@ const FormacionAcademicaPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal para agregar formación académica */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-[#111318]">Agregar Formación Académica</h2>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <span className="material-symbols-outlined text-2xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Persona */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Persona <span className="text-red-500">*</span>
+                </label>
+                {loadingPersonas ? (
+                  <div className="text-sm text-gray-500">Cargando personas...</div>
+                ) : (
+                  <select
+                    value={formData.persona_id}
+                    onChange={(e) => setFormData({ ...formData, persona_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  >
+                    <option value="">Seleccione una persona</option>
+                    {personas.map((persona) => (
+                      <option key={persona.id} value={persona.id.toString()}>
+                        {persona.nombre_completo}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Nombre del estudio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre del Estudio <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.nombre_estudio}
+                  onChange={(e) => setFormData({ ...formData, nombre_estudio: e.target.value })}
+                  placeholder="Ej: Ingeniería Civil en Biotecnología"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                />
+              </div>
+
+              {/* Universidad/Institución */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Universidad / Institución <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.universidad_institucion}
+                  onChange={(e) => setFormData({ ...formData, universidad_institucion: e.target.value })}
+                  placeholder="Ej: Universidad de Chile"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                />
+              </div>
+
+              {/* Tipo y Año en la misma fila */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Tipo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.tipo}
+                    onChange={(e) => setFormData({ ...formData, tipo: e.target.value as FormacionAcademica['tipo'] })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  >
+                    <option value="Pregrado">Pregrado</option>
+                    <option value="Postitulo">Postítulo</option>
+                    <option value="Diplomado">Diplomado</option>
+                    <option value="Curso">Curso</option>
+                    <option value="Magister">Magíster</option>
+                    <option value="Doctorado">Doctorado</option>
+                  </select>
+                </div>
+
+                {/* Año */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Año <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.ano}
+                    onChange={(e) => setFormData({ ...formData, ano: e.target.value })}
+                    placeholder="Ej: 2020"
+                    min="1900"
+                    max={new Date().getFullYear() + 1}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Etiquetas */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Etiquetas (separadas por comas)
+                </label>
+                <input
+                  type="text"
+                  value={formData.etiquetas_texto}
+                  onChange={(e) => setFormData({ ...formData, etiquetas_texto: e.target.value })}
+                  placeholder="Ej: Gestión ambiental, Permisos ambientales, Regulación ambiental"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Separe las etiquetas con comas. Se mostrarán como tags de colores en la tabla.
+                </p>
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors font-medium"
+                >
+                  Agregar Formación
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchExperienciasProfesionales, searchExperienciasProfesionales } from '../services/experienciaProfesionalService';
-import { ExperienciaProfesional } from '../types';
+import { ExperienciaProfesional, PersonaWithDetails } from '../types';
+import { fetchPersonas } from '../services/personasService';
 
 // Colores para los tags de aptitudes
 const APTITUD_COLORS = [
@@ -22,9 +23,22 @@ const ExperienciaProfesionalPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(6);
+  const [personas, setPersonas] = useState<PersonaWithDetails[]>([]);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingExperienciaId, setEditingExperienciaId] = useState<number | null>(null);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<number | ''>('');
+  const [empresa, setEmpresa] = useState('');
+  const [cargo, setCargo] = useState('');
+  const [anoInicio, setAnoInicio] = useState<number | ''>('');
+  const [anoTermino, setAnoTermino] = useState<number | ''>('');
+  const [esTrabajoActual, setEsTrabajoActual] = useState(false);
+  const [funciones, setFunciones] = useState('');
+  const [aptitudesTexto, setAptitudesTexto] = useState('');
 
   useEffect(() => {
     loadExperiencias();
+    loadPersonas();
   }, []);
 
   const loadExperiencias = async () => {
@@ -38,6 +52,16 @@ const ExperienciaProfesionalPage: React.FC = () => {
       setExperiencias([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPersonas = async () => {
+    try {
+      const data = await fetchPersonas();
+      setPersonas(data);
+    } catch (error) {
+      console.error('Error loading personas for experiencias profesionales:', error);
+      setPersonas([]);
     }
   };
 
@@ -66,8 +90,104 @@ const ExperienciaProfesionalPage: React.FC = () => {
   };
 
   const handleAddExperience = () => {
-    // TODO: Implementar modal o formulario para agregar experiencia
-    alert('Función de agregar experiencia próximamente disponible');
+    setEditingExperienciaId(null);
+    resetForm();
+    setShowAddModal(true);
+  };
+
+  const handleEditExperience = (experiencia: ExperienciaProfesional) => {
+    setEditingExperienciaId(experiencia.id);
+    setSelectedPersonaId(experiencia.persona_id);
+    setEmpresa(experiencia.empresa || '');
+    setCargo(experiencia.cargo || '');
+    setAnoInicio(experiencia.ano_inicio);
+    setAnoTermino(experiencia.ano_termino || '');
+    setEsTrabajoActual(experiencia.ano_termino === null || experiencia.ano_termino_display === 'ACTUAL');
+    setFunciones(experiencia.funciones || '');
+    setAptitudesTexto(experiencia.aptitudes_texto || (experiencia.aptitudes ? experiencia.aptitudes.join(', ') : ''));
+    setShowAddModal(true);
+  };
+
+  const resetForm = () => {
+    setSelectedPersonaId('');
+    setEmpresa('');
+    setCargo('');
+    setAnoInicio('');
+    setAnoTermino('');
+    setEsTrabajoActual(false);
+    setFunciones('');
+    setAptitudesTexto('');
+  };
+
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    setEditingExperienciaId(null);
+    resetForm();
+  };
+
+  const handleSubmitNewExperience = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedPersonaId || !empresa.trim() || !cargo.trim() || !anoInicio) {
+      alert('Por favor completa al menos: Persona, Empresa, Cargo y Año de inicio.');
+      return;
+    }
+
+    const persona = personas.find(p => p.id === Number(selectedPersonaId));
+
+    const nextId = experiencias.length > 0
+      ? Math.max(...experiencias.map(exp => exp.id)) + 1
+      : 1;
+
+    const anoInicioNumber = Number(anoInicio);
+    const anoTerminoNumber = esTrabajoActual || !anoTermino ? null : Number(anoTermino);
+
+    const aptitudesArray = aptitudesTexto
+      .split(',')
+      .map(a => a.trim())
+      .filter(a => a.length > 0);
+
+    if (editingExperienciaId) {
+      // Modo edición: actualizar experiencia existente
+      const experienciaActualizada: ExperienciaProfesional = {
+        ...experiencias.find(exp => exp.id === editingExperienciaId)!,
+        persona_id: Number(selectedPersonaId),
+        nombre_completo: persona?.nombre_completo,
+        empresa: empresa.trim(),
+        cargo: cargo.trim(),
+        ano_inicio: anoInicioNumber,
+        ano_termino: anoTerminoNumber,
+        ano_termino_display: esTrabajoActual || anoTerminoNumber === null
+          ? 'ACTUAL'
+          : String(anoTerminoNumber),
+        funciones: funciones.trim() || undefined,
+        aptitudes: aptitudesArray.length > 0 ? aptitudesArray : undefined,
+        aptitudes_texto: aptitudesTexto.trim() || undefined,
+      };
+
+      setExperiencias(prev => prev.map(exp => exp.id === editingExperienciaId ? experienciaActualizada : exp));
+    } else {
+      // Modo creación: crear nueva experiencia
+      const nuevaExperiencia: ExperienciaProfesional = {
+        id: nextId,
+        persona_id: Number(selectedPersonaId),
+        nombre_completo: persona?.nombre_completo,
+        empresa: empresa.trim(),
+        cargo: cargo.trim(),
+        ano_inicio: anoInicioNumber,
+        ano_termino: anoTerminoNumber,
+        ano_termino_display: esTrabajoActual || anoTerminoNumber === null
+          ? 'ACTUAL'
+          : String(anoTerminoNumber),
+        funciones: funciones.trim() || undefined,
+        aptitudes: aptitudesArray.length > 0 ? aptitudesArray : undefined,
+        aptitudes_texto: aptitudesTexto.trim() || undefined,
+      };
+
+      setExperiencias(prev => [nuevaExperiencia, ...prev]);
+    }
+
+    handleCloseModal();
   };
 
   // Función para obtener color de tag basado en el índice
@@ -88,6 +208,154 @@ const ExperienciaProfesionalPage: React.FC = () => {
 
   return (
     <div className="w-full p-6 bg-[#f8fafc] min-h-screen">
+      {/* Modal agregar experiencia */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-[#111318]">
+                {editingExperienciaId ? 'Editar Experiencia Profesional' : 'Agregar Experiencia Profesional'}
+              </h2>
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitNewExperience} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Persona
+                  </label>
+                  <select
+                    value={selectedPersonaId}
+                    onChange={(e) => setSelectedPersonaId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  >
+                    <option value="">Selecciona una persona</option>
+                    {personas.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nombre_completo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Empresa
+                  </label>
+                  <input
+                    type="text"
+                    value={empresa}
+                    onChange={(e) => setEmpresa(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cargo
+                  </label>
+                  <input
+                    type="text"
+                    value={cargo}
+                    onChange={(e) => setCargo(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Año inicio
+                  </label>
+                  <input
+                    type="number"
+                    value={anoInicio}
+                    onChange={(e) => setAnoInicio(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Año término
+                  </label>
+                  <input
+                    type="number"
+                    value={anoTermino}
+                    onChange={(e) => setAnoTermino(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    disabled={esTrabajoActual}
+                    min={anoInicio || undefined}
+                  />
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      id="es_trabajo_actual"
+                      type="checkbox"
+                      checked={esTrabajoActual}
+                      onChange={(e) => setEsTrabajoActual(e.target.checked)}
+                      className="h-4 w-4 text-primary border-gray-300 rounded"
+                    />
+                    <label htmlFor="es_trabajo_actual" className="text-xs text-gray-600">
+                      Es trabajo actual (se mostrará como ACTUAL)
+                    </label>
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Funciones principales
+                  </label>
+                  <textarea
+                    value={funciones}
+                    onChange={(e) => setFunciones(e.target.value)}
+                    rows={3}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Aptitudes / conocimientos (separados por comas)
+                  </label>
+                  <input
+                    type="text"
+                    value={aptitudesTexto}
+                    onChange={(e) => setAptitudesTexto(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="Ej: Gestión ambiental, Liderazgo, Regulación ambiental"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-[#059669] rounded-lg hover:bg-[#047857]"
+                >
+                  {editingExperienciaId ? 'Guardar Cambios' : 'Guardar experiencia'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
@@ -129,6 +397,7 @@ const ExperienciaProfesionalPage: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">EDITAR</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">PERSONA</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">EMPRESA</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">CARGO</th>
@@ -142,7 +411,7 @@ const ExperienciaProfesionalPage: React.FC = () => {
               {paginatedExperiencias.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-8 text-center text-gray-500"
                   >
                     {experiencias.length === 0 
@@ -154,6 +423,15 @@ const ExperienciaProfesionalPage: React.FC = () => {
               ) : (
                 paginatedExperiencias.map((exp) => (
                   <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <button
+                        onClick={() => handleEditExperience(exp)}
+                        className="text-gray-400 hover:text-primary transition-colors"
+                        title="Editar experiencia"
+                      >
+                        <span className="material-symbols-outlined text-lg">edit</span>
+                      </button>
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-gray-400 text-lg">person</span>

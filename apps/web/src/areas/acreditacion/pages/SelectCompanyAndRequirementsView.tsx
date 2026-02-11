@@ -215,8 +215,32 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   };
 
   const handleAddRequerimiento = () => {
-    if (!newRequerimiento.requerimiento.trim() || !newRequerimiento.categoria_requerimiento.trim()) {
-      alert('Por favor completa el requerimiento y la categoría');
+    // Validar que haya una empresa seleccionada
+    if (!selectedEmpresaNombre || !selectedEmpresaId) {
+      alert('Por favor selecciona una empresa contratista primero');
+      return;
+    }
+
+    // Si el usuario escribió algo en el campo de búsqueda pero no seleccionó ningún requerimiento,
+    // usar el texto de búsqueda como requerimiento personalizado
+    let requerimientoTexto = newRequerimiento.requerimiento.trim();
+    if (!requerimientoTexto && searchTerm.trim()) {
+      requerimientoTexto = searchTerm.trim();
+      // Si no hay requerimientoId, tratarlo como "Otro"
+      if (!newRequerimiento.requerimientoId || newRequerimiento.requerimientoId === '') {
+        setIsOtroSelected(true);
+      }
+    }
+
+    // Validar requerimiento
+    if (!requerimientoTexto) {
+      alert('Por favor completa el requerimiento');
+      return;
+    }
+
+    // Validar categoría
+    if (!newRequerimiento.categoria_requerimiento.trim()) {
+      alert('Por favor selecciona o completa la categoría');
       return;
     }
 
@@ -225,7 +249,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       const updatedReqs = [...empresaRequerimientos];
       updatedReqs[editingIndex] = {
         ...updatedReqs[editingIndex],
-        requerimiento: newRequerimiento.requerimiento.trim(),
+        requerimiento: requerimientoTexto,
         categoria_requerimiento: newRequerimiento.categoria_requerimiento,
         responsable: newRequerimiento.responsable,
         observaciones: newRequerimiento.observaciones.trim() || undefined,
@@ -236,7 +260,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       // Si no está editando, agregar nuevo requerimiento
       const nuevoReq: EmpresaRequerimiento = {
         empresa: selectedEmpresaNombre,
-        requerimiento: newRequerimiento.requerimiento.trim(),
+        requerimiento: requerimientoTexto,
         categoria_requerimiento: newRequerimiento.categoria_requerimiento,
         responsable: newRequerimiento.responsable,
         observaciones: newRequerimiento.observaciones.trim() || undefined,
@@ -635,7 +659,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                         value={newRequerimiento.categoria_requerimiento}
                         onChange={(e) => setNewRequerimiento({ ...newRequerimiento, categoria_requerimiento: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        disabled={!isOtroSelected && !editingIndex && !!newRequerimiento.requerimientoId && !!newRequerimiento.categoria_requerimiento}
+                        disabled={!isOtroSelected && !editingIndex && !!newRequerimiento.requerimientoId && !!newRequerimiento.categoria_requerimiento && newRequerimiento.categoria_requerimiento.trim() !== ''}
                       >
                         <option value="">
                           {isOtroSelected ? "Seleccionar categoría *" : "Se completará automáticamente"}

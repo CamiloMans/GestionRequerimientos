@@ -3,7 +3,8 @@ import { ProjectGalleryItem } from '../types';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
 import ProjectDetailView from './ProjectDetailView';
 import SelectCompanyAndRequirementsView from './SelectCompanyAndRequirementsView';
-import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables, fetchProjectGalleryItems } from '../services/acreditacionService';
+import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables, fetchProjectGalleryItems, deleteSolicitudAcreditacion } from '../services/acreditacionService';
+import { supabase } from '../../../shared/api-client/supabase';
 
 interface ProjectGalleryV2Props {
   projects: ProjectGalleryItem[];
@@ -23,9 +24,26 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<{ title: string; message: string; details?: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
   
   // Estado local para los proyectos (se actualiza automáticamente cada 10 segundos)
   const [localProjects, setLocalProjects] = useState<ProjectGalleryItem[]>(projects);
+
+  // Obtener email del usuario actual
+  useEffect(() => {
+    const getUserEmail = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) {
+          setUserEmail(session.user.email);
+        }
+      } catch (error) {
+        console.error('Error obteniendo email del usuario:', error);
+      }
+    };
+    getUserEmail();
+  }, []);
 
   // Sincronizar proyectos locales cuando cambian los props
   useEffect(() => {
@@ -205,6 +223,47 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     // Recargar datos después de ver la vista de empresa (por si hubo cambios)
     if (onProjectUpdate) {
       onProjectUpdate();
+    }
+  };
+
+  const handleDeleteProject = async (project: ProjectGalleryItem, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evitar que se active el onClick del contenedor
+    
+    if (!project.id || typeof project.id !== 'number') {
+      alert('Error: El proyecto no tiene un ID válido');
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Estás seguro de que deseas eliminar el proyecto "${project.projectCode}"?\n\nEsta acción no se puede deshacer.`
+    );
+
+    if (!confirmar) return;
+
+    try {
+      setDeletingProjectId(project.id);
+      await deleteSolicitudAcreditacion(project.id);
+      
+      // Eliminar el proyecto de la lista local
+      setLocalProjects(prev => prev.filter(p => p.id !== project.id));
+      
+      // Notificar al componente padre para que recargue los datos
+      if (onProjectUpdate) {
+        onProjectUpdate();
+      }
+      
+      setSuccess({
+        title: 'Proyecto Eliminado',
+        message: `El proyecto "${project.projectCode}" ha sido eliminado exitosamente.`
+      });
+      
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (error) {
+      console.error('Error eliminando proyecto:', error);
+      setError(`Error al eliminar el proyecto: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      setTimeout(() => setError(null), 8000);
+    } finally {
+      setDeletingProjectId(null);
     }
   };
 
@@ -759,7 +818,27 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                           </span>
                         );
                       })()}
-                      {/* Indicador de acción más pequeño */}
+                      {/* Botón de eliminar - Solo visible para cmansilla@myma.cl */}
+                      {userEmail === 'cmansilla@myma.cl' && (
+                        <button
+                          onClick={(e) => handleDeleteProject(project, e)}
+                          disabled={deletingProjectId === project.id}
+                          className="mt-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                          title="Eliminar proyecto"
+                        >
+                          {deletingProjectId === project.id ? (
+                            <>
+                              <div className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                              Eliminando...
+                            </>
+                          ) : (
+                            <>
+                              <span className="material-symbols-outlined text-[14px]">delete</span>
+                              Eliminar
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
 
