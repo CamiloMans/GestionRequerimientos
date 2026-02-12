@@ -1886,6 +1886,30 @@ export const createProyectoTrabajadores = async (
   console.log(`✅ ${data?.length || 0} trabajadores guardados exitosamente`);
 };
 
+// Función para obtener trabajadores del proyecto desde fct_acreditacion_solicitud_trabajador_manual
+export const fetchProyectoTrabajadoresByProyecto = async (
+  idProyecto: number,
+  codigoProyecto: string
+): Promise<any[]> => {
+  console.log('🔍 Leyendo trabajadores del proyecto para resumen JSON:', {
+    idProyecto,
+    codigoProyecto,
+  });
+
+  const { data, error } = await supabase
+    .from('fct_acreditacion_solicitud_trabajador_manual')
+    .select('*')
+    .eq('id_proyecto', idProyecto)
+    .eq('codigo_proyecto', codigoProyecto);
+
+  if (error) {
+    console.error('❌ Error leyendo trabajadores del proyecto para resumen:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
 // Función para guardar horarios del proyecto
 export const createProyectoHorarios = async (
   idProyecto: number,
@@ -1964,5 +1988,76 @@ export const createProyectoConductores = async (
   }
 
   console.log(`✅ ${conductoresData.length} conductores guardados exitosamente`);
+};
+
+// Función para obtener conductores del proyecto desde fct_acreditacion_solicitud_conductor_manual
+export const fetchProyectoConductoresByProyecto = async (
+  idProyecto: number,
+  codigoProyecto: string
+): Promise<any[]> => {
+  console.log('🔍 Leyendo conductores del proyecto para resumen JSON:', {
+    idProyecto,
+    codigoProyecto,
+  });
+
+  const { data, error } = await supabase
+    .from('fct_acreditacion_solicitud_conductor_manual')
+    .select('*')
+    .eq('id_proyecto', idProyecto)
+    .eq('codigo_proyecto', codigoProyecto);
+
+  if (error) {
+    console.error('❌ Error leyendo conductores del proyecto para resumen:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+// Función para enviar el resumen de solicitud a logs de backend (edge function)
+export const logResumenSolicitudAcreditacion = async (resumen: any): Promise<void> => {
+  try {
+    console.log('📦 Enviando resumen de acreditación a función edge...', resumen);
+    await sendWebhookViaEdgeFunction({
+      tipo: 'resumen_solicitud_acreditacion',
+      payload: resumen,
+    });
+    console.log('✅ Resumen de acreditación enviado a función edge correctamente');
+  } catch (error) {
+    console.error('❌ Error enviando resumen de acreditación a función edge:', error);
+  }
+};
+
+// Función para crear carpetas del proyecto llamando a la API local
+export const crearCarpetasProyecto = async (resumen: any): Promise<any> => {
+  const url = 'http://localhost:8000/carpetas/crear';
+  
+  console.log('📁 Llamando a API para crear carpetas del proyecto...');
+  console.log('   URL:', url);
+  console.log('   Payload:', JSON.stringify(resumen, null, 2));
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(resumen),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Carpetas creadas exitosamente:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ Error llamando a API de carpetas:', error);
+    // No lanzar el error para que no rompa el flujo principal
+    // Solo loguear el error
+    throw error;
+  }
 };
 

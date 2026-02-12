@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
 import { Worker, WorkerType, RequestFormData, MOCK_COMPANIES, Persona } from '../types';
-import { createSolicitudAcreditacion, createProyectoTrabajadores, createProyectoHorarios, createProyectoConductores, fetchProveedores, fetchPersonas } from '../services/acreditacionService';
+import {
+  createSolicitudAcreditacion,
+  createProyectoTrabajadores,
+  createProyectoHorarios,
+  createProyectoConductores,
+  fetchProveedores,
+  fetchPersonas,
+  fetchProyectoTrabajadoresByProyecto,
+  fetchProyectoConductoresByProyecto,
+  logResumenSolicitudAcreditacion,
+  crearCarpetasProyecto,
+} from '../services/acreditacionService';
 
 interface Horario {
   dias: string;
@@ -516,6 +527,79 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         } catch (vehiculoContratistaError) {
           console.error('❌ Error al guardar vehículos Contratista:', vehiculoContratistaError);
           alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los vehículos Contratista.');
+        }
+      }
+
+      // Construir JSON resumen de acreditación (especialistas, conductores y vehículos)
+      if (result.id && result.codigo_proyecto) {
+        try {
+          const [trabajadoresProyecto, conductoresProyecto] = await Promise.all([
+            fetchProyectoTrabajadoresByProyecto(result.id, result.codigo_proyecto),
+            fetchProyectoConductoresByProyecto(result.id, result.codigo_proyecto),
+          ]);
+
+          // Especialistas y conductores internos (MyMA)
+          const especialistasMyma = trabajadoresProyecto
+            .filter((t: any) => t.categoria_empresa === 'MyMA')
+            .map((t: any) => ({
+              id: t.id,
+              nombre: t.nombre_trabajador,
+            }));
+
+          const especialistasExternos = trabajadoresProyecto
+            .filter((t: any) => t.categoria_empresa !== 'MyMA')
+            .map((t: any) => ({
+              id: t.id,
+              nombre: t.nombre_trabajador,
+            }));
+
+          const conductoresMyma = conductoresProyecto
+            .filter((c: any) => c.categoria_empresa === 'MyMA')
+            .map((c: any) => ({
+              id: c.id,
+              nombre: c.nombre_conductor,
+            }));
+
+          const conductoresExternos = conductoresProyecto
+            .filter((c: any) => c.categoria_empresa !== 'MyMA')
+            .map((c: any) => ({
+              id: c.id,
+              nombre: c.nombre_conductor,
+            }));
+
+          // Por ahora dejamos los vehículos como arreglos vacíos
+          const resumenAcreditacion = {
+            codigo_proyecto: result.codigo_proyecto,
+            myma: {
+              especialistas: especialistasMyma,
+              conductores: conductoresMyma,
+              vehiculos: [] as any[],
+            },
+            externo: {
+              empresa: formData.razonSocialContratista || null,
+              especialistas: especialistasExternos,
+              conductores: conductoresExternos,
+              vehiculos: [] as any[],
+            },
+          };
+
+          // Consola del navegador
+          console.log('📦 Resumen de acreditación generado:', resumenAcreditacion);
+
+          // Logs backend / terminal a través de función edge
+          await logResumenSolicitudAcreditacion(resumenAcreditacion);
+
+          // Llamar a API local para crear carpetas del proyecto
+          try {
+            const respuestaCarpetas = await crearCarpetasProyecto(resumenAcreditacion);
+            console.log('✅ Carpetas del proyecto creadas exitosamente:', respuestaCarpetas);
+          } catch (errorCarpetas) {
+            console.error('❌ Error al crear carpetas del proyecto:', errorCarpetas);
+            // No mostrar alert al usuario, solo loguear el error
+            // La solicitud ya se guardó exitosamente, esto es un paso adicional
+          }
+        } catch (resumenError) {
+          console.error('❌ Error generando o enviando el resumen de acreditación:', resumenError);
         }
       }
       
