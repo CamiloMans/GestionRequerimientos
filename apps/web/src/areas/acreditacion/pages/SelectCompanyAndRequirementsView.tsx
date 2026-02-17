@@ -336,7 +336,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
           });
           console.log('═══════════════════════════════════════════════════\n');
           
-          await createProyectoRequerimientos(
+          const registrosInsertados = await createProyectoRequerimientos(
             project.projectCode,
             selectedEmpresaNombre,
             empresaRequerimientos,
@@ -349,6 +349,53 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
             project.id // Pasar el id de fct_acreditacion_solicitud como id_proyecto
           );
           console.log('✅ Requerimientos guardados exitosamente');
+
+          // Llamar a la API para asignar folder
+          if (registrosInsertados && registrosInsertados.length > 0) {
+            try {
+              console.log('📡 Llamando a API /asignar-folder...');
+              const payload = {
+                codigo_proyecto: project.projectCode,
+                registros: registrosInsertados.map((registro: any) => {
+                  const registroPayload: any = {
+                    id: registro.id,
+                    categoria_requerimiento: registro.categoria_requerimiento,
+                    nombre_trabajador: registro.nombre_trabajador || null,
+                  };
+                  
+                  // Solo incluir empresa_acreditacion si tiene un valor
+                  if (registro.empresa_acreditacion) {
+                    registroPayload.empresa_acreditacion = registro.empresa_acreditacion;
+                  }
+                  
+                  return registroPayload;
+                }),
+              };
+
+              console.log('📦 Payload para API:', JSON.stringify(payload, null, 2));
+
+              const response = await fetch('http://127.0.0.1:8000/asignar-folder', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Error en API: ${response.status} - ${errorText}`);
+              }
+
+              const result = await response.json();
+              console.log('✅ API /asignar-folder respondió exitosamente:', result);
+            } catch (apiError: any) {
+              console.error('❌ Error al llamar a la API /asignar-folder:', apiError);
+              // No lanzar el error para que el flujo continúe, solo loguearlo
+              // Si quieres que falle el guardado completo, descomenta la siguiente línea:
+              // throw apiError;
+            }
+          }
         } catch (error: any) {
           console.error('═══════════════════════════════════════════════════');
           console.error('❌ ERROR AL GUARDAR REQUERIMIENTOS');

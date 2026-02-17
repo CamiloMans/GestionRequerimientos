@@ -7,6 +7,7 @@ import AreaSelector from '@shared/rbac/AreaSelector';
 import AcreditacionSidebar from '@areas/acreditacion/components/Sidebar';
 import ProveedoresSidebar from '@areas/proveedores/components/Sidebar';
 import PersonasSidebar from '@areas/personas/components/Sidebar';
+import AdendasSidebar from '@areas/adendas/components/Sidebar';
 
 interface AreaLayoutProps {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ const AreaLayout: React.FC<AreaLayoutProps> = ({ children }) => {
   const [isFilterSidebarOpen, setIsFilterSidebarOpen] = useState(false);
 
   // Determinar la vista activa basada en la ruta
-  const getActiveView = (): 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'dashboard' | 'actuales' | 'evaluacion' | 'evaluacion-2025' | 'evaluaciones-tabla' | 'directorio' | 'experiencia-profesional' | 'formacion-academica' | 'organigrama' | 'curriculum' => {
+  const getActiveView = (): 'list' | 'create' | 'fieldRequest' | 'reports' | 'dashboards' | 'dashboard' | 'actuales' | 'evaluacion' | 'evaluacion-2025' | 'evaluaciones-tabla' | 'directorio' | 'experiencia-profesional' | 'formacion-academica' | 'organigrama' | 'curriculum' | 'edit' => {
     const path = location.pathname;
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboards')) return 'dashboards';
@@ -40,6 +41,8 @@ const AreaLayout: React.FC<AreaLayoutProps> = ({ children }) => {
     if (path.includes('/formacion-academica')) return 'formacion-academica';
     if (path.includes('/experiencia-profesional')) return 'experiencia-profesional';
     if (path.includes('/directorio')) return 'directorio';
+    if (path.includes('/edit')) return 'edit';
+    if (path.includes('/create')) return 'create';
     return 'list';
   };
 
@@ -69,6 +72,15 @@ const AreaLayout: React.FC<AreaLayoutProps> = ({ children }) => {
       case AreaId.PERSONAS:
         return (
           <PersonasSidebar
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            activeView={getActiveView() as any}
+            hideOnDesktop={isFilterSidebarOpen}
+          />
+        );
+      case AreaId.ADENDAS:
+        return (
+          <AdendasSidebar
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             activeView={getActiveView() as any}

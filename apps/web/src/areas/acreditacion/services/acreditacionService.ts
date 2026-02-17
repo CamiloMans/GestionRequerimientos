@@ -1046,7 +1046,7 @@ export const createProyectoRequerimientos = async (
     legal_nombre?: string;
   },
   idProyecto?: number
-): Promise<void> => {
+): Promise<any[]> => {
   console.log('═══════════════════════════════════════════════════');
   console.log('🚀 INICIO: createProyectoRequerimientos');
   console.log('═══════════════════════════════════════════════════');
@@ -1058,7 +1058,7 @@ export const createProyectoRequerimientos = async (
   if (!empresaRequerimientos || empresaRequerimientos.length === 0) {
     console.error('❌ NO HAY REQUERIMIENTOS PARA GUARDAR');
     console.log('═══════════════════════════════════════════════════\n');
-    return;
+    return [];
   }
   
   // Primero, verificar si ya existen requerimientos para este proyecto
@@ -1120,7 +1120,12 @@ export const createProyectoRequerimientos = async (
       
       console.log('✅ Requerimientos actualizados exitosamente');
       console.log('═══════════════════════════════════════════════════\n');
-      return;
+      // Retornar los requerimientos existentes actualizados
+      const { data: updatedReqs } = await supabase
+        .from('brg_acreditacion_solicitud_requerimiento')
+        .select('*')
+        .eq('codigo_proyecto', codigoProyecto);
+      return updatedReqs || [];
     } else {
       // Si no hay responsables pero hay requerimientos existentes, continuar para crear nuevos
       // (puede ser que se estén agregando nuevos requerimientos)
@@ -1515,6 +1520,7 @@ export const createProyectoRequerimientos = async (
   }
   
   console.log('═══════════════════════════════════════════════════\n');
+  return data || [];
 };
 
 // Función para obtener requerimientos de un proyecto
@@ -2030,7 +2036,7 @@ export const logResumenSolicitudAcreditacion = async (resumen: any): Promise<voi
 
 // Función para crear carpetas del proyecto llamando a la API local
 export const crearCarpetasProyecto = async (resumen: any): Promise<any> => {
-  const url = 'http://localhost:8000/carpetas/crear';
+  const url = 'http://34.74.6.124/carpetas/crear';
   
   console.log('📁 Llamando a API para crear carpetas del proyecto...');
   console.log('   URL:', url);

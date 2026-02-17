@@ -42,12 +42,17 @@ export const useAreas = () => {
           console.log('📦 Caché contiene módulos:', Object.keys(cached.permissions));
           userPermissions = cached.permissions;
           
-          // Verificar si el caché tiene el módulo "personas" pero debería tenerlo según los permisos raw
-          // Esto es una verificación adicional para detectar caché desactualizado
+          // Verificar si hay módulos nuevos en los permisos raw que no están en el caché
+          // Esto detecta cuando se agregan nuevos módulos (ej: adendas, personas, etc.)
           const rawPerms = await fetchUserPermissions();
-          const hasPersonasInRaw = rawPerms.some(p => p.module_code.toLowerCase().trim() === 'personas');
-          if (hasPersonasInRaw && !userPermissions['personas']) {
-            console.warn('⚠️ El caché no contiene el módulo "personas" pero los permisos raw sí, forzando recarga desde BD');
+          const modulesInRaw = new Set(rawPerms.map(p => p.module_code.toLowerCase().trim()));
+          const modulesInCache = new Set(Object.keys(cached.permissions));
+          
+          // Verificar si hay módulos en raw que no están en caché
+          const missingModules = Array.from(modulesInRaw).filter(m => !modulesInCache.has(m));
+          
+          if (missingModules.length > 0) {
+            console.warn(`⚠️ El caché no contiene los módulos ${missingModules.join(', ')} pero los permisos raw sí, forzando recarga desde BD`);
             userPermissions = await getUserPermissions();
             // Actualizar caché con los nuevos permisos
             const hasAnyPermission = Object.values(userPermissions).some(

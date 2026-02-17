@@ -9,6 +9,7 @@ import AreaGuard from '@shared/rbac/AreaGuard';
 import AcreditacionRoutes from '@areas/acreditacion/routes';
 import ProveedoresRoutes from '@areas/proveedores/routes';
 import PersonasRoutes from '@areas/personas/routes';
+import AdendasRoutes from '@areas/adendas/routes';
 import { AreaId } from '@contracts/areas';
 
 // Componente que renderiza las rutas según el área
@@ -22,6 +23,8 @@ const AreaRoutes: React.FC = () => {
       return <ProveedoresRoutes />;
     case AreaId.PERSONAS:
       return <PersonasRoutes />;
+    case AreaId.ADENDAS:
+      return <AdendasRoutes />;
     default:
       return <AcreditacionRoutes />;
   }

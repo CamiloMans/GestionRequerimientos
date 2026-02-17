@@ -52,6 +52,13 @@ export const AREA_PERMISSIONS: Record<AreaId, AreaPermission[]> = {
     'personas:delete',
     'personas:admin',
   ],
+  [AreaId.ADENDAS]: [
+    'adendas:view',
+    'adendas:create',
+    'adendas:edit',
+    'adendas:delete',
+    'adendas:admin',
+  ],
 };
 
 /**
