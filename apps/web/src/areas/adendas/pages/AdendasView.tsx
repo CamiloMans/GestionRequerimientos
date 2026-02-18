@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdendaListItem } from '../types';
-import { TipoAdenda, TIPOS_ADENDA } from '../constants';
+import { TIPOS_ADENDA } from '../constants';
 import { fetchAdendas } from '../services/adendasService';
+import {
+  adendasCreate,
+  adendasDetail,
+  adendasEdit,
+  adendasGestion,
+} from '../utils/routes';
 
 const AdendasView: React.FC = () => {
   const navigate = useNavigate();
@@ -27,25 +33,25 @@ const AdendasView: React.FC = () => {
   };
 
   const handleCreateNew = () => {
-    navigate('create');
+    navigate(adendasCreate());
   };
 
   const handleEdit = (id: number) => {
-    navigate(`edit/${id}`);
+    navigate(adendasEdit(id));
   };
 
   const handleCodigoMymaClick = (codigoMyma: string) => {
     if (codigoMyma) {
-      navigate(`detail/${codigoMyma}`);
+      navigate(adendasDetail(codigoMyma));
     }
   };
 
   const handleRowClick = (adenda: AdendaListItem) => {
     // Navegar a la gestión de adenda usando el código MyMA o el ID
     if (adenda.codigo_myma) {
-      navigate(`gestion/${adenda.codigo_myma}`);
+      navigate(adendasGestion(adenda.codigo_myma));
     } else {
-      navigate(`gestion/${adenda.id}`);
+      navigate(adendasGestion(String(adenda.id)));
     }
   };
 
@@ -176,7 +182,10 @@ const AdendasView: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {adenda.codigo_myma ? (
                           <button
-                            onClick={() => handleCodigoMymaClick(adenda.codigo_myma!)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCodigoMymaClick(adenda.codigo_myma!);
+                            }}
                             className="text-sm font-medium text-primary hover:text-primary-hover hover:underline transition-colors cursor-pointer"
                           >
                             {adenda.codigo_myma}

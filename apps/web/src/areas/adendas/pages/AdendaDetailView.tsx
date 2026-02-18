@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TipoAdenda, TIPOS_ADENDA } from '../constants';
-import { fetchAdendaById } from '../services/adendasService';
-import { Adenda } from '../types';
+import { adendasList } from '../utils/routes';
 
 interface AdendaDetailViewProps {
   onBack?: () => void;
@@ -28,6 +27,7 @@ const getDummyAdendaDetail = (codigoMyma: string): AdendaDetailData => {
       correo_evaluador: 'exequiel.vega@sea.gob.cl',
       fecha_ingreso: '17/01/2025',
       plazo: 'Ver enlace',
+      plazo_url: 'https://seia.sea.gob.cl/',
       nombre_evaluador: 'Exequiel Vega Segura',
     },
     'MY-15-2025': {
@@ -134,6 +134,7 @@ interface AdendaDetailData {
   correo_evaluador: string;
   fecha_ingreso: string;
   plazo: string;
+  plazo_url?: string;
   nombre_evaluador: string;
 }
 
@@ -142,6 +143,7 @@ const AdendaDetailView: React.FC<AdendaDetailViewProps> = ({ onBack }) => {
   const { codigoMyma } = useParams<{ codigoMyma: string }>();
   const [loading, setLoading] = useState(true);
   const [detailData, setDetailData] = useState<AdendaDetailData | null>(null);
+  const [plazoMessage, setPlazoMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (codigoMyma) {
@@ -156,8 +158,18 @@ const AdendaDetailView: React.FC<AdendaDetailViewProps> = ({ onBack }) => {
     if (onBack) {
       onBack();
     } else {
-      navigate('');
+      navigate(adendasList());
     }
+  };
+
+  const handlePlazoClick = () => {
+    if (!detailData?.plazo_url) {
+      setPlazoMessage('Sin enlace disponible');
+      return;
+    }
+
+    setPlazoMessage(null);
+    window.open(detailData.plazo_url, '_blank', 'noopener,noreferrer');
   };
 
   if (loading) {
@@ -294,15 +306,19 @@ const AdendaDetailView: React.FC<AdendaDetailViewProps> = ({ onBack }) => {
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Plazo</label>
                   {detailData.plazo === 'Ver enlace' ? (
-                    <a
-                      href="#"
+                    <button
+                      type="button"
+                      onClick={handlePlazoClick}
                       className="text-sm text-primary hover:underline flex items-center gap-1"
                     >
                       {detailData.plazo}
                       <span className="material-symbols-outlined text-sm">open_in_new</span>
-                    </a>
+                    </button>
                   ) : (
                     <p className="text-sm text-[#111318]">{detailData.plazo}</p>
+                  )}
+                  {plazoMessage && (
+                    <p className="text-xs text-amber-700 mt-2">{plazoMessage}</p>
                   )}
                 </div>
                 <div>

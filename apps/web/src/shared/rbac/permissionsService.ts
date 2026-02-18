@@ -51,6 +51,9 @@ export const fetchUserPermissions = async (): Promise<PermissionRow[]> => {
       return [];
     }
 
+    console.log('👤 Usuario autenticado ID:', user.id);
+    console.log('🔍 Consultando permisos para user_id:', user.id);
+
     // Consultar permisos filtrando por user_id
     const { data, error } = await supabase
       .from('v_my_permissions')
@@ -58,13 +61,19 @@ export const fetchUserPermissions = async (): Promise<PermissionRow[]> => {
       .eq('user_id', user.id);
 
     if (error) {
-      console.error('Error fetching permissions from v_my_permissions:', error);
+      console.error('❌ Error fetching permissions from v_my_permissions:', error);
       throw error;
+    }
+
+    console.log('✅ Permisos obtenidos:', data?.length || 0, 'registros');
+    if (data && data.length > 0) {
+      const modules = [...new Set(data.map(p => p.module_code))];
+      console.log('📋 Módulos encontrados:', modules);
     }
 
     return data || [];
   } catch (error) {
-    console.error('Error in fetchUserPermissions:', error);
+    console.error('❌ Error in fetchUserPermissions:', error);
     return [];
   }
 };
@@ -126,14 +135,48 @@ export const getUserPermissions = async (): Promise<PermissionsByModule> => {
 };
 
 /**
+ * Buscar el módulo en los permisos con variaciones del nombre
+ */
+const findModuleInPermissions = (
+  permissions: PermissionsByModule,
+  moduleCode: string
+): string | null => {
+  const normalized = moduleCode.toLowerCase().trim();
+  
+  // Búsqueda exacta
+  if (permissions[normalized]) {
+    return normalized;
+  }
+  
+  // Búsqueda flexible: buscar módulos que contengan el código o viceversa
+  const moduleKeys = Object.keys(permissions);
+  const found = moduleKeys.find(key => {
+    const keyNormalized = key.toLowerCase().trim();
+    return keyNormalized === normalized || 
+           keyNormalized.includes(normalized) || 
+           normalized.includes(keyNormalized);
+  });
+  
+  return found || null;
+};
+
+/**
  * Verificar si el usuario tiene permiso de view en un módulo específico
  */
 export const hasModuleViewPermission = (
   permissions: PermissionsByModule,
   moduleCode: string
 ): boolean => {
-  const module = moduleCode.toLowerCase().trim();
-  return permissions[module]?.view === true;
+  const module = findModuleInPermissions(permissions, moduleCode);
+  if (!module) {
+    console.warn(`⚠️ Módulo "${moduleCode}" no encontrado en permisos. Módulos disponibles:`, Object.keys(permissions));
+    return false;
+  }
+  const hasView = permissions[module]?.view === true;
+  if (!hasView) {
+    console.warn(`⚠️ Módulo "${moduleCode}" encontrado pero sin permiso view. Permisos:`, permissions[module]);
+  }
+  return hasView;
 };
 
 /**

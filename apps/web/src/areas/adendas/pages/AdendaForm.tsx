@@ -2,8 +2,192 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import TipoAdendaSelector from '../components/TipoAdendaSelector';
 import { TipoAdenda } from '../constants';
-import { NewAdendaPayload, Adenda } from '../types';
+import { NewAdendaPayload } from '../types';
 import { fetchAdendaById, createAdenda, updateAdenda } from '../services/adendasService';
+import { adendasList } from '../utils/routes';
+
+const API_BASE = "http://34.74.6.124:8080/v1";
+const API_KEY = import.meta.env.VITE_ICSARA_API_KEY || "change-this-key"; // API key desde variable de entorno
+
+/**
+ * Verifica si el servidor de la API está disponible usando el endpoint de health check
+ * Retorna un objeto con el estado y un mensaje de error si falla
+ */
+export async function verificarConexionApi(): Promise<{ disponible: boolean; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5 segundos
+
+    console.log(`Verificando conexión con: ${API_BASE}/health/live`);
+    
+    const res = await fetch(`${API_BASE}/health/live`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    
+    console.log(`Respuesta del health check: ${res.status} ${res.statusText}`);
+    
+    // Si obtenemos una respuesta (incluso si no es 200), el servidor está disponible
+    if (res.ok || res.status < 500) {
+      return { disponible: true };
+    }
+    
+    return { 
+      disponible: false, 
+      error: `El servidor respondió con código ${res.status}: ${res.statusText}` 
+    };
+  } catch (error) {
+    console.error('Error al verificar conexión:', error);
+    
+    // Si es un error de red (Failed to fetch), el servidor no está disponible
+    if (error instanceof TypeError) {
+      if (error.message === 'Failed to fetch') {
+        return { 
+          disponible: false, 
+          error: 'No se pudo conectar con el servidor. Posibles causas: servidor no está corriendo, problema de CORS, o la URL es incorrecta.' 
+        };
+      }
+      return { 
+        disponible: false, 
+        error: `Error de red: ${error.message}` 
+      };
+    }
+    
+    // Si es un error de abort (timeout), el servidor no está disponible
+    if (error instanceof Error && error.name === 'AbortError') {
+      return { 
+        disponible: false, 
+        error: 'Timeout: El servidor no respondió en 5 segundos' 
+      };
+    }
+    
+    // Otros errores
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    return { 
+      disponible: false, 
+      error: `Error al verificar conexión: ${errorMessage}` 
+    };
+  }
+}
+
+export async function subirPdfAApi(pdfFile: File) {
+  try {
+    console.log(`Intentando subir PDF a: ${API_BASE}/jobs`);
+    console.log(`Tamaño del archivo: ${(pdfFile.size / 1024 / 1024).toFixed(2)} MB`);
+    
+    const formData = new FormData();
+    formData.append("file", pdfFile);
+    formData.append("classify", "true");
+    formData.append("include_png", "true");
+
+    const res = await fetch(`${API_BASE}/jobs`, {
+      method: "POST",
+      headers: {
+        "X-API-Key": API_KEY,
+      },
+      body: formData,
+    });
+
+    console.log(`Respuesta del servidor: ${res.status} ${res.statusText}`);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Error del servidor: ${errorText}`);
+      throw new Error(`Error al subir PDF: ${res.status} ${res.statusText} - ${errorText}`);
+    }
+    
+    const responseData = await res.json();
+    console.log('Respuesta exitosa:', responseData);
+    return responseData;
+  } catch (error) {
+    console.error('Error completo al subir PDF:', error);
+    
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `No se pudo conectar con el servidor en ${API_BASE}/jobs. ` +
+        `Posibles causas:\n` +
+        `- El servidor no está corriendo en ${API_BASE}\n` +
+        `- Problema de CORS (el servidor debe permitir solicitudes desde tu dominio)\n` +
+        `- La URL de la API es incorrecta\n\n` +
+        `Verifica la consola del navegador (F12) para más detalles.`
+      );
+    }
+    throw error;
+  }
+}
+
+export async function esperarResultado(jobId: string) {
+  while (true) {
+    try {
+      const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
+        headers: { "X-API-Key": API_KEY },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Error al consultar el estado del job: ${res.status} ${res.statusText}`);
+      }
+
+      const s = await res.json();
+
+      if (s.status === "done") {
+        const resultRes = await fetch(`${API_BASE}/jobs/${jobId}/result`, {
+          headers: { "X-API-Key": API_KEY },
+        });
+
+        if (!resultRes.ok) {
+          throw new Error(`Error al obtener el resultado: ${resultRes.status} ${resultRes.statusText}`);
+        }
+
+        return resultRes.json();
+      }
+
+      if (s.status === "failed" || s.status === "expired") {
+        throw new Error(`${s.status}: ${s.error_message || ""}`);
+      }
+
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (error) {
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error(`No se pudo conectar con el servidor. Verifica que la API esté corriendo en ${API_BASE}`);
+      }
+      throw error;
+    }
+  }
+}
+
+/**
+ * Obtiene las preguntas clasificadas del resultado del job
+ */
+export async function obtenerPreguntasClasificadas(jobId: string) {
+  try {
+    const url = `${API_BASE}/jobs/${jobId}/result/preguntas_clasificadas.json`;
+    console.log(`Obteniendo preguntas clasificadas de: ${url}`);
+
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "X-API-Key": API_KEY,
+      },
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Error al obtener preguntas clasificadas: ${res.status} ${res.statusText} - ${errorText}`);
+    }
+
+    const preguntasClasificadas = await res.json();
+    console.log('Preguntas clasificadas obtenidas:', preguntasClasificadas);
+    return preguntasClasificadas;
+  } catch (error) {
+    console.error('Error al obtener preguntas clasificadas:', error);
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(`No se pudo conectar con el servidor. Verifica que la API esté corriendo en ${API_BASE}`);
+    }
+    throw error;
+  }
+}
 
 interface AdendaFormProps {
   onBack?: () => void;
@@ -24,7 +208,10 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [procesandoPdf, setProcesandoPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preguntasClasificadas, setPreguntasClasificadas] = useState<any>(null);
+  const [mostrarPopup, setMostrarPopup] = useState(false);
 
   useEffect(() => {
     if (isEditing && id) {
@@ -51,14 +238,7 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!tipo) {
-      setError('Debe seleccionar un tipo de adenda');
-      return;
-    }
-
+  const guardarAdenda = async () => {
     try {
       setSaving(true);
       setError(null);
@@ -80,7 +260,7 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
       if (onSave) {
         onSave();
       } else {
-        navigate('');
+        navigate(adendasList());
       }
     } catch (error) {
       console.error('Error saving adenda:', error);
@@ -90,11 +270,105 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
     }
   };
 
+  const handleCerrarPopup = async () => {
+    setMostrarPopup(false);
+    // Esperar un momento para que el popup se cierre visualmente
+    await new Promise(resolve => setTimeout(resolve, 100));
+    // Continuar con el guardado de la adenda
+    await guardarAdenda();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!tipo) {
+      setError('Debe seleccionar un tipo de adenda');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      // Subir PDF a la API si hay un archivo seleccionado
+      if (archivo) {
+        try {
+          setProcesandoPdf(true);
+          
+          // Verificar conexión con el servidor antes de intentar subir
+          console.log('Verificando conexión con el servidor...');
+          const conexion = await verificarConexionApi();
+          
+          if (!conexion.disponible) {
+            console.warn('Advertencia de conexión:', conexion.error);
+            // Mostramos un warning pero continuamos, ya que el error real se mostrará al intentar subir
+            // Esto ayuda a diagnosticar problemas de CORS que pueden afectar el health check pero no el POST
+            const mensajeWarning = conexion.error || 
+              `No se pudo verificar la conexión con el servidor. Intentando subir el archivo de todas formas...`;
+            console.warn(mensajeWarning);
+            // No lanzamos error aquí, dejamos que el intento de subida muestre el error real
+          } else {
+            console.log('Conexión verificada exitosamente.');
+          }
+          
+          console.log('Subiendo PDF a la API...');
+          const jobResponse = await subirPdfAApi(archivo);
+          console.log('PDF subido exitosamente, respuesta:', jobResponse);
+          
+          // Obtener el jobId del response (puede ser jobResponse.id, jobResponse.job_id, etc.)
+          const jobId = jobResponse.id || jobResponse.job_id || jobResponse.jobId;
+          
+          if (!jobId) {
+            console.error('Respuesta de la API:', jobResponse);
+            throw new Error('No se recibió un jobId válido de la API. Verifica la respuesta del servidor.');
+          }
+
+          // Esperar el resultado del procesamiento
+          console.log('Esperando resultado del procesamiento, jobId:', jobId);
+          const resultado = await esperarResultado(jobId);
+          console.log('Resultado del procesamiento:', resultado);
+          
+          // Obtener las preguntas clasificadas
+          console.log('Obteniendo preguntas clasificadas...');
+          const preguntas = await obtenerPreguntasClasificadas(jobId);
+          console.log('Preguntas clasificadas:', preguntas);
+          
+          // Guardar las preguntas clasificadas y mostrar el popup
+          setPreguntasClasificadas(preguntas);
+          setMostrarPopup(true);
+          
+          // Detener aquí para que el usuario pueda ver el popup
+          // El guardado continuará cuando el usuario cierre el popup
+          setProcesandoPdf(false);
+          return; // Salir temprano para no guardar/navegar todavía
+        } catch (error) {
+          console.error('Error al procesar PDF:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+          setError(errorMessage);
+          setSaving(false);
+          setProcesandoPdf(false);
+          return;
+        } finally {
+          setProcesandoPdf(false);
+        }
+      }
+
+      // Si llegamos aquí y no hay popup abierto, guardar la adenda normalmente
+      // (esto solo ocurre si no hay archivo PDF)
+      await guardarAdenda();
+    } catch (error) {
+      console.error('Error en handleSubmit:', error);
+      setError('Error al procesar la solicitud. Por favor, intente nuevamente.');
+      setSaving(false);
+      setProcesandoPdf(false);
+    }
+  };
+
   const handleBack = () => {
     if (onBack) {
       onBack();
     } else {
-      navigate('');
+      navigate(adendasList());
     }
   };
 
@@ -330,14 +604,77 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
             </button>
             <button
               type="submit"
-              disabled={saving || !tipo}
-              className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={saving || procesandoPdf || !tipo}
+              className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {saving ? 'Guardando...' : isEditing ? 'Actualizar' : 'Crear'}
+              {(procesandoPdf || saving) && (
+                <span className="material-symbols-outlined animate-spin">sync</span>
+              )}
+              {procesandoPdf ? 'Procesando PDF...' : saving ? 'Guardando...' : isEditing ? 'Actualizar' : 'Crear'}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Popup para mostrar preguntas clasificadas */}
+      {mostrarPopup && preguntasClasificadas && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            // Solo cerrar si se hace clic en el fondo, no en el contenido
+            if (e.target === e.currentTarget) {
+              handleCerrarPopup();
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del popup */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-[#111318]">Preguntas Clasificadas</h2>
+              <button
+                onClick={handleCerrarPopup}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+                title="Cerrar y continuar"
+                disabled={saving}
+              >
+                <span className="material-symbols-outlined text-2xl">close</span>
+              </button>
+            </div>
+
+            {/* Contenido del popup */}
+            <div className="flex-1 overflow-auto p-6">
+              <pre className="bg-gray-50 p-4 rounded-lg border border-gray-200 overflow-x-auto text-sm">
+                {JSON.stringify(preguntasClasificadas, null, 2)}
+              </pre>
+            </div>
+
+            {/* Footer del popup */}
+            <div className="flex items-center justify-end gap-4 p-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  // Copiar al portapapeles
+                  navigator.clipboard.writeText(JSON.stringify(preguntasClasificadas, null, 2));
+                }}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-[#111318] hover:bg-gray-50 transition-colors flex items-center gap-2"
+                disabled={saving}
+              >
+                <span className="material-symbols-outlined text-lg">content_copy</span>
+                Copiar JSON
+              </button>
+              <button
+                onClick={handleCerrarPopup}
+                className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={saving}
+              >
+                {saving ? 'Guardando...' : 'Continuar y Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

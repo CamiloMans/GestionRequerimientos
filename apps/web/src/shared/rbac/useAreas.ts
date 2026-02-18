@@ -33,18 +33,20 @@ export const useAreas = () => {
           return;
         }
 
-        // Intentar obtener permisos desde caché (usando el mismo caché que useHasPermissions)
+        // Siempre consultar permisos raw primero para detectar cambios
+        console.log('🔍 Consultando permisos raw desde la base de datos...');
+        const rawPerms = await fetchUserPermissions();
+        console.log('📊 Permisos raw obtenidos:', rawPerms.length, 'registros');
+        console.log('📊 Módulos en raw:', [...new Set(rawPerms.map(p => p.module_code.toLowerCase().trim()))]);
+        
+        // Intentar obtener permisos desde caché
         const cached = getCachedPermissions(user.id);
         let userPermissions: PermissionsByModule;
 
         if (cached) {
-          console.log('✅ Usando permisos desde caché para áreas');
-          console.log('📦 Caché contiene módulos:', Object.keys(cached.permissions));
-          userPermissions = cached.permissions;
+          console.log('✅ Caché encontrado, módulos en caché:', Object.keys(cached.permissions));
           
           // Verificar si hay módulos nuevos en los permisos raw que no están en el caché
-          // Esto detecta cuando se agregan nuevos módulos (ej: adendas, personas, etc.)
-          const rawPerms = await fetchUserPermissions();
           const modulesInRaw = new Set(rawPerms.map(p => p.module_code.toLowerCase().trim()));
           const modulesInCache = new Set(Object.keys(cached.permissions));
           
@@ -52,17 +54,21 @@ export const useAreas = () => {
           const missingModules = Array.from(modulesInRaw).filter(m => !modulesInCache.has(m));
           
           if (missingModules.length > 0) {
-            console.warn(`⚠️ El caché no contiene los módulos ${missingModules.join(', ')} pero los permisos raw sí, forzando recarga desde BD`);
+            console.warn(`⚠️ Módulos faltantes en caché: ${missingModules.join(', ')}. Forzando recarga desde BD`);
             userPermissions = await getUserPermissions();
             // Actualizar caché con los nuevos permisos
             const hasAnyPermission = Object.values(userPermissions).some(
               (modulePerms) => modulePerms.view === true
             );
             saveCachedPermissions(user.id, hasAnyPermission, userPermissions);
+            console.log('✅ Caché actualizado con nuevos módulos');
+          } else {
+            console.log('✅ Usando permisos desde caché (todos los módulos presentes)');
+            userPermissions = cached.permissions;
           }
         } else {
-          // Consultar permisos desde v_my_permissions solo si no hay caché
-          console.log('🔍 Consultando permisos desde la base de datos para áreas');
+          // Consultar permisos desde v_my_permissions si no hay caché
+          console.log('🔍 No hay caché, consultando permisos desde la base de datos');
           userPermissions = await getUserPermissions();
         }
 
@@ -75,6 +81,10 @@ export const useAreas = () => {
         // Determinar qué áreas mostrar basándose en permisos de view
         const allowedAreas: AreaId[] = [];
         
+        // Debug: Mostrar todos los módulos disponibles en permisos
+        console.log('📋 Módulos disponibles en permisos:', Object.keys(userPermissions));
+        console.log('📋 Áreas disponibles en AreaId:', Object.values(AreaId));
+        
         // Verificar cada área disponible
         Object.values(AreaId).forEach((areaId) => {
           const moduleCode = areaId.toLowerCase();
@@ -86,15 +96,25 @@ export const useAreas = () => {
             moduleCode,
             modulePerms,
             hasAccess,
-            permissionsForModule: userPermissions[moduleCode]
+            permissionsForModule: userPermissions[moduleCode],
+            hasViewPermission: modulePerms?.view === true,
+            allModuleKeys: Object.keys(userPermissions).filter(k => k.includes(moduleCode) || moduleCode.includes(k))
           });
           
           if (hasAccess) {
             allowedAreas.push(areaId);
+            console.log(`✅ Área ${areaId} agregada a la lista`);
+          } else {
+            console.warn(`❌ Área ${areaId} NO tiene acceso. Módulo "${moduleCode}" no encontrado o sin permiso view.`);
           }
         });
         
         console.log('✅ Áreas permitidas finales:', allowedAreas);
+        console.log('📊 Resumen:', {
+          totalAreas: Object.values(AreaId).length,
+          areasWithAccess: allowedAreas.length,
+          areasWithoutAccess: Object.values(AreaId).filter(a => !allowedAreas.includes(a))
+        });
 
         // Si no hay permisos, retornar array vacío (el onboarding se mostrará)
         setAreas(allowedAreas);

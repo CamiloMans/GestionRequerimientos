@@ -7,6 +7,7 @@ import { usePermissions } from '@shared/rbac/usePermissions';
 import { getUserPermissions, hasAreaAdminPermission } from '@shared/rbac/permissionsService';
 import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
 import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
+import { adendasList, adendasReporte } from '../utils/routes';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -29,11 +30,6 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
 
   const isListActive = activeView === 'list' || (!activeView && location.pathname.includes('/adendas') && !location.pathname.includes('/create') && !location.pathname.includes('/edit') && !location.pathname.includes('/reporte'));
   const isReporteActive = activeView === 'reporte' || location.pathname.includes('/reporte');
-
-  // Construir rutas del área
-  const getAreaPath = (path: string) => {
-    return `/app/area/${AreaId.ADENDAS}/${path}`;
-  };
 
   // Obtener información del usuario y verificar si es admin del módulo de Adendas
   useEffect(() => {
@@ -123,12 +119,12 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
   }, [showUserMenu]);
 
   const handleListClick = () => {
-    navigate(getAreaPath(''));
+    navigate(adendasList());
     onClose();
   };
 
   const handleReporteClick = () => {
-    navigate(getAreaPath('reporte'));
+    navigate(adendasReporte());
     onClose();
   };
 
@@ -372,4 +368,3 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
 };
 
 export default AdendasSidebar;
-
