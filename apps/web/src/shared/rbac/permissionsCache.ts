@@ -63,8 +63,24 @@ export function saveCachedPermissions(
 export function clearCachedPermissions(): void {
   try {
     sessionStorage.removeItem(CACHE_KEY);
+    console.log('✅ Caché de permisos limpiado');
   } catch (error) {
     console.error('Error clearing permissions cache:', error);
   }
+}
+
+/**
+ * Función global para limpiar el caché de permisos desde la consola del navegador
+ * Útil para debugging en producción
+ * Uso: window.clearPermissionsCache()
+ */
+if (typeof window !== 'undefined') {
+  (window as any).clearPermissionsCache = () => {
+    clearCachedPermissions();
+    console.log('🔄 Recarga la página para ver los cambios');
+    return 'Caché limpiado. Recarga la página para ver los cambios.';
+  };
+  
+  console.log('💡 Tip: Usa window.clearPermissionsCache() en la consola para limpiar el caché de permisos');
 }
 

@@ -62,6 +62,12 @@ export const fetchUserPermissions = async (): Promise<PermissionRow[]> => {
 
     if (error) {
       console.error('❌ Error fetching permissions from v_my_permissions:', error);
+      console.error('❌ Detalles del error:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       throw error;
     }
 
@@ -69,6 +75,16 @@ export const fetchUserPermissions = async (): Promise<PermissionRow[]> => {
     if (data && data.length > 0) {
       const modules = [...new Set(data.map(p => p.module_code))];
       console.log('📋 Módulos encontrados:', modules);
+      
+      // Verificar específicamente si el módulo "adendas" está presente
+      const hasAdendas = modules.some(m => m.toLowerCase().trim() === 'adendas');
+      if (hasAdendas) {
+        console.log('✅ Módulo "adendas" encontrado en permisos');
+      } else {
+        console.warn('⚠️ Módulo "adendas" NO encontrado en permisos. Módulos disponibles:', modules);
+      }
+    } else {
+      console.warn('⚠️ No se obtuvieron permisos de la base de datos');
     }
 
     return data || [];

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../api-client/supabase';
 import { AreaId, AREAS } from '@contracts/areas';
 import { getUserPermissions, hasAreaAccess, PermissionsByModule, fetchUserPermissions } from './permissionsService';
-import { getCachedPermissions, saveCachedPermissions } from './permissionsCache';
+import { getCachedPermissions, saveCachedPermissions, clearCachedPermissions } from './permissionsCache';
 
 export interface UserArea {
   areaId: AreaId;
@@ -39,11 +39,18 @@ export const useAreas = () => {
         console.log('📊 Permisos raw obtenidos:', rawPerms.length, 'registros');
         console.log('📊 Módulos en raw:', [...new Set(rawPerms.map(p => p.module_code.toLowerCase().trim()))]);
         
+        // Detectar si estamos en producción (Render)
+        const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        
+        // En producción, forzar recarga desde BD si hay menos de 3 módulos en raw
+        // (esto ayuda a detectar problemas de caché o consultas incompletas)
+        const shouldForceReload = isProduction && rawPerms.length > 0 && rawPerms.length < 3;
+        
         // Intentar obtener permisos desde caché
         const cached = getCachedPermissions(user.id);
         let userPermissions: PermissionsByModule;
 
-        if (cached) {
+        if (cached && !shouldForceReload) {
           console.log('✅ Caché encontrado, módulos en caché:', Object.keys(cached.permissions));
           
           // Verificar si hay módulos nuevos en los permisos raw que no están en el caché
@@ -67,9 +74,21 @@ export const useAreas = () => {
             userPermissions = cached.permissions;
           }
         } else {
-          // Consultar permisos desde v_my_permissions si no hay caché
-          console.log('🔍 No hay caché, consultando permisos desde la base de datos');
+          // Consultar permisos desde v_my_permissions si no hay caché o se fuerza recarga
+          if (shouldForceReload) {
+            console.warn('⚠️ Producción detectada con pocos módulos. Forzando recarga desde BD para evitar problemas de caché');
+          } else {
+            console.log('🔍 No hay caché, consultando permisos desde la base de datos');
+          }
           userPermissions = await getUserPermissions();
+          
+          // Guardar en caché solo si obtuvimos permisos válidos
+          if (Object.keys(userPermissions).length > 0) {
+            const hasAnyPermission = Object.values(userPermissions).some(
+              (modulePerms) => modulePerms.view === true
+            );
+            saveCachedPermissions(user.id, hasAnyPermission, userPermissions);
+          }
         }
 
         setPermissions(userPermissions);
@@ -106,6 +125,15 @@ export const useAreas = () => {
             console.log(`✅ Área ${areaId} agregada a la lista`);
           } else {
             console.warn(`❌ Área ${areaId} NO tiene acceso. Módulo "${moduleCode}" no encontrado o sin permiso view.`);
+            
+            // Si es el módulo de adendas y debería tener acceso, log adicional
+            if (areaId === AreaId.ADENDAS) {
+              console.warn('⚠️ ADVERTENCIA: Módulo de Adendas no encontrado. Verifica:');
+              console.warn('  1. Que el módulo "adendas" exista en rbac_module');
+              console.warn('  2. Que tengas el rol "adendas:view" asignado');
+              console.warn('  3. Que la vista v_my_permissions esté funcionando correctamente');
+              console.warn('  4. Usa window.clearPermissionsCache() en la consola para limpiar el caché');
+            }
           }
         });
         
@@ -130,10 +158,15 @@ export const useAreas = () => {
 
     fetchUserAreas();
 
-    // Escuchar cambios en la autenticación (solo para invalidar caché, no recargar inmediatamente)
+    // Escuchar cambios en la autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-        // Solo recargar si hay cambio de sesión
+      if (event === 'SIGNED_OUT') {
+        // Limpiar caché al cerrar sesión
+        clearCachedPermissions();
+        setAreas([]);
+        setPermissions({});
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Recargar permisos cuando se inicia sesión o se refresca el token
         fetchUserAreas();
       }
     });
