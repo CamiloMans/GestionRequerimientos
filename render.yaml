@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: gestion-solicitudes-myma
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: corepack enable && corepack prepare pnpm@8.15.0 --activate && pnpm install --frozen-lockfile && pnpm run build -- --force
+    startCommand: node apps/web/server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Variables opcionales - si necesitas usar variables diferentes a las por defecto
+      # - key: VITE_SUPABASE_URL
+      #   value: your-supabase-url
+      # - key: VITE_SUPABASE_ANON_KEY
+      #   value: your-supabase-anon-key

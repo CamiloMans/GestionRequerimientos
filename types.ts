@@ -48,6 +48,7 @@ export interface Requerimiento {
   categoria_requerimiento: string;
   fe_inicio: string;
   fe_vencimiento: string;
+  dias_anticipacion_notificacion?: number;
   created_at: string;
   updated_at: string;
 }
@@ -63,12 +64,22 @@ export interface Cliente {
   updated_at?: string;
 }
 
-export interface EmpresaRequerimiento {
+export interface ResponsableRequerimiento {
   id: number;
+  nombre_responsable: string;
+  rut_responsable: string;
+  cargo_responsable: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmpresaRequerimiento {
+  id?: number;
   empresa: string;
   requerimiento: string;
   categoria_requerimiento: string;
   responsable: 'JPRO' | 'EPR' | 'RRHH' | 'Legal';
+  observaciones?: string;
   orden?: number;
   obligatorio?: boolean;
   created_at?: string;
@@ -87,6 +98,37 @@ export interface ProyectoRequerimientoAcreditacion {
   categoria_requerimiento?: string;
   observaciones?: string;
   nombre_responsable?: string;
+  nombre_trabajador?: string; // Nombre del trabajador asignado a este requerimiento
+  categoria_empresa?: string; // MyMA o Contratista
+  id_proyecto_trabajador?: number; // ID del trabajador en fct_acreditacion_solicitud_trabajador_manual
+  drive_doc_url?: string; // URL del documento en Google Drive
+}
+
+// Tipo para las tareas del proyecto en la galería
+export interface ProjectTask {
+  id: number;
+  responsable: string;
+  nombre_responsable?: string;
+  nombre_trabajador?: string;
+  categoria_empresa?: string;
+  id_proyecto_trabajador?: number;
+  requerimiento: string;
+  categoria: string;
+  realizado: boolean;
+  fechaFinalizada?: string;
+  drive_doc_url?: string;
+}
+
+export interface ProyectoTrabajador {
+  id?: number;
+  id_proyecto: number;
+  codigo_proyecto: string;
+  nombre_trabajador: string;
+  categoria_empresa: 'MyMA' | 'Contratista';
+  rut?: string;
+  telefono?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PersonaRequerimientoSST {
@@ -101,6 +143,9 @@ export interface PersonaRequerimientoSST {
   fecha_vigencia?: string;
   fecha_vencimiento?: string;
   estado?: string;
+  link?: string;
+  drive_folder_id?: string;
+  drive_folder_url?: string;
   created_at: string;
 }
 
@@ -116,6 +161,9 @@ export interface RequestItem {
   expirationDate: string;
   persona_id?: number;
   requerimiento_id?: number;
+  link?: string;
+  drive_folder_id?: string;
+  drive_folder_url?: string;
 }
 
 export interface NewRequestPayload {
@@ -124,6 +172,7 @@ export interface NewRequestPayload {
   fecha_vigencia: string;
   fecha_vencimiento: string;
   estado?: RequestStatus;
+  link?: string;
 }
 
 // === Tipos para Solicitud de Terreno ===
@@ -139,6 +188,9 @@ export interface Worker {
   type: WorkerType;
   phone?: string;
   company?: string;
+  rut?: string;
+  // ID de la persona en dim_core_persona (solo para trabajadores internos seleccionados desde BD)
+  personaId?: number;
 }
 
 export interface RequestFormData {
@@ -179,6 +231,9 @@ export interface RequestFormData {
   placasVehiculosContratista: string;
   // SST
   registroSstTerreo: string;
+  // Cantidad de trabajadores
+  cantidad_trabajadores_myma?: number;
+  cantidad_trabajadores_contratista?: number;
 }
 
 // Tipo para la tabla solicitud_acreditacion
@@ -202,6 +257,7 @@ export interface SolicitudAcreditacion {
   numero_contrato?: string;
   administrador_contrato?: string;
   trabajadores_myma?: any; // JSON con array de trabajadores
+  cantidad_trabajadores_myma?: number; // Cantidad total de trabajadores MYMA
   horarios_trabajo?: any; // JSON con array de horarios
   vehiculos_cantidad?: number;
   vehiculos_placas?: any; // JSON con array de placas
@@ -212,6 +268,7 @@ export interface SolicitudAcreditacion {
   responsable_contratista_telefono?: string;
   responsable_contratista_email?: string;
   trabajadores_contratista?: any; // JSON con array de trabajadores contratista
+  cantidad_trabajadores_contratista?: number; // Cantidad total de trabajadores contratista
   vehiculos_contratista_cantidad?: number;
   vehiculos_contratista_placas?: any; // JSON con array de placas
   registro_sst_terreno?: string;
@@ -228,6 +285,8 @@ export interface SolicitudAcreditacion {
   rrhh_nombre?: string; // Nombre del Responsable de RRHH
   legal_id?: number; // ID del Responsable Legal
   legal_nombre?: string; // Nombre del Responsable Legal
+  drive_folder_id?: string; // ID de la carpeta de Google Drive del proyecto
+  drive_folder_url?: string; // URL de la carpeta de Google Drive del proyecto
   created_at: string;
   updated_at?: string;
 }
@@ -248,7 +307,7 @@ export interface ProjectGalleryItem {
   // Progreso de tareas
   completedTasks?: number;
   totalTasks?: number;
-  tasks?: any[]; // Array de tareas del proyecto (ProjectTask[])
+  tasks?: ProjectTask[]; // Array de tareas del proyecto
   // Responsables del proyecto
   empresa_id?: string;
   empresa_nombre?: string;

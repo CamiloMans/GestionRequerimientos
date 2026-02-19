@@ -8,7 +8,7 @@ export const testSupabaseConnection = async () => {
     // Test 1: Conexión básica
     console.log('1️⃣ Probando conexión básica...');
     const { data: testData, error: testError } = await supabase
-      .from('solicitud_acreditacion')
+      .from('fct_acreditacion_solicitud')
       .select('id')
       .limit(1);
     
@@ -21,7 +21,7 @@ export const testSupabaseConnection = async () => {
     // Test 2: Verificar columnas de responsables
     console.log('2️⃣ Verificando columnas de responsables...');
     const { data: columnsTest, error: columnsError } = await supabase
-      .from('solicitud_acreditacion')
+      .from('fct_acreditacion_solicitud')
       .select('id, jpro_id, jpro_nombre, epr_id, epr_nombre, rrhh_id, rrhh_nombre, legal_id, legal_nombre, empresa_id, empresa_nombre')
       .limit(1);
     
@@ -42,7 +42,7 @@ export const testSupabaseConnection = async () => {
     if (testData && testData.length > 0) {
       const testId = testData[0].id;
       const { data: updateTest, error: updateError } = await supabase
-        .from('solicitud_acreditacion')
+        .from('fct_acreditacion_solicitud')
         .update({
           empresa_nombre: 'TEST',
           jpro_nombre: 'TEST JPRO',
@@ -62,7 +62,7 @@ export const testSupabaseConnection = async () => {
       
       // Revertir el cambio de prueba
       await supabase
-        .from('solicitud_acreditacion')
+        .from('fct_acreditacion_solicitud')
         .update({
           empresa_nombre: null,
           jpro_nombre: null
@@ -75,7 +75,7 @@ export const testSupabaseConnection = async () => {
     // Test 4: Verificar tabla cliente
     console.log('4️⃣ Verificando tabla cliente...');
     const { data: clientesTest, error: clientesError } = await supabase
-      .from('cliente')
+      .from('dim_acreditacion_cliente')
       .select('*')
       .limit(1);
     
@@ -90,12 +90,12 @@ export const testSupabaseConnection = async () => {
     // Test 5: Verificar tablas de requerimientos
     console.log('5️⃣ Verificando tablas de requerimientos...');
     const { error: reqError } = await supabase
-      .from('empresa_requerimiento')
+      .from('brg_acreditacion_cliente_requerimiento')
       .select('*')
       .limit(1);
     
     if (reqError) {
-      console.warn('⚠️ Tabla empresa_requerimiento no existe');
+      console.warn('⚠️ Tabla brg_acreditacion_cliente_requerimiento no existe');
       console.log('💡 Esto es opcional, pero recomendado');
       console.log('💡 Ejecuta sql/create_project_requirements_tables.sql');
     } else {
