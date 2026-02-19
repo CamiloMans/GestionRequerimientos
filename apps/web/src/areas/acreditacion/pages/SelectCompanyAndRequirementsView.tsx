@@ -374,7 +374,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
 
               console.log('📦 Payload para API:', JSON.stringify(payload, null, 2));
 
-              const response = await fetch('http://34.74.6.124:8010/asignar-folder', {
+              const response = await fetch('http://127.0.0.1:8000/asignar-folder', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
