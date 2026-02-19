@@ -60,7 +60,21 @@ export const useAreas = () => {
           // Verificar si hay módulos en raw que no están en caché
           const missingModules = Array.from(modulesInRaw).filter(m => !modulesInCache.has(m));
           
-          if (missingModules.length > 0) {
+          // Verificar específicamente si "adendas" está en raw pero no tiene view: true en caché
+          const adendasInRaw = modulesInRaw.has('adendas');
+          const adendasInCache = cached.permissions['adendas'];
+          const adendasHasView = adendasInCache?.view === true;
+          
+          if (adendasInRaw && (!adendasInCache || !adendasHasView)) {
+            console.warn('⚠️ Módulo "adendas" está en raw pero no tiene view:true en caché. Forzando recarga desde BD');
+            userPermissions = await getUserPermissions();
+            // Actualizar caché con los nuevos permisos
+            const hasAnyPermission = Object.values(userPermissions).some(
+              (modulePerms) => modulePerms.view === true
+            );
+            saveCachedPermissions(user.id, hasAnyPermission, userPermissions);
+            console.log('✅ Caché actualizado con permisos de adendas corregidos');
+          } else if (missingModules.length > 0) {
             console.warn(`⚠️ Módulos faltantes en caché: ${missingModules.join(', ')}. Forzando recarga desde BD`);
             userPermissions = await getUserPermissions();
             // Actualizar caché con los nuevos permisos
@@ -120,6 +134,19 @@ export const useAreas = () => {
             allModuleKeys: Object.keys(userPermissions).filter(k => k.includes(moduleCode) || moduleCode.includes(k))
           });
           
+          // Verificación especial para adendas
+          if (areaId === AreaId.ADENDAS) {
+            console.log('🔍 DEBUG ESPECIAL PARA ADENDAS:');
+            console.log('  - moduleCode:', moduleCode);
+            console.log('  - userPermissions[moduleCode]:', userPermissions[moduleCode]);
+            console.log('  - modulePerms:', modulePerms);
+            console.log('  - modulePerms?.view:', modulePerms?.view);
+            console.log('  - typeof modulePerms?.view:', typeof modulePerms?.view);
+            console.log('  - hasAccess:', hasAccess);
+            console.log('  - Todas las claves de userPermissions:', Object.keys(userPermissions));
+            console.log('  - Claves que contienen "adendas":', Object.keys(userPermissions).filter(k => k.toLowerCase().includes('adendas')));
+          }
+          
           if (hasAccess) {
             allowedAreas.push(areaId);
             console.log(`✅ Área ${areaId} agregada a la lista`);
@@ -133,6 +160,15 @@ export const useAreas = () => {
               console.warn('  2. Que tengas el rol "adendas:view" asignado');
               console.warn('  3. Que la vista v_my_permissions esté funcionando correctamente');
               console.warn('  4. Usa window.clearPermissionsCache() en la consola para limpiar el caché');
+              
+              // Verificación directa del permiso view
+              if (modulePerms) {
+                console.warn('  - El módulo existe en permisos pero view es:', modulePerms.view);
+                console.warn('  - Todos los permisos del módulo:', modulePerms);
+              } else {
+                console.warn('  - El módulo NO existe en userPermissions');
+                console.warn('  - Módulos disponibles:', Object.keys(userPermissions));
+              }
             }
           }
         });

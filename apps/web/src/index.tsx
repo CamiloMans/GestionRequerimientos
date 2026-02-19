@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './app/App';
 import './index.css';
+// Importar permissionsCache para inicializar window.clearPermissionsCache()
+import '@shared/rbac/permissionsCache';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

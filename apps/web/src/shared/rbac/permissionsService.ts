@@ -114,6 +114,12 @@ export const transformPermissions = (
     // Mapear action_code a tipo de permiso
     const permissionType = ACTION_CODE_MAP[action] || action as keyof ModulePermissions;
     
+    // Debug especial para adendas
+    const isAdendas = module === 'adendas';
+    if (isAdendas) {
+      console.log(`🔍 DEBUG ADENDAS: Procesando permiso: module_code="${module_code}" -> module="${module}", action_code="${action_code}" -> action="${action}" -> permissionType="${permissionType}"`);
+    }
+    
     // Debug: Log de cada permiso procesado
     console.log(`🔄 Procesando permiso: module_code="${module_code}" -> module="${module}", action_code="${action_code}" -> action="${action}" -> permissionType="${permissionType}"`);
     
@@ -127,16 +133,34 @@ export const transformPermissions = (
         // Inicializar admin para poder mapear correctamente action_code = 'admin'
         admin: false,
       };
+      if (isAdendas) {
+        console.log(`🔍 DEBUG ADENDAS: Módulo inicializado con todos los permisos en false`);
+      }
     }
     
     // Asignar permiso
     if (permissionType in result[module]) {
       (result[module] as any)[permissionType] = true;
       console.log(`✅ Permiso asignado: ${module}.${permissionType} = true`);
+      if (isAdendas) {
+        console.log(`🔍 DEBUG ADENDAS: Permiso ${permissionType} asignado correctamente. Estado actual:`, result[module]);
+      }
     } else {
       console.warn(`⚠️ Tipo de permiso no reconocido: ${permissionType} para módulo ${module}`);
+      if (isAdendas) {
+        console.warn(`🔍 DEBUG ADENDAS: ERROR - Tipo de permiso "${permissionType}" no reconocido. Tipos válidos:`, Object.keys(result[module]));
+      }
     }
   });
+  
+  // Debug final para adendas
+  if (result['adendas']) {
+    console.log('🔍 DEBUG ADENDAS FINAL: Permisos transformados para adendas:', result['adendas']);
+    console.log('🔍 DEBUG ADENDAS FINAL: view === true?', result['adendas'].view === true);
+  } else {
+    console.warn('🔍 DEBUG ADENDAS FINAL: Módulo "adendas" NO encontrado en permisos transformados');
+    console.warn('🔍 DEBUG ADENDAS FINAL: Módulos disponibles:', Object.keys(result));
+  }
 
   console.log('✅ Permisos transformados:', result);
   return result;
