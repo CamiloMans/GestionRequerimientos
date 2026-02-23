@@ -210,6 +210,7 @@ export interface RequestFormData {
   fieldStartDate: string;
   riskPreventionNotice: string;
   companyAccreditationRequired: string;
+  requiereAcreditarTrabajadoresMyma: string;
   contractAdmin: string;
   // Información del Contrato
   nombreContrato: string;
@@ -223,6 +224,7 @@ export interface RequestFormData {
   placaPatente: string;
   // Pregunta sobre Contratista
   requiereAcreditarContratista: string;
+  requiereAcreditarTrabajadoresContratista: string;
   // Información del Contrato (Contratista)
   modalidadContrato: string;
   razonSocialContratista: string;

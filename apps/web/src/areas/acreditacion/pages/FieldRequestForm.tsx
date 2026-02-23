@@ -48,6 +48,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     fieldStartDate: '',
     riskPreventionNotice: '',
     companyAccreditationRequired: '', // Iniciar sin selección
+    requiereAcreditarTrabajadoresMyma: '',
     contractAdmin: '',
     // Información del Contrato
     nombreContrato: '',
@@ -61,6 +62,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     placaPatente: '',
     // Pregunta sobre Contratista
     requiereAcreditarContratista: '', // Iniciar sin selección
+    requiereAcreditarTrabajadoresContratista: '',
     // Información del Contrato (Contratista)
     modalidadContrato: '',
     razonSocialContratista: '',
@@ -89,6 +91,14 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [searchQuerySolicitante, setSearchQuerySolicitante] = useState('');
   const [selectedPersonaSolicitante, setSelectedPersonaSolicitante] = useState<Persona | null>(null);
   const [showDropdownSolicitante, setShowDropdownSolicitante] = useState(false);
+  const [filteredPersonasJefeProyecto, setFilteredPersonasJefeProyecto] = useState<Persona[]>([]);
+  const [searchQueryJefeProyecto, setSearchQueryJefeProyecto] = useState('');
+  const [selectedPersonaJefeProyecto, setSelectedPersonaJefeProyecto] = useState<Persona | null>(null);
+  const [showDropdownJefeProyecto, setShowDropdownJefeProyecto] = useState(false);
+  const [filteredPersonasAdminContrato, setFilteredPersonasAdminContrato] = useState<Persona[]>([]);
+  const [searchQueryAdminContrato, setSearchQueryAdminContrato] = useState('');
+  const [selectedPersonaAdminContrato, setSelectedPersonaAdminContrato] = useState<Persona | null>(null);
+  const [showDropdownAdminContrato, setShowDropdownAdminContrato] = useState(false);
 
   // Limpiar todos los campos cuando se monta el componente
   useEffect(() => {
@@ -116,6 +126,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       fieldStartDate: '',
       riskPreventionNotice: '',
       companyAccreditationRequired: '', // Limpiar campo de radio (ninguno seleccionado)
+      requiereAcreditarTrabajadoresMyma: '',
       contractAdmin: '',
       nombreContrato: '',
       numeroContrato: '',
@@ -125,6 +136,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       cantidadVehiculos: '',
       placaPatente: '',
       requiereAcreditarContratista: '', // Limpiar campo de radio (ninguno seleccionado)
+      requiereAcreditarTrabajadoresContratista: '',
       modalidadContrato: '',
       razonSocialContratista: '',
       nombreResponsableContratista: '',
@@ -146,6 +158,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     setSearchQuerySolicitante('');
     setSelectedPersonaSolicitante(null);
     setShowDropdownSolicitante(false);
+    setSearchQueryJefeProyecto('');
+    setSelectedPersonaJefeProyecto(null);
+    setShowDropdownJefeProyecto(false);
+    setSearchQueryAdminContrato('');
+    setSelectedPersonaAdminContrato(null);
+    setShowDropdownAdminContrato(false);
   }, []); // Solo se ejecuta al montar el componente
 
   // Cargar proveedores desde la base de datos
@@ -172,6 +190,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         const data = await fetchPersonas();
         setPersonas(data);
         setFilteredPersonasSolicitante(data);
+        setFilteredPersonasJefeProyecto(data);
+        setFilteredPersonasAdminContrato(data);
       } catch (error) {
         console.error('Error cargando personas:', error);
       }
@@ -297,6 +317,79 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     }
   }, [searchQuerySolicitante, personas]);
 
+  // Filtrar personas cuando cambia el término de búsqueda del jefe de proyecto
+  useEffect(() => {
+    if (searchQueryJefeProyecto.trim() === '') {
+      setFilteredPersonasJefeProyecto(personas);
+    } else {
+      const filtered = personas.filter(persona =>
+        persona.nombre_completo.toLowerCase().includes(searchQueryJefeProyecto.toLowerCase()) ||
+        persona.rut.toLowerCase().includes(searchQueryJefeProyecto.toLowerCase())
+      );
+      setFilteredPersonasJefeProyecto(filtered);
+    }
+  }, [searchQueryJefeProyecto, personas]);
+
+  // Sincronizar UI del buscador con projectManager cuando se rellena programáticamente
+  useEffect(() => {
+    if (formData.projectManager.trim() !== '') {
+      const personaSeleccionada = personas.find(
+        persona => persona.nombre_completo.toLowerCase() === formData.projectManager.toLowerCase()
+      );
+
+      if (personaSeleccionada) {
+        setSelectedPersonaJefeProyecto(personaSeleccionada);
+        setSearchQueryJefeProyecto(`${personaSeleccionada.nombre_completo} - ${personaSeleccionada.rut}`);
+      } else {
+        setSelectedPersonaJefeProyecto(null);
+        setSearchQueryJefeProyecto(formData.projectManager);
+      }
+      return;
+    }
+
+    if (!showDropdownJefeProyecto) {
+      setSelectedPersonaJefeProyecto(null);
+      setSearchQueryJefeProyecto('');
+    }
+  }, [formData.projectManager, personas, showDropdownJefeProyecto]);
+
+  // Filtrar personas cuando cambia el término de búsqueda del administrador de contrato
+  useEffect(() => {
+    if (searchQueryAdminContrato.trim() === '') {
+      setFilteredPersonasAdminContrato(personas);
+    } else {
+      const filtered = personas.filter(persona =>
+        persona.nombre_completo.toLowerCase().includes(searchQueryAdminContrato.toLowerCase()) ||
+        persona.rut.toLowerCase().includes(searchQueryAdminContrato.toLowerCase())
+      );
+      setFilteredPersonasAdminContrato(filtered);
+    }
+  }, [searchQueryAdminContrato, personas]);
+
+  // Sincronizar UI del buscador con contractAdmin cuando se rellena programáticamente
+  useEffect(() => {
+    if (formData.contractAdmin.trim() !== '') {
+      const personaSeleccionada = personas.find(
+        persona => persona.nombre_completo.toLowerCase() === formData.contractAdmin.toLowerCase()
+      );
+
+      if (personaSeleccionada) {
+        setSelectedPersonaAdminContrato(personaSeleccionada);
+        setSearchQueryAdminContrato(`${personaSeleccionada.nombre_completo} - ${personaSeleccionada.rut}`);
+      } else {
+        setSelectedPersonaAdminContrato(null);
+        setSearchQueryAdminContrato(formData.contractAdmin);
+      }
+      return;
+    }
+
+    // No limpiar mientras el usuario escribe (se mantiene abierto el dropdown)
+    if (!showDropdownAdminContrato) {
+      setSelectedPersonaAdminContrato(null);
+      setSearchQueryAdminContrato('');
+    }
+  }, [formData.contractAdmin, personas, showDropdownAdminContrato]);
+
   // Cerrar dropdown del solicitante al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -315,9 +408,90 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     };
   }, [showDropdownSolicitante]);
 
+  // Cerrar dropdown del jefe de proyecto al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('#jefe_proyecto_search') && !target.closest('.dropdown-results-jefe-proyecto')) {
+        setShowDropdownJefeProyecto(false);
+      }
+    };
+
+    if (showDropdownJefeProyecto) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdownJefeProyecto]);
+
+  // Cerrar dropdown del administrador de contrato al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('#admin_contrato_search') && !target.closest('.dropdown-results-admin-contrato')) {
+        setShowDropdownAdminContrato(false);
+      }
+    };
+
+    if (showDropdownAdminContrato) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdownAdminContrato]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const nextFormData = { ...prev, [name]: value };
+
+      if (name === 'companyAccreditationRequired' && value !== 'yes') {
+        nextFormData.nombreContrato = '';
+        nextFormData.numeroContrato = '';
+        nextFormData.administradorContrato = '';
+      }
+
+      if (name === 'requiereAcreditarTrabajadoresMyma' && value !== 'yes') {
+        nextFormData.cantidadVehiculos = '';
+      }
+
+      if (name === 'requiereAcreditarContratista' && value !== 'yes') {
+        nextFormData.modalidadContrato = '';
+        nextFormData.nombreResponsableContratista = '';
+        nextFormData.telefonoResponsableContratista = '';
+        nextFormData.emailResponsableContratista = '';
+        if (nextFormData.requiereAcreditarTrabajadoresContratista !== 'yes') {
+          nextFormData.razonSocialContratista = '';
+        }
+      }
+
+      if (name === 'requiereAcreditarTrabajadoresContratista' && value !== 'yes') {
+        nextFormData.cantidadVehiculosContratista = '';
+        nextFormData.registroSstTerreo = '';
+        if (nextFormData.requiereAcreditarContratista !== 'yes') {
+          nextFormData.razonSocialContratista = '';
+        }
+      }
+
+      return nextFormData;
+    });
+
+    if (name === 'requiereAcreditarTrabajadoresMyma' && value !== 'yes') {
+      setWorkers([]);
+      setTargetWorkerCountMyma(0);
+      setHorarios([]);
+      setVehiculosMyma([]);
+    }
+
+    if (name === 'requiereAcreditarTrabajadoresContratista' && value !== 'yes') {
+      setWorkersContratista([]);
+      setTargetWorkerCountContratista(0);
+      setVehiculosContratista([]);
+    }
 
     // Si se cambia la cantidad de vehículos, actualizar el array de vehículos
     if (name === 'cantidadVehiculos') {
@@ -398,6 +572,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     e.preventDefault();
     
     try {
+      const requiereAcreditarEmpresa = formData.companyAccreditationRequired === 'yes';
+      const requiereAcreditarTrabajadoresMyma = formData.requiereAcreditarTrabajadoresMyma === 'yes';
+      const requiereAcreditarContratista = formData.requiereAcreditarContratista === 'yes';
+      const requiereAcreditarTrabajadoresContratista = formData.requiereAcreditarTrabajadoresContratista === 'yes';
       // Preparar los datos para enviar a Supabase - Nombres corregidos según esquema real
       const solicitudData: any = {
         fecha_solicitud: formData.requestDate || null,
@@ -407,28 +585,27 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         requisito: formData.requirement || null,
         nombre_cliente: formData.clientName || null,
         jefe_proyectos_myma: formData.projectManager || null,
-        encargado_seguimiento_acreditacion: formData.accreditationFollowUp || null, // ← Nombre corregido
         fecha_inicio_terreno: formData.fieldStartDate || null,
-        aviso_prevencion_riesgo: formData.riskPreventionNotice === 'yes', // ← Convertir a boolean
-        requiere_acreditar_empresa: formData.companyAccreditationRequired === 'yes', // ← Convertir a boolean
+        aviso_prevencion_riesgo: formData.riskPreventionNotice === 'yes', // Convertir a boolean
+        requiere_acreditar_empresa: requiereAcreditarEmpresa, // Convertir a boolean
         admin_contrato_myma: formData.contractAdmin || null,
-        estado_solicitud_acreditacion: 'Por asignar requerimientos', // ← Estado inicial del proyecto
+        estado_solicitud_acreditacion: 'Por asignar requerimientos', // Estado inicial del proyecto
       };
 
       // Agregar campos opcionales solo si tienen valor - Nombres corregidos
       if (formData.clientContactName) {
-        solicitudData.nombre_contacto_cliente = formData.clientContactName; // ← Nombre corregido
+        solicitudData.nombre_contacto_cliente = formData.clientContactName; // Nombre corregido
       }
       if (formData.clientContactEmail) {
-        solicitudData.email_contacto_cliente = formData.clientContactEmail; // ← Nombre corregido
+        solicitudData.email_contacto_cliente = formData.clientContactEmail; // Nombre corregido
       }
 
       // Cantidad de trabajadores
-      solicitudData.cantidad_trabajadores_myma = targetWorkerCountMyma || 0;
-      solicitudData.cantidad_trabajadores_contratista = targetWorkerCountContratista || 0;
+      solicitudData.cantidad_trabajadores_myma = requiereAcreditarTrabajadoresMyma ? (targetWorkerCountMyma || 0) : 0;
+      solicitudData.cantidad_trabajadores_contratista = requiereAcreditarTrabajadoresContratista ? (targetWorkerCountContratista || 0) : 0;
 
       // Información del Contrato (solo si se requiere acreditar empresa)
-      if (formData.companyAccreditationRequired === 'yes') {
+      if (requiereAcreditarEmpresa) {
         if (formData.nombreContrato) solicitudData.nombre_contrato = formData.nombreContrato;
         if (formData.numeroContrato) solicitudData.numero_contrato = formData.numeroContrato;
         if (formData.administradorContrato) solicitudData.administrador_contrato = formData.administradorContrato;
@@ -439,20 +616,24 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
       // Información de Contratista
       if (formData.requiereAcreditarContratista) {
-        solicitudData.requiere_acreditar_contratista = formData.requiereAcreditarContratista === 'yes'; // ← Convertir a boolean
+        solicitudData.requiere_acreditar_contratista = formData.requiereAcreditarContratista === 'yes'; // Convertir a boolean
         
-        if (formData.requiereAcreditarContratista === 'yes') {
+        if (requiereAcreditarContratista) {
           if (formData.modalidadContrato) solicitudData.modalidad_contrato_contratista = formData.modalidadContrato;
-          if (formData.razonSocialContratista) solicitudData.razon_social_contratista = formData.razonSocialContratista;
-          if (formData.nombreResponsableContratista) solicitudData.nombre_responsable_contratista = formData.nombreResponsableContratista; // ← Nombre corregido
-          if (formData.telefonoResponsableContratista) solicitudData.telefono_responsable_contratista = formData.telefonoResponsableContratista; // ← Nombre corregido
-          if (formData.emailResponsableContratista) solicitudData.email_responsable_contratista = formData.emailResponsableContratista; // ← Nombre corregido
+          if (formData.nombreResponsableContratista) solicitudData.nombre_responsable_contratista = formData.nombreResponsableContratista; // Nombre corregido
+          if (formData.telefonoResponsableContratista) solicitudData.telefono_responsable_contratista = formData.telefonoResponsableContratista; // Nombre corregido
+          if (formData.emailResponsableContratista) solicitudData.email_responsable_contratista = formData.emailResponsableContratista; // Nombre corregido
           
           // Vehículos Contratista ya no se guardan aquí, se guardarán en fct_acreditacion_solicitud_conductor_manual después de crear la solicitud
-          
-          // SST - Convertir a boolean
-          solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes'; // ← Convertir a boolean
         }
+      }
+
+      if ((requiereAcreditarContratista || requiereAcreditarTrabajadoresContratista) && formData.razonSocialContratista) {
+        solicitudData.razon_social_contratista = formData.razonSocialContratista;
+      }
+
+      if (requiereAcreditarTrabajadoresContratista) {
+        solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes';
       }
 
       console.log('📤 Enviando datos a Supabase:', solicitudData);
@@ -469,18 +650,18 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           await createProyectoTrabajadores(
             result.id,
             result.codigo_proyecto,
-            workers,
-            workersContratista
+            requiereAcreditarTrabajadoresMyma ? workers : [],
+            requiereAcreditarTrabajadoresContratista ? workersContratista : []
           );
           console.log('✅ Trabajadores guardados exitosamente');
         } catch (trabajadorError) {
-          console.error('❌ Error al guardar trabajadores:', trabajadorError);
-          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los trabajadores.');
+          console.error('ERROR al guardar trabajadores:', trabajadorError);
+          alert('ADVERTENCIA: La solicitud se guard?, pero hubo un error al guardar los trabajadores.');
         }
       }
       
       // Guardar horarios en fct_acreditacion_solicitud_horario_manual
-      if (result.id && result.codigo_proyecto && horarios.length > 0 && formData.companyAccreditationRequired === 'yes') {
+      if (result.id && result.codigo_proyecto && horarios.length > 0 && requiereAcreditarTrabajadoresMyma) {
         try {
           console.log('⏰ Guardando horarios del proyecto...');
           await createProyectoHorarios(
@@ -491,13 +672,13 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           );
           console.log('✅ Horarios guardados exitosamente');
         } catch (horarioError) {
-          console.error('❌ Error al guardar horarios:', horarioError);
-          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los horarios.');
+          console.error('ERROR al guardar horarios:', horarioError);
+          alert('ADVERTENCIA: La solicitud se guard?, pero hubo un error al guardar los horarios.');
         }
       }
       
       // Guardar vehículos MYMA en fct_acreditacion_solicitud_conductor_manual
-      if (result.id && result.codigo_proyecto && vehiculosMyma.length > 0 && formData.companyAccreditationRequired === 'yes') {
+      if (result.id && result.codigo_proyecto && vehiculosMyma.length > 0 && requiereAcreditarTrabajadoresMyma) {
         try {
           console.log('🚗 Guardando vehículos MYMA del proyecto...');
           await createProyectoConductores(
@@ -508,13 +689,13 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           );
           console.log('✅ Vehículos MYMA guardados exitosamente');
         } catch (vehiculoMymaError) {
-          console.error('❌ Error al guardar vehículos MYMA:', vehiculoMymaError);
-          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los vehículos MYMA.');
+          console.error('ERROR al guardar veh?culos MYMA:', vehiculoMymaError);
+          alert('ADVERTENCIA: La solicitud se guard?, pero hubo un error al guardar los veh?culos MYMA.');
         }
       }
       
       // Guardar vehículos Contratista en fct_acreditacion_solicitud_conductor_manual
-      if (result.id && result.codigo_proyecto && vehiculosContratista.length > 0 && formData.requiereAcreditarContratista === 'yes') {
+      if (result.id && result.codigo_proyecto && vehiculosContratista.length > 0 && requiereAcreditarTrabajadoresContratista) {
         try {
           console.log('🚗 Guardando vehículos Contratista del proyecto...');
           await createProyectoConductores(
@@ -525,8 +706,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           );
           console.log('✅ Vehículos Contratista guardados exitosamente');
         } catch (vehiculoContratistaError) {
-          console.error('❌ Error al guardar vehículos Contratista:', vehiculoContratistaError);
-          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los vehículos Contratista.');
+          console.error('ERROR al guardar veh?culos Contratista:', vehiculoContratistaError);
+          alert('ADVERTENCIA: La solicitud se guard?, pero hubo un error al guardar los veh?culos Contratista.');
         }
       }
 
@@ -594,12 +775,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             const respuestaCarpetas = await crearCarpetasProyecto(resumenAcreditacion);
             console.log('✅ Carpetas del proyecto creadas exitosamente:', respuestaCarpetas);
           } catch (errorCarpetas) {
-            console.error('❌ Error al crear carpetas del proyecto:', errorCarpetas);
+            console.error('ERROR al crear carpetas del proyecto:', errorCarpetas);
             // No mostrar alert al usuario, solo loguear el error
             // La solicitud ya se guardó exitosamente, esto es un paso adicional
           }
         } catch (resumenError) {
-          console.error('❌ Error generando o enviando el resumen de acreditación:', resumenError);
+          console.error('ERROR generando o enviando el resumen de acreditaci?n:', resumenError);
         }
       }
       
@@ -617,7 +798,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       // onBack(); // Descomentar si quieres volver atrás automáticamente
       
     } catch (error) {
-      console.error('❌ Error al guardar la solicitud:', error);
+      console.error('ERROR al guardar la solicitud:', error);
       alert('Error al guardar la solicitud. Por favor, revisa la consola para más detalles.');
     }
   };
@@ -685,10 +866,11 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       clientContactName: nombreCliente,
       clientContactEmail: `${normalizeEmail(nombreCliente)}@${normalizeEmail(empresaCliente)}.cl`,
       projectManager: personas.length > 0 ? randomItem(personas).nombre_completo : randomItem(nombres),
-      accreditationFollowUp: randomItem(nombres),
+      accreditationFollowUp: '',
       fieldStartDate: randomDate(randomInt(7, 30)),
       riskPreventionNotice: 'yes',
       companyAccreditationRequired: 'yes',
+      requiereAcreditarTrabajadoresMyma: 'yes',
       contractAdmin: randomItem(nombres),
       nombreContrato: `Contrato ${randomItem(['Servicios', 'Obra', 'Suministro'])} ${new Date().getFullYear()}`,
       numeroContrato: `CON-${new Date().getFullYear()}-${String(randomInt(100, 999)).padStart(3, '0')}`,
@@ -698,6 +880,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       cantidadVehiculos: String(randomInt(1, 5)),
       placaPatente: '',
       requiereAcreditarContratista: 'yes',
+      requiereAcreditarTrabajadoresContratista: 'yes',
       modalidadContrato: randomItem(modalidades),
       razonSocialContratista: proveedores.length > 0 ? randomItem(proveedores) : randomItem(empresas),
       nombreResponsableContratista: nombreResponsable,
@@ -992,44 +1175,132 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 Gestión Interna MYMA
               </h3>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Jefe de Proyectos MYMA</span>
-                <select 
-                  name="projectManager"
-                  value={formData.projectManager}
-                  onChange={handleInputChange}
-                  className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                >
-                  <option value="">Seleccione...</option>
-                  {personas.map(persona => (
-                    <option key={persona.id} value={persona.nombre_completo}>
-                      {persona.nombre_completo}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
+                  <input
+                    id="jefe_proyecto_search"
+                    type="text"
+                    value={selectedPersonaJefeProyecto ? `${selectedPersonaJefeProyecto.nombre_completo} - ${selectedPersonaJefeProyecto.rut}` : searchQueryJefeProyecto}
+                    onChange={(e) => {
+                      setSearchQueryJefeProyecto(e.target.value);
+                      setSelectedPersonaJefeProyecto(null);
+                      setShowDropdownJefeProyecto(true);
+                      setFormData(prev => ({ ...prev, projectManager: '' }));
+                    }}
+                    onFocus={() => setShowDropdownJefeProyecto(true)}
+                    placeholder="Buscar por nombre o RUT..."
+                    autoComplete="off"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  />
+                  {searchQueryJefeProyecto && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQueryJefeProyecto('');
+                        setSelectedPersonaJefeProyecto(null);
+                        setShowDropdownJefeProyecto(true);
+                        setFormData(prev => ({ ...prev, projectManager: '' }));
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  )}
+                  {showDropdownJefeProyecto && (
+                    <div className="dropdown-results-jefe-proyecto absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
+                      {filteredPersonasJefeProyecto.length > 0 ? (
+                        filteredPersonasJefeProyecto.map(persona => (
+                          <button
+                            key={persona.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPersonaJefeProyecto(persona);
+                              setSearchQueryJefeProyecto(`${persona.nombre_completo} - ${persona.rut}`);
+                              setShowDropdownJefeProyecto(false);
+                              setFormData(prev => ({ ...prev, projectManager: persona.nombre_completo }));
+                            }}
+                            className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                              selectedPersonaJefeProyecto?.id === persona.id ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
+                            <div className="text-xs text-gray-500">{persona.rut}</div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                          No se encontraron colaboradores
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </label>
               <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Admin. de Contrato MYMA</span>
-                <input 
-                  type="text" 
-                  name="contractAdmin"
-                  value={formData.contractAdmin}
-                  onChange={handleInputChange}
-                  placeholder="Nombre del administrador"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Encargado Seguimiento Acreditación</span>
-                <input 
-                  type="text" 
-                  name="accreditationFollowUp"
-                  value={formData.accreditationFollowUp}
-                  onChange={handleInputChange}
-                  placeholder="Nombre del encargado"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
+                  <input
+                    id="admin_contrato_search"
+                    type="text"
+                    value={selectedPersonaAdminContrato ? `${selectedPersonaAdminContrato.nombre_completo} - ${selectedPersonaAdminContrato.rut}` : searchQueryAdminContrato}
+                    onChange={(e) => {
+                      setSearchQueryAdminContrato(e.target.value);
+                      setSelectedPersonaAdminContrato(null);
+                      setShowDropdownAdminContrato(true);
+                      setFormData(prev => ({ ...prev, contractAdmin: '' }));
+                    }}
+                    onFocus={() => setShowDropdownAdminContrato(true)}
+                    placeholder="Buscar por nombre o RUT..."
+                    autoComplete="off"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  />
+                  {searchQueryAdminContrato && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQueryAdminContrato('');
+                        setSelectedPersonaAdminContrato(null);
+                        setShowDropdownAdminContrato(true);
+                        setFormData(prev => ({ ...prev, contractAdmin: '' }));
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  )}
+                  {showDropdownAdminContrato && (
+                    <div className="dropdown-results-admin-contrato absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
+                      {filteredPersonasAdminContrato.length > 0 ? (
+                        filteredPersonasAdminContrato.map(persona => (
+                          <button
+                            key={persona.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPersonaAdminContrato(persona);
+                              setSearchQueryAdminContrato(`${persona.nombre_completo} - ${persona.rut}`);
+                              setShowDropdownAdminContrato(false);
+                              setFormData(prev => ({ ...prev, contractAdmin: persona.nombre_completo }));
+                            }}
+                            className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                              selectedPersonaAdminContrato?.id === persona.id ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
+                            <div className="text-xs text-gray-500">{persona.rut}</div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                          No se encontraron colaboradores
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </label>
             </div>
           </div>
@@ -1076,7 +1347,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Mostrar secciones solo si se requiere acreditar empresa */}
+          {/* Mostrar secciones de empresa MyMA */}
           {formData.companyAccreditationRequired === 'yes' && (
             <>
               {/* Section 5: Información del Contrato */}
@@ -1126,6 +1397,53 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
+            </>
+          )}
+          {/* Section 4.1: Acreditación MyMA Trabajadores */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">groups</span>
+                Acreditación MyMA Trabajadores
+              </h3>
+            </div>
+            <div className="p-6">
+              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100 w-full">
+                <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
+                  <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
+                  ¿Se requiere acreditar a trabajadores de Myma?
+                </span>
+                <div className="flex gap-6 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="requiereAcreditarTrabajadoresMyma"
+                      value="yes"
+                      checked={formData.requiereAcreditarTrabajadoresMyma === 'yes'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="requiereAcreditarTrabajadoresMyma"
+                      value="no"
+                      checked={formData.requiereAcreditarTrabajadoresMyma === 'no'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">No</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mostrar secciones de trabajadores MyMA */}
+          {formData.requiereAcreditarTrabajadoresMyma === 'yes' && (
+            <>
           {/* Section 6: Información de Trabajadores MYMA */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
@@ -1320,8 +1638,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Mostrar secciones de contratista cuando se selecciona Sí o No */}
-          {formData.requiereAcreditarContratista && (
+          {/* Mostrar secciones base de contratista */}
+          {formData.requiereAcreditarContratista === 'yes' && (
             <>
           {/* Section 9: Información del Contrato */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
@@ -1426,6 +1744,52 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
+            </>
+          )}
+          {/* Section: Acreditación Contratista Trabajadores */}
+          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">groups</span>
+                Acreditación Contratista Trabajadores
+              </h3>
+            </div>
+            <div className="p-6">
+              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
+                  <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
+                  ¿Se requiere acreditar a trabajadores de contratista?
+                </span>
+                <div className="flex gap-6 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="requiereAcreditarTrabajadoresContratista" 
+                      value="yes"
+                      checked={formData.requiereAcreditarTrabajadoresContratista === 'yes'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">Sí</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="requiereAcreditarTrabajadoresContratista" 
+                      value="no"
+                      checked={formData.requiereAcreditarTrabajadoresContratista === 'no'}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span className="text-sm">No</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Mostrar secciones de trabajadores Contratista */}
+          {formData.requiereAcreditarTrabajadoresContratista === 'yes' && (
+            <>
           {/* Section 11: Información de Trabajadores Contratista */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
@@ -1435,6 +1799,27 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               </h3>
             </div>
             <div className="p-6">
+              {formData.requiereAcreditarContratista !== 'yes' && (
+                <div className="mb-6">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[#111318] text-sm font-medium">Razon social de contratista</span>
+                    <select
+                      name="razonSocialContratista"
+                      value={formData.razonSocialContratista}
+                      onChange={handleInputChange}
+                      className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                    >
+                      <option value="">Seleccione...</option>
+                      {proveedores.map((proveedor, index) => (
+                        <option key={index} value={proveedor}>
+                          {proveedor}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+
               <WorkerList 
                 workers={workersContratista} 
                 onAddWorker={handleAddWorkerContratista} 
@@ -1574,4 +1959,3 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 };
 
 export default FieldRequestForm;
-
