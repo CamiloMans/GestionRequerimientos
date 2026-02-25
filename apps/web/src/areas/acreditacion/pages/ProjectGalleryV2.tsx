@@ -26,6 +26,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const [error, setError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<ProjectGalleryItem | null>(null);
   
   // Estado local para los proyectos (se actualiza automáticamente cada 10 segundos)
   const [localProjects, setLocalProjects] = useState<ProjectGalleryItem[]>(projects);
@@ -226,27 +227,29 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       onProjectUpdate();
     }
   };
-
-  const handleDeleteProject = async (project: ProjectGalleryItem, e: React.MouseEvent) => {
+  const handleDeleteProject = (project: ProjectGalleryItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Evitar que se active el onClick del contenedor
     
     if (!project.id || typeof project.id !== 'number') {
       alert('Error: El proyecto no tiene un ID válido');
       return;
     }
+    
+    setProjectToDelete(project);
+  };
 
-    const confirmar = window.confirm(
-      `¿Estás seguro de que deseas eliminar el proyecto "${project.projectCode}"?\n\nEsta acción no se puede deshacer.`
-    );
-
-    if (!confirmar) return;
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete || !projectToDelete.id || typeof projectToDelete.id !== 'number') {
+      setProjectToDelete(null);
+      return;
+    }
 
     try {
-      setDeletingProjectId(project.id);
-      await deleteSolicitudAcreditacion(project.id);
+      setDeletingProjectId(projectToDelete.id);
+      await deleteSolicitudAcreditacion(projectToDelete.id);
       
       // Eliminar el proyecto de la lista local
-      setLocalProjects(prev => prev.filter(p => p.id !== project.id));
+      setLocalProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
       
       // Notificar al componente padre para que recargue los datos
       if (onProjectUpdate) {
@@ -255,7 +258,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       
       setSuccess({
         title: 'Proyecto Eliminado',
-        message: `El proyecto "${project.projectCode}" ha sido eliminado exitosamente.`
+        message: `El proyecto "${projectToDelete.projectCode}" ha sido eliminado exitosamente.`
       });
       
       setTimeout(() => setSuccess(null), 5000);
@@ -265,6 +268,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       setTimeout(() => setError(null), 8000);
     } finally {
       setDeletingProjectId(null);
+      setProjectToDelete(null);
     }
   };
 
@@ -1102,6 +1106,59 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
             >
               <span className="material-symbols-outlined">close</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {projectToDelete && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => (deletingProjectId ? null : setProjectToDelete(null))}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-xl border border-gray-200 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-gray-100 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-red-100 border border-red-200 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-red-600">warning</span>
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-[#111318]">Confirmar eliminación</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  ¿Eliminar la solicitud <span className="font-semibold">{projectToDelete.projectCode}</span>?
+                </p>
+                <p className="text-xs text-red-600 mt-2">Esta acción no se puede deshacer.</p>
+              </div>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-b-xl flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setProjectToDelete(null)}
+                disabled={deletingProjectId === projectToDelete.id}
+                className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteProject}
+                disabled={deletingProjectId === projectToDelete.id}
+                className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
+              >
+                {deletingProjectId === projectToDelete.id ? (
+                  <>
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                    Eliminar
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

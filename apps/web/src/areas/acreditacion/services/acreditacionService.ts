@@ -1999,6 +1999,67 @@ export const createProyectoConductores = async (
   console.log(`✅ ${conductoresData.length} conductores guardados exitosamente`);
 };
 
+// Función para guardar patentes del proyecto
+export const createProyectoVehiculos = async (
+  idProyecto: number,
+  codigoProyecto: string,
+  vehiculos: Array<{ placa: string; conductor?: string }>,
+  categoriaEmpresa: 'MyMA' | 'Contratista'
+): Promise<void> => {
+  console.log('🚗 Guardando patentes del proyecto:', codigoProyecto);
+  console.log(`  - Total recibido: ${vehiculos.length} vehículos`);
+  console.log(`  - Categoría: ${categoriaEmpresa}`);
+
+  if (!vehiculos || vehiculos.length === 0) {
+    console.log('⚠️ No hay vehículos para guardar');
+    return;
+  }
+
+  // Normalizar y filtrar patentes vacías
+  const vehiculosConPatente = vehiculos
+    .map((vehiculo) => ({
+      patente: (vehiculo.placa || '').trim().toUpperCase(),
+    }))
+    .filter((vehiculo) => vehiculo.patente !== '');
+
+  console.log(`  - Con patente válida: ${vehiculosConPatente.length}`);
+
+  if (vehiculosConPatente.length === 0) {
+    console.log('⚠️ No hay patentes válidas para guardar');
+    return;
+  }
+
+  // Deduplicar por patente dentro de la categoría
+  const patentesVistas = new Set<string>();
+  const vehiculosDeduplicados = vehiculosConPatente.filter((vehiculo) => {
+    if (patentesVistas.has(vehiculo.patente)) return false;
+    patentesVistas.add(vehiculo.patente);
+    return true;
+  });
+
+  console.log(`  - Patentes únicas a insertar: ${vehiculosDeduplicados.length}`);
+
+  const vehiculosData = vehiculosDeduplicados.map((vehiculo) => ({
+    id_proyecto: idProyecto,
+    codigo_proyecto: codigoProyecto,
+    patente: vehiculo.patente,
+    categoria_empresa: categoriaEmpresa,
+  }));
+
+  console.log(`📦 Insertando ${vehiculosData.length} patentes`);
+
+  const { error } = await supabase
+    .from('fct_acreditacion_solicitud_vehiculos')
+    .insert(vehiculosData);
+
+  if (error) {
+    console.error('❌ Error guardando patentes del proyecto:', error);
+    throw error;
+  }
+
+  console.log(`✅ ${vehiculosData.length} patentes guardadas exitosamente`);
+};
+
 // Función para obtener conductores del proyecto desde fct_acreditacion_solicitud_conductor_manual
 export const fetchProyectoConductoresByProyecto = async (
   idProyecto: number,
@@ -2017,6 +2078,30 @@ export const fetchProyectoConductoresByProyecto = async (
 
   if (error) {
     console.error('❌ Error leyendo conductores del proyecto para resumen:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+// Función para obtener patentes del proyecto desde fct_acreditacion_solicitud_vehiculos
+export const fetchProyectoVehiculosByProyecto = async (
+  idProyecto: number,
+  codigoProyecto: string
+): Promise<any[]> => {
+  console.log('🔍 Leyendo patentes del proyecto para resumen JSON:', {
+    idProyecto,
+    codigoProyecto,
+  });
+
+  const { data, error } = await supabase
+    .from('fct_acreditacion_solicitud_vehiculos')
+    .select('*')
+    .eq('id_proyecto', idProyecto)
+    .eq('codigo_proyecto', codigoProyecto);
+
+  if (error) {
+    console.error('❌ Error leyendo patentes del proyecto para resumen:', error);
     throw error;
   }
 

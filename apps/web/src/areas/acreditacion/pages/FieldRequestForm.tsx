@@ -6,11 +6,13 @@ import {
   createProyectoTrabajadores,
   createProyectoHorarios,
   createProyectoConductores,
+  createProyectoVehiculos,
   fetchClientes,
   fetchProveedores,
   fetchPersonas,
   fetchProyectoTrabajadoresByProyecto,
   fetchProyectoConductoresByProyecto,
+  fetchProyectoVehiculosByProyecto,
   logResumenSolicitudAcreditacion,
   crearCarpetasProyecto,
 } from '../services/acreditacionService';
@@ -789,6 +791,23 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         }
       }
       
+      // Guardar patentes MYMA en fct_acreditacion_solicitud_vehiculos
+      if (result.id && result.codigo_proyecto && vehiculosMyma.length > 0 && requiereAcreditarTrabajadoresMyma) {
+        try {
+          console.log('🚗 Guardando patentes MYMA del proyecto...');
+          await createProyectoVehiculos(
+            result.id,
+            result.codigo_proyecto,
+            vehiculosMyma,
+            'MyMA'
+          );
+          console.log('✅ Patentes MYMA guardadas exitosamente');
+        } catch (vehiculosTablaMymaError) {
+          console.error('ERROR al guardar patentes MYMA:', vehiculosTablaMymaError);
+          alert('ADVERTENCIA: La solicitud se guardó, pero hubo un error al guardar las patentes MYMA.');
+        }
+      }
+      
       // Guardar vehículos Contratista en fct_acreditacion_solicitud_conductor_manual
       if (result.id && result.codigo_proyecto && vehiculosContratista.length > 0 && requiereAcreditarTrabajadoresContratista) {
         try {
@@ -806,12 +825,30 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         }
       }
 
+      // Guardar patentes Contratista en fct_acreditacion_solicitud_vehiculos
+      if (result.id && result.codigo_proyecto && vehiculosContratista.length > 0 && requiereAcreditarTrabajadoresContratista) {
+        try {
+          console.log('🚗 Guardando patentes Contratista del proyecto...');
+          await createProyectoVehiculos(
+            result.id,
+            result.codigo_proyecto,
+            vehiculosContratista,
+            'Contratista'
+          );
+          console.log('✅ Patentes Contratista guardadas exitosamente');
+        } catch (vehiculosTablaContratistaError) {
+          console.error('ERROR al guardar patentes Contratista:', vehiculosTablaContratistaError);
+          alert('ADVERTENCIA: La solicitud se guardó, pero hubo un error al guardar las patentes del contratista.');
+        }
+      }
+      
       // Construir JSON resumen de acreditación (especialistas, conductores y vehículos)
       if (result.id && result.codigo_proyecto) {
         try {
-          const [trabajadoresProyecto, conductoresProyecto] = await Promise.all([
+          const [trabajadoresProyecto, conductoresProyecto, vehiculosProyecto] = await Promise.all([
             fetchProyectoTrabajadoresByProyecto(result.id, result.codigo_proyecto),
             fetchProyectoConductoresByProyecto(result.id, result.codigo_proyecto),
+            fetchProyectoVehiculosByProyecto(result.id, result.codigo_proyecto),
           ]);
 
           // Especialistas y conductores internos (MyMA)
@@ -843,19 +880,49 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               nombre: c.nombre_conductor,
             }));
 
-          // Por ahora dejamos los vehículos como arreglos vacíos
+          const mapVehiculosPayload = (rows: any[], categoria: 'MyMA' | 'Externo') => {
+            const seen = new Set<string>();
+
+            return rows
+              .filter((v: any) =>
+                categoria === 'MyMA'
+                  ? v.categoria_empresa === 'MyMA'
+                  : v.categoria_empresa !== 'MyMA'
+              )
+              .map((v: any) => {
+                const patente = typeof v.patente === 'string' ? v.patente.trim() : '';
+                const id = typeof v.id === 'number' ? v.id : Number(v.id);
+
+                return { id, patente };
+              })
+              .filter((vehiculo: { id: number; patente: string }) => {
+                if (!vehiculo.patente || !Number.isFinite(vehiculo.id)) return false;
+                const key = vehiculo.patente.toUpperCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              })
+              .map((vehiculo: { id: number; patente: string }) => ({
+                id: vehiculo.id,
+                patente: vehiculo.patente,
+              }));
+          };
+
+          const vehiculosMyma = mapVehiculosPayload(vehiculosProyecto, 'MyMA');
+          const vehiculosExternos = mapVehiculosPayload(vehiculosProyecto, 'Externo');
+
           const resumenAcreditacion = {
             codigo_proyecto: result.codigo_proyecto,
             myma: {
               especialistas: especialistasMyma,
               conductores: conductoresMyma,
-              vehiculos: [] as any[],
+              vehiculos: vehiculosMyma,
             },
             externo: {
               empresa: formData.razonSocialContratista || null,
               especialistas: especialistasExternos,
               conductores: conductoresExternos,
-              vehiculos: [] as any[],
+              vehiculos: vehiculosExternos,
             },
           };
 
