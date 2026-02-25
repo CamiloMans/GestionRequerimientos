@@ -649,6 +649,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
           nombre_trabajador: req.nombre_trabajador,
           categoria_empresa: req.categoria_empresa,
           id_proyecto_trabajador: req.id_proyecto_trabajador,
+          patente_vehiculo: req.patente_vehiculo,
           requerimiento: req.requerimiento,
           categoria: req.categoria_requerimiento,
           realizado: req.estado === 'Completado',
@@ -1238,6 +1239,31 @@ export const createProyectoRequerimientos = async (
     console.warn('⚠️ No se pudo obtener el ID del proyecto');
   }
   
+  // Obtener los vehiculos de fct_acreditacion_solicitud_vehiculos
+  console.log('\n🔍 Buscando vehiculos en fct_acreditacion_solicitud_vehiculos...');
+  let vehiculosProyecto: any[] = [];
+  
+  if (proyectoId) {
+    const { data: vehiculos, error: vehiculosError } = await supabase
+      .from('fct_acreditacion_solicitud_vehiculos')
+      .select('*')
+      .eq('id_proyecto', proyectoId);
+
+    if (vehiculosError) {
+      console.error('❌ Error obteniendo vehiculos:', vehiculosError);
+    } else {
+      vehiculosProyecto = vehiculos || [];
+      console.log(`✅ Vehiculos encontrados: ${vehiculosProyecto.length}`);
+      if (vehiculosProyecto.length > 0) {
+        vehiculosProyecto.forEach((v, i) => {
+          console.log(`  ${i + 1}. ${v.patente} (${v.categoria_empresa}) - ID: ${v.id}`);
+        });
+      }
+    }
+  } else {
+    console.warn('⚠️ No se pudo obtener el ID del proyecto');
+  }
+
   // Mapear cada requerimiento de empresa a uno o más requerimientos de proyecto
   console.log('\n🔧 Construyendo requerimientos...');
   const proyectoRequerimientos: any[] = [];
@@ -1268,21 +1294,29 @@ export const createProyectoRequerimientos = async (
     }
     
     console.log(`    Nombre responsable asignado: ${nombreResponsable}`);
+    const categoriaNormalizada = (req.categoria_requerimiento || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
 
     // Verificar si es categoría "Empresa" para duplicar si ambos flags son TRUE
-    const esCategoriaEmpresa = req.categoria_requerimiento?.toLowerCase() === 'empresa' || 
-                               req.categoria_requerimiento?.toLowerCase() === 'empresa myma' ||
-                               req.categoria_requerimiento?.toLowerCase() === 'empresa subcontrato';
+    const esCategoriaEmpresa = categoriaNormalizada === 'empresa' || 
+                               categoriaNormalizada === 'empresa myma' ||
+                               categoriaNormalizada === 'empresa subcontrato';
     
     // Si la categoría es "Trabajadores", crear un registro por cada trabajador de fct_acreditacion_solicitud_trabajador_manual
-    const esTrabajadores = req.categoria_requerimiento?.toLowerCase() === 'trabajadores';
+    const esTrabajadores = categoriaNormalizada === 'trabajadores';
     // Si la categoría es "Conductores", crear un registro por cada conductor de fct_acreditacion_solicitud_conductor_manual
-    const esConductores = req.categoria_requerimiento?.toLowerCase() === 'conductores';
+    const esConductores = categoriaNormalizada === 'conductores';
+    const esVehiculos = categoriaNormalizada === 'vehiculos';
+    console.log(`    Es categoria Vehiculos?: ${esVehiculos}`);
     console.log(`    ¿Es categoría Trabajadores?: ${esTrabajadores}`);
     console.log(`    ¿Es categoría Conductores?: ${esConductores}`);
     console.log(`    ¿Es categoría Empresa?: ${esCategoriaEmpresa}`);
     console.log(`    Trabajadores disponibles: ${trabajadoresProyecto.length}`);
     console.log(`    Conductores disponibles: ${conductoresProyecto.length}`);
+    console.log(`    Vehiculos disponibles: ${vehiculosProyecto.length}`);
     
     // Función auxiliar para crear un registro base
     const crearRegistroBase = (empresaAcreditacionValue: string | null = null): any => {
@@ -1361,9 +1395,43 @@ export const createProyectoRequerimientos = async (
           categoria_requerimiento: req.categoria_requerimiento,
           observaciones: req.observaciones || null,
           nombre_responsable: nombreResponsable,
+          nombre_trabajador: conductor.nombre_conductor || conductor.patente || null,
+          categoria_empresa: conductor.categoria_empresa || null,
+          id_proyecto_trabajador: conductor.id ?? null,
+          ...(empresaAcreditacion ? { empresa_acreditacion: empresaAcreditacion } : {})
+        };
+        
+        proyectoRequerimientos.push(registro);
+      });
+    } else if (esVehiculos && vehiculosProyecto.length > 0) {
+      console.log(`    🚙 Creando ${vehiculosProyecto.length} registros (uno por vehiculo)`);
+      
+      vehiculosProyecto.forEach((vehiculo, vIndex) => {
+        // Determinar empresa_acreditacion segun la categoria del vehiculo
+        let empresaAcreditacion: string | null = null;
+        if (vehiculo.categoria_empresa?.toUpperCase() === 'MYMA') {
+          empresaAcreditacion = 'MyMA';
+          console.log(`      Vehiculo ${vIndex + 1} (${vehiculo.patente}): categoria_empresa = MyMA → empresa_acreditacion = "MyMA"`);
+        } else {
+          // Si es Contratista o distinto de MyMA, usar razon_social_contratista
+          empresaAcreditacion = razonSocialContratista || null;
+          console.log(`      Vehiculo ${vIndex + 1} (${vehiculo.patente}): categoria_empresa = ${vehiculo.categoria_empresa} → empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
+        }
+        
+        const registro: any = {
+          codigo_proyecto: codigoProyecto,
+          id_proyecto: proyectoId,
+          requerimiento: req.requerimiento,
+          responsable: req.responsable,
+          estado: 'Pendiente',
+          cliente: cliente,
+          categoria_requerimiento: req.categoria_requerimiento,
+          observaciones: req.observaciones || null,
+          nombre_responsable: nombreResponsable,
           nombre_trabajador: null,
-          categoria_empresa: null,
-          id_proyecto_trabajador: null,
+          categoria_empresa: vehiculo.categoria_empresa || null,
+          id_proyecto_trabajador: vehiculo.id ?? null,
+          patente_vehiculo: vehiculo.patente || null,
           ...(empresaAcreditacion ? { empresa_acreditacion: empresaAcreditacion } : {})
         };
         

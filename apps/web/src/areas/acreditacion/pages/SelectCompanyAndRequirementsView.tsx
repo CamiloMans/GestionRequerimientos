@@ -370,6 +370,11 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                   if (registro.empresa_acreditacion) {
                     registroPayload.empresa_acreditacion = registro.empresa_acreditacion;
                   }
+
+                  // Para requerimientos de Vehiculos, incluir patente si existe
+                  if (registro.patente_vehiculo) {
+                    registroPayload.patente_vehiculo = registro.patente_vehiculo;
+                  }
                   
                   return registroPayload;
                 }),

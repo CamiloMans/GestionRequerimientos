@@ -100,9 +100,10 @@ export interface ProyectoRequerimientoAcreditacion {
   categoria_requerimiento?: string;
   observaciones?: string;
   nombre_responsable?: string;
-  nombre_trabajador?: string; // Nombre del trabajador asignado a este requerimiento
+  nombre_trabajador?: string; // Nombre de la persona asociada a este requerimiento (trabajador/conductor)
   categoria_empresa?: string; // MyMA o Contratista
-  id_proyecto_trabajador?: number; // ID del trabajador en fct_acreditacion_solicitud_trabajador_manual
+  id_proyecto_trabajador?: number; // ID de la entidad asociada reutilizado para compatibilidad (trabajador/conductor/vehiculo)
+  patente_vehiculo?: string; // Patente asociada cuando el requerimiento es de categoría Vehiculos
   empresa_acreditacion?: string; // Empresa de acreditación (MyMA, nombre del contratista, etc.)
   drive_doc_url?: string; // URL del documento en Google Drive
 }
@@ -112,9 +113,10 @@ export interface ProjectTask {
   id: number;
   responsable: string;
   nombre_responsable?: string;
-  nombre_trabajador?: string;
+  nombre_trabajador?: string; // Persona asociada (trabajador/conductor)
   categoria_empresa?: string;
-  id_proyecto_trabajador?: number;
+  id_proyecto_trabajador?: number; // Campo reutilizado como identificador de entidad asociada
+  patente_vehiculo?: string;
   requerimiento: string;
   categoria: string;
   realizado: boolean;

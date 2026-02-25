@@ -10,6 +10,7 @@ interface ProjectRequirement {
   nombre_trabajador?: string;
   categoria_empresa?: string;
   id_proyecto_trabajador?: number;
+  patente_vehiculo?: string;
   requerimiento: string;
   categoria: string;
   realizado: boolean;
@@ -156,6 +157,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
           nombre_trabajador: req.nombre_trabajador,
           categoria_empresa: req.categoria_empresa,
           id_proyecto_trabajador: req.id_proyecto_trabajador,
+          patente_vehiculo: req.patente_vehiculo,
           requerimiento: req.requerimiento,
           categoria: req.categoria_requerimiento || '',
           realizado: req.estado === 'Completado',
@@ -232,6 +234,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       nombre_trabajador: task.nombre_trabajador,
       categoria_empresa: task.categoria_empresa,
       id_proyecto_trabajador: task.id_proyecto_trabajador,
+      patente_vehiculo: task.patente_vehiculo,
       requerimiento: task.requerimiento,
       categoria: task.categoria,
       realizado: task.realizado,
@@ -241,11 +244,17 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     }))
   );
 
+  const getRequirementEntityLabel = (req: Pick<ProjectRequirement, 'nombre_trabajador' | 'patente_vehiculo'>) =>
+    req.nombre_trabajador || req.patente_vehiculo || '';
+
+  const isVehicleRequirement = (req: Pick<ProjectRequirement, 'nombre_trabajador' | 'patente_vehiculo'>) =>
+    !!req.patente_vehiculo && !req.nombre_trabajador;
+
   // Filtrar requerimientos
   const filteredRequirements = requirements.filter(req => {
     const matchesCargo = filterCargo ? req.responsable === filterCargo : true;
     const matchesNombreResponsable = filterNombreResponsable ? req.nombre_responsable === filterNombreResponsable : true;
-    const matchesNombreTrabajador = filterNombreTrabajador ? req.nombre_trabajador === filterNombreTrabajador : true;
+    const matchesNombreTrabajador = filterNombreTrabajador ? getRequirementEntityLabel(req) === filterNombreTrabajador : true;
     const matchesCategoriaEmpresa = filterCategoriaEmpresa ? req.categoria_empresa === filterCategoriaEmpresa : true;
     const matchesCategoria = filterCategoria ? req.categoria === filterCategoria : true;
     const matchesRealizado = filterRealizado === '' ? true : 
@@ -258,7 +267,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   // Obtener listas únicas para filtros
   const cargos = Array.from(new Set(requirements.map(r => r.responsable).filter(Boolean)));
   const nombresResponsables = Array.from(new Set(requirements.map(r => r.nombre_responsable).filter(Boolean)));
-  const nombresTrabajadores = Array.from(new Set(requirements.map(r => r.nombre_trabajador).filter(Boolean)));
+  const nombresTrabajadores = Array.from(new Set(requirements.map(r => getRequirementEntityLabel(r)).filter(Boolean)));
   const categoriasEmpresa = Array.from(new Set(requirements.map(r => r.categoria_empresa).filter(Boolean)));
   const categorias = Array.from(new Set(requirements.map(r => r.categoria).filter(Boolean)));
 
@@ -632,7 +641,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       // Construir el payload del webhook
       const documentosParaEnviar = [{
         id: '',
-        nombre: requerimiento.nombre_trabajador || '',
+        nombre: getRequirementEntityLabel(requerimiento),
         rut: '',
         requerimiento: requerimiento.requerimiento,
         categoria: requerimiento.categoria,
@@ -649,7 +658,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }];
 
       const payload = {
-        persona: requerimiento.nombre_trabajador || '',
+        persona: getRequirementEntityLabel(requerimiento),
         proyecto: project.projectCode || '',
         fecha_envio: new Date().toISOString(),
         id_solicitud: project.id,
@@ -1000,7 +1009,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       
       const documentosParaEnviar = [{
         id: '',
-        nombre: requerimiento.nombre_trabajador || '',
+        nombre: getRequirementEntityLabel(requerimiento),
         rut: '',
         requerimiento: requerimiento.requerimiento,
         categoria: requerimiento.categoria,
@@ -1017,7 +1026,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
       }];
 
       const payload = {
-        persona: requerimiento.nombre_trabajador || '',
+        persona: getRequirementEntityLabel(requerimiento),
         proyecto: project.projectCode || '',
         fecha_envio: new Date().toISOString(),
         id_solicitud: project.id,
@@ -1718,6 +1727,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                               >
                                 {req.nombre_trabajador}
                               </button>
+                            ) : isVehicleRequirement(req) ? (
+                              <span className="text-sm font-medium text-gray-900">
+                                {getRequirementEntityLabel(req)}
+                              </span>
                             ) : (
                               <span className="text-sm text-gray-400 italic text-xs">N/A</span>
                             )}
@@ -2331,14 +2344,15 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                 {(() => {
                   const requerimiento = requirements.find(req => req.id === requerimientoAEliminar);
                   if (requerimiento) {
+                    const entityLabel = getRequirementEntityLabel(requerimiento);
                     return (
                       <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                        {requerimiento.nombre_trabajador && (
+                        {entityLabel && (
                           <p className="text-sm text-gray-600 mb-1">
-                            <span className="font-semibold">Persona:</span> {requerimiento.nombre_trabajador}
+                            <span className="font-semibold">Identificador:</span> {entityLabel}
                           </p>
                         )}
-                        <p className={`text-sm text-gray-600 ${requerimiento.nombre_trabajador ? '' : 'mb-0'}`}>
+                        <p className={`text-sm text-gray-600 ${entityLabel ? '' : 'mb-0'}`}>
                           <span className="font-semibold">Requerimiento:</span> {requerimiento.requerimiento}
                         </p>
                       </div>
