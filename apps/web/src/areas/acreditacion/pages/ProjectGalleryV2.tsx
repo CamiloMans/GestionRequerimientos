@@ -88,7 +88,8 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     const matchesSearch = 
       project.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.projectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+      project.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (project.razonSocialContratista || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = filterStatus ? project.status === filterStatus : true;
     const matchesClient = filterClient ? project.clientName === filterClient : true;
@@ -729,6 +730,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                 if (statusLower.includes('atrasado')) return 'group-hover:to-orange-50';
                 return 'group-hover:to-gray-50';
               };
+              const razonSocialContratista = project.razonSocialContratista?.trim();
 
               return (
                 <div
@@ -758,11 +760,22 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                         </div>
                         
                         {/* Info en línea compacta */}
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <div className="flex flex-wrap items-center gap-2 gap-y-1 text-xs text-gray-600">
                           <span className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-[14px]">business</span>
                             <span className="font-medium">{project.clientName}</span>
                           </span>
+                          {razonSocialContratista && (
+                            <>
+                              <span className="text-gray-300">&bull;</span>
+                              <span className="flex items-center gap-1 min-w-0">
+                                <span className="material-symbols-outlined text-[14px]">apartment</span>
+                                <span className="max-w-[260px] truncate" title={razonSocialContratista}>
+                                  <span className="font-medium">Contratista:</span> {razonSocialContratista}
+                                </span>
+                              </span>
+                            </>
+                          )}
                           <span className="text-gray-300">•</span>
                           <span className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-[14px]">person</span>
@@ -1097,4 +1110,3 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
 };
 
 export default ProjectGalleryV2;
-

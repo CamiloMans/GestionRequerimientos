@@ -355,28 +355,47 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const totalCount = filteredRequirements.length;
   const progressPercentage = (completedCount / totalCount) * 100;
 
-  // Calcular fechas y días
-  const fechaIngreso = project.fieldStartDate || project.createdAt;
-  const fechaIngresoDate = fechaIngreso ? new Date(fechaIngreso) : null;
-  
-  // Días transcurridos desde el ingreso
-  const diasTranscurridos = fechaIngresoDate 
-    ? Math.max(0, Math.floor((new Date().getTime() - fechaIngresoDate.getTime()) / (1000 * 60 * 60 * 24)))
+  // Calcular fechas y días usando fechas normalizadas (sin hora) para evitar desfases
+  const MS_PER_DAY = 1000 * 60 * 60 * 24;
+  const parseLocalDate = (fecha?: string | null): Date | null => {
+    if (!fecha || fecha === '-') return null;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      const [year, month, day] = fecha.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    const parsed = new Date(fecha);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  };
+
+  const diffInCalendarDays = (from: Date, to: Date) => {
+    const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const toDay = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+    return Math.floor((toDay.getTime() - fromDay.getTime()) / MS_PER_DAY);
+  };
+
+  const fechaIngreso = project.createdAt || null;
+  const fechaIngresoDate = parseLocalDate(fechaIngreso);
+  const fechaInicioTerrenoDate = parseLocalDate(project.fechaInicioTerreno || null);
+  const hoy = new Date();
+
+  // Días transcurridos desde la fecha de ingreso hasta hoy
+  const diasTranscurridos = fechaIngresoDate
+    ? Math.max(0, diffInCalendarDays(fechaIngresoDate, hoy))
     : 0;
-  
-  // Días restantes para finalización (estimado basado en tareas pendientes)
-  // Si todas las tareas están completadas, días restantes = 0
-  // Si no, estimamos basándonos en el progreso
-  const tareasPendientes = totalCount - completedCount;
-  const diasRestantesEstimado = tareasPendientes === 0 
-    ? 0 
-    : null; // Por ahora null hasta tener fecha de finalización real
-  
+
+  // Días restantes hasta la Fecha de Inicio de Terreno (0 si ya pasó)
+  const diasRestantesInicioTerreno = fechaInicioTerrenoDate
+    ? Math.max(0, diffInCalendarDays(hoy, fechaInicioTerrenoDate))
+    : null;
   // Formatear fecha de ingreso
   const formatearFecha = (fecha: string | null) => {
     if (!fecha) return 'N/A';
     try {
-      const date = new Date(fecha);
+      const date = parseLocalDate(fecha);
+      if (!date) return 'N/A';
       return date.toLocaleDateString('es-ES', { 
         day: '2-digit', 
         month: '2-digit', 
@@ -1244,7 +1263,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               <div>
                 <p className="text-xs text-gray-500 font-semibold uppercase">Días Restantes</p>
                 <p className="text-sm font-bold text-gray-900">
-                  {diasRestantesEstimado !== null ? `${diasRestantesEstimado} días` : 'N/A'}
+                  {diasRestantesInicioTerreno !== null ? `${diasRestantesInicioTerreno} días` : 'N/A'}
                 </p>
               </div>
             </div>

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
-import { Worker, WorkerType, RequestFormData, MOCK_COMPANIES, Persona } from '../types';
+import { Worker, WorkerType, RequestFormData, MOCK_COMPANIES, Persona, Cliente } from '../types';
 import {
   createSolicitudAcreditacion,
   createProyectoTrabajadores,
   createProyectoHorarios,
   createProyectoConductores,
+  fetchClientes,
   fetchProveedores,
   fetchPersonas,
   fetchProyectoTrabajadoresByProyecto,
@@ -84,6 +85,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [vehiculosMyma, setVehiculosMyma] = useState<VehiculoMyma[]>([]);
   const [vehiculosContratista, setVehiculosContratista] = useState<VehiculoContratista[]>([]);
   const [proveedores, setProveedores] = useState<string[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   
   // Estados para el buscador de solicitante
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -99,6 +101,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [searchQueryAdminContrato, setSearchQueryAdminContrato] = useState('');
   const [selectedPersonaAdminContrato, setSelectedPersonaAdminContrato] = useState<Persona | null>(null);
   const [showDropdownAdminContrato, setShowDropdownAdminContrato] = useState(false);
+  const [filteredClientes, setFilteredClientes] = useState<Cliente[]>([]);
+  const [searchQueryCliente, setSearchQueryCliente] = useState('');
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [showDropdownCliente, setShowDropdownCliente] = useState(false);
 
   // Limpiar todos los campos cuando se monta el componente
   useEffect(() => {
@@ -164,6 +170,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     setSearchQueryAdminContrato('');
     setSelectedPersonaAdminContrato(null);
     setShowDropdownAdminContrato(false);
+    setSearchQueryCliente('');
+    setSelectedCliente(null);
+    setShowDropdownCliente(false);
   }, []); // Solo se ejecuta al montar el componente
 
   // Cargar proveedores desde la base de datos
@@ -199,6 +208,57 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
     loadPersonas();
   }, []);
+
+  useEffect(() => {
+    const loadClientes = async () => {
+      try {
+        const data = await fetchClientes();
+        setClientes(data);
+      } catch (error) {
+        console.error('Error cargando clientes:', error);
+        setClientes([]);
+      }
+    };
+
+    loadClientes();
+  }, []);
+
+  // Filtrar clientes cuando cambia el término de búsqueda del cliente
+  useEffect(() => {
+    if (searchQueryCliente.trim() === '') {
+      setFilteredClientes(clientes);
+    } else {
+      const query = searchQueryCliente.toLowerCase();
+      const filtered = clientes.filter(cliente =>
+        (cliente.nombre || '').toLowerCase().includes(query) ||
+        (cliente.rut || '').toLowerCase().includes(query)
+      );
+      setFilteredClientes(filtered);
+    }
+  }, [searchQueryCliente, clientes]);
+
+  // Sincronizar UI del buscador con clientName cuando se rellena programáticamente
+  useEffect(() => {
+    if (formData.clientName.trim() !== '') {
+      const clienteEncontrado = clientes.find(
+        cliente => (cliente.nombre || '').toLowerCase() === formData.clientName.toLowerCase()
+      );
+
+      if (clienteEncontrado) {
+        setSelectedCliente(clienteEncontrado);
+        setSearchQueryCliente(clienteEncontrado.nombre);
+      } else {
+        setSelectedCliente(null);
+        setSearchQueryCliente(formData.clientName);
+      }
+      return;
+    }
+
+    if (!showDropdownCliente) {
+      setSelectedCliente(null);
+      setSearchQueryCliente('');
+    }
+  }, [formData.clientName, clientes, showDropdownCliente]);
 
   // Clave para el almacenamiento del formulario
   const STORAGE_KEY = 'field_request_form_draft';
@@ -444,6 +504,24 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     };
   }, [showDropdownAdminContrato]);
 
+  // Cerrar dropdown de cliente al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('#cliente_search') && !target.closest('.dropdown-results-cliente')) {
+        setShowDropdownCliente(false);
+      }
+    };
+
+    if (showDropdownCliente) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdownCliente]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => {
@@ -464,17 +542,21 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         nextFormData.nombreResponsableContratista = '';
         nextFormData.telefonoResponsableContratista = '';
         nextFormData.emailResponsableContratista = '';
-        if (nextFormData.requiereAcreditarTrabajadoresContratista !== 'yes') {
-          nextFormData.razonSocialContratista = '';
-        }
       }
 
       if (name === 'requiereAcreditarTrabajadoresContratista' && value !== 'yes') {
         nextFormData.cantidadVehiculosContratista = '';
         nextFormData.registroSstTerreo = '';
-        if (nextFormData.requiereAcreditarContratista !== 'yes') {
-          nextFormData.razonSocialContratista = '';
-        }
+      }
+
+      const esCambioFlagsContratista =
+        name === 'requiereAcreditarContratista' || name === 'requiereAcreditarTrabajadoresContratista';
+      const debeMantenerRazonSocialContratista =
+        nextFormData.requiereAcreditarContratista === 'yes' ||
+        nextFormData.requiereAcreditarTrabajadoresContratista === 'yes';
+
+      if (esCambioFlagsContratista && !debeMantenerRazonSocialContratista) {
+        nextFormData.razonSocialContratista = '';
       }
 
       return nextFormData;
@@ -576,6 +658,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       const requiereAcreditarTrabajadoresMyma = formData.requiereAcreditarTrabajadoresMyma === 'yes';
       const requiereAcreditarContratista = formData.requiereAcreditarContratista === 'yes';
       const requiereAcreditarTrabajadoresContratista = formData.requiereAcreditarTrabajadoresContratista === 'yes';
+      const debePersistirCondicionesLaborales =
+        requiereAcreditarTrabajadoresMyma || requiereAcreditarTrabajadoresContratista;
+      const categoriaHorariosCondiciones: 'MyMA' | 'Contratista' | null =
+        requiereAcreditarTrabajadoresMyma
+          ? 'MyMA'
+          : requiereAcreditarTrabajadoresContratista
+            ? 'Contratista'
+            : null;
+      const debePersistirRazonSocialContratista =
+        requiereAcreditarContratista || requiereAcreditarTrabajadoresContratista;
       // Preparar los datos para enviar a Supabase - Nombres corregidos según esquema real
       const solicitudData: any = {
         fecha_solicitud: formData.requestDate || null,
@@ -603,6 +695,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       // Cantidad de trabajadores
       solicitudData.cantidad_trabajadores_myma = requiereAcreditarTrabajadoresMyma ? (targetWorkerCountMyma || 0) : 0;
       solicitudData.cantidad_trabajadores_contratista = requiereAcreditarTrabajadoresContratista ? (targetWorkerCountContratista || 0) : 0;
+      if (debePersistirCondicionesLaborales && formData.jornadaTrabajo) {
+        solicitudData.condiciones_laborales = formData.jornadaTrabajo;
+      }
 
       // Información del Contrato (solo si se requiere acreditar empresa)
       if (requiereAcreditarEmpresa) {
@@ -628,7 +723,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         }
       }
 
-      if ((requiereAcreditarContratista || requiereAcreditarTrabajadoresContratista) && formData.razonSocialContratista) {
+      if (debePersistirRazonSocialContratista && formData.razonSocialContratista) {
         solicitudData.razon_social_contratista = formData.razonSocialContratista;
       }
 
@@ -661,14 +756,14 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       }
       
       // Guardar horarios en fct_acreditacion_solicitud_horario_manual
-      if (result.id && result.codigo_proyecto && horarios.length > 0 && requiereAcreditarTrabajadoresMyma) {
+      if (result.id && result.codigo_proyecto && horarios.length > 0 && categoriaHorariosCondiciones) {
         try {
           console.log('⏰ Guardando horarios del proyecto...');
           await createProyectoHorarios(
             result.id,
             result.codigo_proyecto,
             horarios,
-            'MyMA' // Los horarios son de la empresa MyMA
+            categoriaHorariosCondiciones
           );
           console.log('✅ Horarios guardados exitosamente');
         } catch (horarioError) {
@@ -940,6 +1035,101 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     }
   };
 
+  const renderCondicionesLaboralesSection = () => (
+    <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
+      <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
+        <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary">schedule</span>
+          Condiciones Laborales
+        </h3>
+      </div>
+      <div className="p-6 space-y-6">
+        <label className="flex flex-col gap-2 max-w-md">
+          <span className="text-[#111318] text-sm font-medium">Condiciones Laborales</span>
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">tune</span>
+            <select
+              name="jornadaTrabajo"
+              value={formData.jornadaTrabajo}
+              onChange={handleInputChange}
+              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none"
+            >
+              <option value="">Seleccionar condición laboral</option>
+              <option value="4x3">4x3</option>
+              <option value="5x2">5x2</option>
+              <option value="6x1">6x1</option>
+              <option value="Art. 22">Art. 22</option>
+            </select>
+            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">expand_more</span>
+          </div>
+        </label>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-[#111318]">Horarios de trabajo</h4>
+            <button
+              type="button"
+              onClick={handleAgregarHorario}
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-all shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Agregar Horario
+            </button>
+          </div>
+
+          {horarios.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+              <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400 mx-auto">schedule</span>
+              <p className="text-sm">No hay horarios agregados. Haz clic en "Agregar Horario" para comenzar.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {horarios.map((horario, index) => (
+                <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="text-sm font-semibold text-[#111318]">Horario {index + 1}</h5>
+                    <button
+                      type="button"
+                      onClick={() => handleEliminarHorario(index)}
+                      className="text-red-500 hover:text-red-700 transition-colors"
+                      title="Eliminar horario"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">delete</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[#111318] text-sm font-medium">Días</span>
+                      <input
+                        type="text"
+                        placeholder="Ej: Lunes a Jueves"
+                        className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                        value={horario.dias}
+                        onChange={(e) => handleHorarioChange(index, 'dias', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[#111318] text-sm font-medium">Horario</span>
+                      <input
+                        type="text"
+                        placeholder="Ej: 08:00 - 18:00"
+                        className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                        value={horario.horario}
+                        onChange={(e) => handleHorarioChange(index, 'horario', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="layout-container flex h-full grow flex-col">
       <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12">
@@ -1133,14 +1323,68 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <label className="flex flex-col gap-2 md:col-span-2">
                 <span className="text-[#111318] text-sm font-medium">Nombre de Cliente</span>
-                <input 
-                  type="text" 
-                  name="clientName"
-                  value={formData.clientName}
-                  onChange={handleInputChange}
-                  placeholder="Razón Social o Nombre"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
+                  <input
+                    id="cliente_search"
+                    type="text"
+                    value={selectedCliente ? selectedCliente.nombre : searchQueryCliente}
+                    onChange={(e) => {
+                      setSearchQueryCliente(e.target.value);
+                      setSelectedCliente(null);
+                      setShowDropdownCliente(true);
+                      setFormData(prev => ({ ...prev, clientName: '' }));
+                    }}
+                    onFocus={() => setShowDropdownCliente(true)}
+                    placeholder="Buscar por nombre o RUT..."
+                    autoComplete="off"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  />
+                  {searchQueryCliente && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQueryCliente('');
+                        setSelectedCliente(null);
+                        setShowDropdownCliente(true);
+                        setFormData(prev => ({ ...prev, clientName: '' }));
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  )}
+                  {showDropdownCliente && (
+                    <div className="dropdown-results-cliente absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
+                      {filteredClientes.length > 0 ? (
+                        filteredClientes.map(cliente => (
+                          <button
+                            key={cliente.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCliente(cliente);
+                              setSearchQueryCliente(cliente.nombre);
+                              setShowDropdownCliente(false);
+                              setFormData(prev => ({ ...prev, clientName: cliente.nombre }));
+                            }}
+                            className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                              selectedCliente?.id === cliente.id ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className="text-sm font-medium text-gray-900">{cliente.nombre}</div>
+                            {cliente.rut && (
+                              <div className="text-xs text-gray-500">{cliente.rut}</div>
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                          No se encontraron clientes
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </label>
               
               <div className="md:col-span-2 flex flex-col gap-3">
@@ -1470,78 +1714,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           </div>
 
           {/* Section 7: Condiciones Laborales */}
-          <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
-            <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
-              <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">schedule</span>
-                Condiciones Laborales
-              </h3>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-[#111318]">Horarios de trabajo</h4>
-                  <button
-                    type="button"
-                    onClick={handleAgregarHorario}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-medium transition-all shadow-sm"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">add</span>
-                    Agregar Horario
-                  </button>
-                </div>
-
-                {horarios.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                    <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400 mx-auto">schedule</span>
-                    <p className="text-sm">No hay horarios agregados. Haz clic en "Agregar Horario" para comenzar.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {horarios.map((horario, index) => (
-                      <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="text-sm font-semibold text-[#111318]">Horario {index + 1}</h5>
-                          <button
-                            type="button"
-                            onClick={() => handleEliminarHorario(index)}
-                            className="text-red-500 hover:text-red-700 transition-colors"
-                            title="Eliminar horario"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">delete</span>
-                          </button>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="flex flex-col gap-2">
-                            <span className="text-[#111318] text-sm font-medium">Días</span>
-                            <input 
-                              type="text" 
-                              placeholder="Ej: Lunes a Jueves"
-                              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                              value={horario.dias}
-                              onChange={(e) => handleHorarioChange(index, 'dias', e.target.value)}
-                            />
-                          </div>
-
-                          <div className="flex flex-col gap-2">
-                            <span className="text-[#111318] text-sm font-medium">Horario</span>
-                            <input 
-                              type="text" 
-                              placeholder="Ej: 08:00 - 18:00"
-                              className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                              value={horario.horario}
-                              onChange={(e) => handleHorarioChange(index, 'horario', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          {renderCondicionesLaboralesSection()}
 
           {/* Section 8: Información de Vehículos */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
@@ -1839,6 +2012,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
+
+          {formData.requiereAcreditarTrabajadoresMyma !== 'yes' && renderCondicionesLaboralesSection()}
           {/* Section 12: Información de Vehículos Contratista */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">

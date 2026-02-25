@@ -302,8 +302,10 @@ export interface ProjectGalleryItem {
   projectCode: string;
   projectName: string;
   clientName: string;
+  razonSocialContratista?: string;
   projectManager: string;
   fieldStartDate: string;
+  fechaInicioTerreno?: string;
   totalWorkers: number;
   totalVehicles: number;
   status: string;
