@@ -12,6 +12,8 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: ACREDITACION_LEGACY_API_BASE_URL
+        value: http://34.74.6.124
       # Variables opcionales - si necesitas usar variables diferentes a las por defecto
       # - key: VITE_SUPABASE_URL
       #   value: your-supabase-url

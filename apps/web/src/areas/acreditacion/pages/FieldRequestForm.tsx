@@ -776,6 +776,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             console.log('✅ Carpetas del proyecto creadas exitosamente:', respuestaCarpetas);
           } catch (errorCarpetas) {
             console.error('ERROR al crear carpetas del proyecto:', errorCarpetas);
+            const syncError = errorCarpetas as any;
+            if (syncError?.isExternalSyncError) {
+              alert(
+                'ADVERTENCIA: La solicitud se guardó, pero falló la sincronización de carpetas del proyecto. Reintentar desde soporte o revisar logs.'
+              );
+            }
             // No mostrar alert al usuario, solo loguear el error
             // La solicitud ya se guardó exitosamente, esto es un paso adicional
           }

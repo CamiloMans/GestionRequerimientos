@@ -3,6 +3,7 @@ import { ProjectGalleryItem } from '../types';
 import { fetchClientes, fetchEmpresaRequerimientos, createProyectoRequerimientos, fetchCatalogoRequerimientos } from '../services/acreditacionService';
 import { Cliente, EmpresaRequerimiento } from '../types';
 import { updateSolicitudAcreditacion } from '../services/acreditacionService';
+import { ACREDITACION_PROXY_ENDPOINTS } from '../services/acreditacionProxyEndpoints';
 
 interface SelectCompanyAndRequirementsViewProps {
   project: ProjectGalleryItem;
@@ -32,6 +33,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   const [saving, setSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showAddRequerimiento, setShowAddRequerimiento] = useState(false);
   const [catalogoRequerimientos, setCatalogoRequerimientos] = useState<CatalogoRequerimiento[]>([]);
@@ -303,6 +305,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
 
     // Limpiar errores y mensajes previos
     setError(null);
+    setWarning(null);
     setSuccess(null);
     
     try {
@@ -374,7 +377,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
 
               console.log('📦 Payload para API:', JSON.stringify(payload, null, 2));
 
-              const response = await fetch('http://34.74.6.124/asignar-folder', {
+              const response = await fetch(ACREDITACION_PROXY_ENDPOINTS.asignarFolder, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -391,6 +394,9 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
               console.log('✅ API /asignar-folder respondió exitosamente:', result);
             } catch (apiError: any) {
               console.error('❌ Error al llamar a la API /asignar-folder:', apiError);
+              setWarning(
+                'Se guardaron los requerimientos, pero falló la sincronización de carpetas/asignación. Reintentar desde soporte o revisar logs.'
+              );
               // No lanzar el error para que el flujo continúe, solo loguearlo
               // Si quieres que falle el guardado completo, descomenta la siguiente línea:
               // throw apiError;
@@ -489,6 +495,27 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       )}
 
       {/* Mensaje de éxito */}
+      {/* Mensaje de advertencia */}
+      {warning && (
+        <div className="fixed top-4 left-4 z-50 bg-amber-50 border-2 border-amber-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <span className="material-symbols-outlined text-amber-600 text-2xl">warning</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-amber-900 mb-1">Guardado con advertencia</h4>
+              <p className="text-sm text-amber-700">{warning}</p>
+            </div>
+            <button
+              onClick={() => setWarning(null)}
+              className="flex-shrink-0 text-amber-600 hover:text-amber-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {success && (
         <div className="fixed top-4 right-4 z-50 bg-green-50 border-2 border-green-300 rounded-lg shadow-lg p-4 max-w-md animate-slide-in">
           <div className="flex items-start gap-3">

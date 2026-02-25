@@ -1,6 +1,7 @@
 import { supabase } from '@shared/api-client/supabase';
 import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento, ProyectoTrabajador } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
+import { ACREDITACION_PROXY_ENDPOINTS } from './acreditacionProxyEndpoints';
 
 // Función para enviar webhook a través de la función edge de Supabase (evita CORS)
 export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => {
@@ -2036,9 +2037,9 @@ export const logResumenSolicitudAcreditacion = async (resumen: any): Promise<voi
 
 // Función para crear carpetas del proyecto llamando a la API local
 export const crearCarpetasProyecto = async (resumen: any): Promise<any> => {
-  const url = 'http://34.74.6.124/carpetas/crear';
+  const url = ACREDITACION_PROXY_ENDPOINTS.carpetasCrear;
   
-  console.log('📁 Llamando a API para crear carpetas del proyecto...');
+  console.log('[carpetas] Llamando a API para crear carpetas del proyecto...');
   console.log('   URL:', url);
   console.log('   Payload:', JSON.stringify(resumen, null, 2));
   
@@ -2057,13 +2058,19 @@ export const crearCarpetasProyecto = async (resumen: any): Promise<any> => {
     }
 
     const data = await response.json();
-    console.log('✅ Carpetas creadas exitosamente:', data);
+    console.log('[carpetas] Carpetas creadas exitosamente:', data);
     return data;
   } catch (error: any) {
-    console.error('❌ Error llamando a API de carpetas:', error);
-    // No lanzar el error para que no rompa el flujo principal
-    // Solo loguear el error
-    throw error;
+    console.error('[carpetas] Error llamando a API de carpetas:', error);
+    const wrappedError = new Error(error?.message || 'Error llamando a API de carpetas');
+    Object.assign(wrappedError, {
+      isExternalSyncError: true,
+      syncOperation: 'crear_carpetas_proyecto',
+      endpoint: url,
+      cause: error,
+    });
+    throw wrappedError;
   }
 };
+
 
