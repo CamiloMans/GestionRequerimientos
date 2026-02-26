@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../api-client/supabase';
 import { AreaId, AREAS } from '@contracts/areas';
 import { getUserPermissions, hasAreaAccess, PermissionsByModule } from './permissionsService';
@@ -54,15 +54,24 @@ export const useAreas = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<PermissionsByModule>({});
+  const currentUserIdRef = useRef<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const fetchUserAreas = async () => {
+    const fetchUserAreas = async (options?: { showLoading?: boolean; clearError?: boolean }) => {
+      const showLoading = options?.showLoading ?? true;
+      const clearError = options?.clearError ?? true;
+
       try {
         if (!mounted) return;
-        setLoading(true);
-        setError(null);
+        if (showLoading) {
+          setLoading(true);
+        }
+        if (clearError) {
+          setError(null);
+        }
 
         const {
           data: { user },
@@ -71,11 +80,16 @@ export const useAreas = () => {
         if (!mounted) return;
 
         if (!user) {
+          currentUserIdRef.current = null;
           setAreas([]);
           setPermissions({});
-          setLoading(false);
+          if (showLoading) {
+            setLoading(false);
+          }
           return;
         }
+
+        currentUserIdRef.current = user.id;
 
         let userPermissions: PermissionsByModule;
         const cached = getCachedPermissions(user.id);
@@ -98,13 +112,14 @@ export const useAreas = () => {
 
         setPermissions(userPermissions);
         setAreas(getAllowedAreas(userPermissions));
+        hasLoadedRef.current = true;
       } catch (err: any) {
         console.error('Error fetching user areas:', err);
         if (!mounted) return;
         setError(err?.message || 'Error al cargar áreas permitidas');
         setAreas([]);
       } finally {
-        if (mounted) {
+        if (mounted && showLoading) {
           setLoading(false);
         }
       }
@@ -114,11 +129,13 @@ export const useAreas = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_OUT') {
         clearCachedPermissions();
+        currentUserIdRef.current = null;
+        hasLoadedRef.current = false;
         setAreas([]);
         setPermissions({});
         setError(null);
@@ -127,7 +144,16 @@ export const useAreas = () => {
       }
 
       if (event === 'SIGNED_IN') {
-        void fetchUserAreas();
+        const nextUserId = session?.user?.id;
+        if (!nextUserId) return;
+
+        // Supabase puede emitir SIGNED_IN al volver al foco; ignorar si ya cargamos al mismo usuario.
+        if (hasLoadedRef.current && currentUserIdRef.current === nextUserId) {
+          debugLog('Ignorando SIGNED_IN duplicado para el mismo usuario');
+          return;
+        }
+
+        void fetchUserAreas({ showLoading: false, clearError: false });
       }
     });
 

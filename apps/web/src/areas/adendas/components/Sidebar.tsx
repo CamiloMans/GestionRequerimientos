@@ -62,19 +62,11 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
     getUser();
 
     // Escuchar cambios en la autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setIsAdmin(false);
         setPendingRequestsCount(0);
-        return;
-      }
-
-      if (event === 'SIGNED_IN') {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          getUser();
-        }
       }
     });
 

@@ -113,8 +113,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     // Limpiar sessionStorage para evitar cargar borradores previos
     const STORAGE_KEY = 'field_request_form_draft';
     try {
-      sessionStorage.removeItem(STORAGE_KEY);
-      console.log('🧹 Formulario limpiado: sessionStorage eliminado');
+      // Hotfix: preservar borrador en sessionStorage ante remounts accidentales.
+      // sessionStorage.removeItem(STORAGE_KEY);
     } catch (error) {
       console.error('Error limpiando sessionStorage:', error);
     }
