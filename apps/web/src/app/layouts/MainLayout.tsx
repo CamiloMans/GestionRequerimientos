@@ -92,10 +92,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {children}
 
       {/* Componente de debug temporal para ver permisos */}
-      <PermissionsDebug />
+      {import.meta.env.DEV && <PermissionsDebug />}
     </div>
   );
 };
 
 export default MainLayout;
-

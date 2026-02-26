@@ -76,13 +76,19 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
     getUser();
 
     // Escuchar cambios en la autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        getUser();
-      } else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
         setIsAdmin(false);
         setPendingRequestsCount(0);
+        return;
+      }
+
+      if (event === 'SIGNED_IN') {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          getUser();
+        }
       }
     });
 
@@ -470,7 +476,6 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 };
 
 export default ProveedoresSidebar;
-
 
 
 

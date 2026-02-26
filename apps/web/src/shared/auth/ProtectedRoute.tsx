@@ -16,19 +16,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
     const checkAuth = async () => {
       try {
-        // Verificar si hay una sesión guardada en localStorage
-        // Supabase automáticamente verifica y renueva el token si es necesario
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
         if (error) {
           console.error('Error verificando sesión:', error);
           if (mounted) {
             setIsAuthenticated(false);
           }
-        } else {
-          if (mounted) {
-            setIsAuthenticated(!!session);
-          }
+        } else if (mounted) {
+          setIsAuthenticated(!!session);
         }
       } catch (error) {
         console.error('Error en verificación de autenticación:', error);
@@ -42,38 +41,27 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       }
     };
 
-    // Verificar inmediatamente si hay una sesión guardada
     checkAuth();
 
-    // Escuchar cambios en el estado de autenticación
-    // Esto se dispara cuando:
-    // - El usuario inicia sesión
-    // - El usuario cierra sesión
-    // - El token se renueva automáticamente
-    // - El usuario vuelve a la pestaña (si detectSessionInUrl está habilitado)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (mounted) {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
+      if (event === 'SIGNED_IN') {
         console.log('Auth state changed:', event, session?.user?.email);
-        setIsAuthenticated(!!session);
+        setIsAuthenticated(true);
+        setIsLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        console.log('Auth state changed:', event, session?.user?.email);
+        setIsAuthenticated(false);
         setIsLoading(false);
       }
     });
 
-    // Escuchar cuando la pestaña vuelve a estar activa
-    const handleVisibilityChange = () => {
-      if (!document.hidden && mounted) {
-        // Cuando la pestaña vuelve a estar visible, verificar la sesión
-        // Supabase automáticamente renueva el token si es necesario
-        checkAuth();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
@@ -89,7 +77,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    // Redirigir al login guardando la ubicación actual para poder volver después
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -97,14 +84,3 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 };
 
 export default ProtectedRoute;
-
-
-
-
-
-
-
-
-
-
-
