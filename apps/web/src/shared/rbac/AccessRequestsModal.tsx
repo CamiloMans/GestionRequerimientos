@@ -45,7 +45,7 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({ isOpen, onClo
   };
 
   const handleApproveClick = (request: AccessRequest) => {
-    setSelectedPermissions(['view']); // Reset a solo view por defecto
+    setSelectedPermissions(['view']); // Reset a solo viewer por defecto
     setApproveConfirm({
       show: true,
       requestId: request.id,
@@ -57,7 +57,7 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({ isOpen, onClo
     setSelectedPermissions((prev) => {
       if (prev.includes(perm)) {
         // Si está seleccionado, removerlo (excepto view que siempre debe estar)
-        if (perm === 'view') return prev; // View siempre debe estar
+        if (perm === 'view') return prev; // Viewer siempre debe estar
         return prev.filter((p) => p !== perm);
       } else {
         // Si no está seleccionado, agregarlo
@@ -423,7 +423,7 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({ isOpen, onClo
                     Permisos a otorgar:
                   </p>
                   <div className="space-y-2">
-                    {/* View - Siempre seleccionado y deshabilitado */}
+                    {/* Viewer - Siempre seleccionado y deshabilitado */}
                     <label className="flex items-center gap-3 p-3 rounded-lg border-2 border-green-500 bg-green-50 cursor-not-allowed">
                       <div className="w-5 h-5 rounded border-2 border-green-500 bg-green-500 flex items-center justify-center flex-shrink-0">
                         <svg
@@ -441,12 +441,12 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({ isOpen, onClo
                         </svg>
                       </div>
                       <div className="flex-1">
-                        <div className="font-semibold text-gray-900">View</div>
+                        <div className="font-semibold text-gray-900">Viewer</div>
                         <div className="text-xs text-gray-500">Ver contenido del módulo (requerido)</div>
                       </div>
                     </label>
 
-                    {/* Edit */}
+                    {/* Editor */}
                     <label
                       className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
                         selectedPermissions.includes('edit')
@@ -479,7 +479,7 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({ isOpen, onClo
                         )}
                       </div>
                       <div className="flex-1">
-                        <div className="font-semibold text-gray-900">Edit</div>
+                        <div className="font-semibold text-gray-900">Editor</div>
                         <div className="text-xs text-gray-500">Editar y modificar contenido</div>
                       </div>
                     </label>

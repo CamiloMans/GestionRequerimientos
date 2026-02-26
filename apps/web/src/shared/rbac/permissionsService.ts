@@ -44,8 +44,10 @@ const debugWarn = (...args: unknown[]) => {
  */
 const ACTION_CODE_MAP: Record<string, keyof ModulePermissions> = {
   view: 'view',
+  viewer: 'view',
   create: 'create',
   edit: 'edit',
+  editor: 'edit',
   update: 'edit',
   delete: 'delete',
   remove: 'delete',

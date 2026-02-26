@@ -101,6 +101,31 @@ export const fetchPendingAccessRequests = async (): Promise<AccessRequest[]> => 
  */
 export type PermissionType = 'view' | 'edit' | 'admin';
 
+const ROLE_CODE_SUFFIX_CANDIDATES: Record<PermissionType, readonly string[]> = {
+  view: ['viewer', 'view'],
+  edit: ['editor', 'edit'],
+  admin: ['admin'],
+};
+
+const PERMISSION_PRIORITY_ORDER: readonly PermissionType[] = ['view', 'edit', 'admin'];
+
+const normalizeRequestedPermissions = (permissions: PermissionType[]): PermissionType[] => {
+  const uniquePermissions = Array.from(new Set<PermissionType>(permissions));
+
+  if (!uniquePermissions.includes('view')) {
+    uniquePermissions.unshift('view');
+  }
+
+  return PERMISSION_PRIORITY_ORDER.filter((perm) => uniquePermissions.includes(perm));
+};
+
+const getRoleCodeCandidates = (
+  moduleCode: string,
+  permission: PermissionType
+): string[] => {
+  return ROLE_CODE_SUFFIX_CANDIDATES[permission].map((suffix) => `${moduleCode}:${suffix}`);
+};
+
 /**
  * Aprobar una solicitud de acceso y asignar permisos
  */
@@ -135,18 +160,28 @@ export const approveAccessRequest = async (
     // Esto evita que la solicitud quede como aprobada si falla la asignación de roles
 
     // Obtener los IDs de los roles correspondientes desde rbac_role
-    // Los roles deben tener un formato: {modulo}:{permiso}
-    // Ejemplo: "acreditacion:view", "acreditacion:edit", "acreditacion:admin"
-    // O "proveedores:view", "proveedores:edit", "proveedores:admin"
-    const roleCodes = permissions.map((perm) => `${moduleCode}:${perm}`);
+    // Los roles reales pueden estar en formato {modulo}:viewer/editor/admin
+    // o en formato legado {modulo}:view/edit/admin.
+    const normalizedPermissions = normalizeRequestedPermissions(permissions);
+    const roleCandidatesByPermission = normalizedPermissions.reduce(
+      (acc, perm) => {
+        acc[perm] = getRoleCodeCandidates(moduleCode, perm);
+        return acc;
+      },
+      {} as Record<PermissionType, string[]>
+    );
+
+    const roleCodeCandidates = Array.from(
+      new Set(normalizedPermissions.flatMap((perm) => roleCandidatesByPermission[perm]))
+    );
     
-    console.log('🔍 Buscando roles con códigos:', roleCodes);
+    console.log('🔍 Buscando roles con candidatos por permiso:', roleCandidatesByPermission);
     
     // Consultar los roles en rbac_role
     const { data: rolesData, error: rolesError } = await supabase
       .from('rbac_role')
       .select('id, code')
-      .in('code', roleCodes);
+      .in('code', roleCodeCandidates);
 
     if (rolesError) {
       console.error('❌ Error fetching roles:', rolesError);
@@ -154,20 +189,41 @@ export const approveAccessRequest = async (
     }
 
     if (!rolesData || rolesData.length === 0) {
-      console.error('❌ No se encontraron roles para los códigos:', roleCodes);
+      console.error('❌ No se encontraron roles para los códigos:', roleCodeCandidates);
       console.error('💡 Verifica que en rbac_role existan roles con estos códigos exactos');
-      throw new Error(`No se encontraron roles para: ${roleCodes.join(', ')}. Verifica que los roles existan en rbac_role con estos códigos.`);
+      throw new Error(
+        `No se encontraron roles para el módulo ${moduleCode}. Se buscaron: ${roleCodeCandidates.join(', ')}. Verifica que los roles existan en rbac_role con estos códigos.`
+      );
     }
 
     console.log('✅ Roles encontrados:', rolesData.map((r: any) => ({ id: r.id, code: r.code })));
 
-    // Verificar que se encontraron todos los roles solicitados
-    const foundCodes = rolesData.map((r: any) => r.code);
-    const missingCodes = roleCodes.filter((code) => !foundCodes.includes(code));
-    if (missingCodes.length > 0) {
-      console.error('❌ Faltan roles:', missingCodes);
-      throw new Error(`No se encontraron los siguientes roles: ${missingCodes.join(', ')}. Verifica que existan en rbac_role.`);
-    }
+    // Resolver un rol por permiso, priorizando viewer/editor sobre view/edit.
+    const rolesByCode = new Map((rolesData || []).map((r: any) => [r.code, r]));
+    const resolvedRoles = normalizedPermissions.map((perm) => {
+      const candidates = roleCandidatesByPermission[perm];
+      const matchedRole = candidates
+        .map((code) => rolesByCode.get(code))
+        .find((role) => Boolean(role));
+
+      if (!matchedRole) {
+        console.error('❌ No se pudo resolver rol para permiso:', {
+          permission: perm,
+          moduleCode,
+          candidates,
+        });
+        throw new Error(
+          `No se encontró un rol para el permiso "${perm}" del módulo "${moduleCode}". Se probaron: ${candidates.join(', ')}.`
+        );
+      }
+
+      return matchedRole as { id: string; code: string };
+    });
+
+    console.log(
+      '✅ Roles resueltos por permiso:',
+      resolvedRoles.map((role) => ({ id: role.id, code: role.code }))
+    );
 
     // Obtener el ID del rol system:pending para removerlo si existe
     const { data: pendingRoleData } = await supabase
@@ -177,7 +233,7 @@ export const approveAccessRequest = async (
       .single();
 
     // Crear registros en rbac_user_role
-    const userRoleRecords = rolesData.map((role: any) => ({
+    const userRoleRecords = resolvedRoles.map((role) => ({
       user_id,
       role_id: role.id,
     }));
