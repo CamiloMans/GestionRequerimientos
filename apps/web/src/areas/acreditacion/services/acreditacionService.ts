@@ -637,9 +637,9 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
     let totalTasks = 0;
     
     try {
-      const codigoProyecto = solicitud.codigo_proyecto;
-      if (codigoProyecto) {
-        const requerimientos = await fetchProyectoRequerimientos(codigoProyecto);
+      const idProyecto = solicitud.id;
+      if (idProyecto) {
+        const requerimientos = await fetchProyectoRequerimientos(idProyecto);
         
         // Transformar requerimientos a formato de tareas
         projectTasks = requerimientos.map(req => ({
@@ -1595,13 +1595,13 @@ export const createProyectoRequerimientos = async (
 };
 
 // Función para obtener requerimientos de un proyecto
-export const fetchProyectoRequerimientos = async (codigoProyecto: string): Promise<ProyectoRequerimientoAcreditacion[]> => {
-  console.log('🔍 Buscando requerimientos del proyecto:', codigoProyecto);
+export const fetchProyectoRequerimientos = async (idProyecto: number): Promise<ProyectoRequerimientoAcreditacion[]> => {
+  console.log('🔍 Buscando requerimientos del proyecto por id_proyecto:', idProyecto);
   
   const { data, error } = await supabase
     .from('brg_acreditacion_solicitud_requerimiento')
     .select('*')
-    .eq('codigo_proyecto', codigoProyecto)
+    .eq('id_proyecto', idProyecto)
     .order('created_at', { ascending: true });
   
   if (error) {
@@ -1609,7 +1609,7 @@ export const fetchProyectoRequerimientos = async (codigoProyecto: string): Promi
     throw error;
   }
   
-  console.log(`✅ Encontrados ${data?.length || 0} requerimientos para proyecto ${codigoProyecto}`);
+  console.log(`✅ Encontrados ${data?.length || 0} requerimientos para id_proyecto ${idProyecto}`);
   return data || [];
 };
 

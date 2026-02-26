@@ -120,10 +120,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   // Cargar requerimientos del proyecto al montar para saber cuáles tienen observaciones
   useEffect(() => {
     const loadRequerimientosConObservaciones = async () => {
-      if (!project.projectCode) return;
+      if (!project.id) return;
 
       try {
-        const proyectoRequerimientos = await fetchProyectoRequerimientos(project.projectCode);
+        const proyectoRequerimientos = await fetchProyectoRequerimientos(project.id);
         const requerimientosConObs = new Set<string>();
         
         proyectoRequerimientos.forEach(req => {
@@ -139,15 +139,15 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     };
 
     loadRequerimientosConObservaciones();
-  }, [project.projectCode]);
+  }, [project.id]);
 
   // Actualizar todos los requerimientos cada 5 segundos
   useEffect(() => {
-    if (!project.projectCode) return;
+    if (!project.id) return;
 
     const actualizarRequerimientos = async () => {
       try {
-        const proyectoRequerimientos = await fetchProyectoRequerimientos(project.projectCode);
+        const proyectoRequerimientos = await fetchProyectoRequerimientos(project.id);
         
         // Mapear los requerimientos actualizados al formato ProjectRequirement
         const requerimientosActualizados: ProjectRequirement[] = proyectoRequerimientos.map(req => ({
@@ -212,7 +212,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
     // Limpiar el intervalo al desmontar
     return () => clearInterval(interval);
-  }, [project.projectCode]);
+  }, [project.id]);
 
   // Limpiar objetos URL locales al desmontar el componente
   useEffect(() => {
