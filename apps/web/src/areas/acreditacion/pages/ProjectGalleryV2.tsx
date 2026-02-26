@@ -40,6 +40,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<ProjectGalleryItem | null>(null);
+  const isDrillDownView = showDetailView || showCompanyView || showSubmittedFormView;
   
   // Estado local para los proyectos (se actualiza automáticamente cada 10 segundos)
   const [localProjects, setLocalProjects] = useState<ProjectGalleryItem[]>(projects);
@@ -64,20 +65,18 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
     setLocalProjects(projects);
   }, [projects]);
 
-  // Actualizar proyectos automáticamente cada 10 segundos para actualizar porcentajes de cumplimiento
+  // Actualizar proyectos cada 10 segundos solo en la galería.
+  // Al entrar a detalle/formulario, este polling se pausa.
   useEffect(() => {
+    if (isDrillDownView) {
+      return;
+    }
+
     const actualizarProyectos = async () => {
       try {
         const proyectosActualizados = await fetchProjectGalleryItems();
         setLocalProjects(proyectosActualizados);
         
-        // Si hay un proyecto seleccionado, actualizarlo también
-        if (selectedProject) {
-          const proyectoActualizado = proyectosActualizados.find(p => p.id === selectedProject.id);
-          if (proyectoActualizado) {
-            setSelectedProject(proyectoActualizado);
-          }
-        }
       } catch (error) {
         console.error('Error al actualizar proyectos:', error);
         // No mostrar error al usuario, solo loguear
@@ -92,7 +91,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
 
     // Limpiar el intervalo al desmontar
     return () => clearInterval(interval);
-  }, [selectedProject]);
+  }, [isDrillDownView]);
 
   // Obtener lista única de clientes
   const uniqueClients = Array.from(new Set(localProjects.map(p => p.clientName))).sort();

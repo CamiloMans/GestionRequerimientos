@@ -9,7 +9,25 @@ export interface ProjectTask {
   fechaFinalizada?: string;
 }
 
-// Generar tareas estándar para un proyecto basado en sus responsables
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const getDeterministicScore = (projectId: number, taskIndex: number): number => {
+  const normalizedProjectId = Number.isFinite(projectId) ? projectId : 0;
+  const rawValue =
+    Math.abs((normalizedProjectId + 1) * 97 + (taskIndex + 1) * 53 + (normalizedProjectId - taskIndex) * 29) %
+    1000;
+  return rawValue / 1000;
+};
+
+const getDeterministicCompletionDate = (projectId: number, taskIndex: number): string => {
+  const completionOffsetDays = Math.floor(getDeterministicScore(projectId, taskIndex) * 10);
+  const completionDate = new Date();
+  completionDate.setHours(0, 0, 0, 0);
+  completionDate.setTime(completionDate.getTime() - completionOffsetDays * MS_PER_DAY);
+  return completionDate.toISOString().split('T')[0];
+};
+
+// Generar tareas estandar para un proyecto basado en sus responsables
 export const generateProjectTasks = (
   projectId: number,
   hasJPRO: boolean,
@@ -20,76 +38,75 @@ export const generateProjectTasks = (
 ): ProjectTask[] => {
   const tasks: ProjectTask[] = [];
   let taskId = projectId * 100; // Base ID para evitar conflictos
+  let taskIndex = 0;
 
   const statusLower = projectStatus.toLowerCase();
-  const isFinished = statusLower.includes('finalizada');
+  const isFinished = statusLower.includes('finalizado') || statusLower.includes('finalizada');
   const isInProgress = statusLower.includes('proceso');
+
+  const buildTaskState = (index: number): { realizado: boolean; fechaFinalizada?: string } => {
+    if (isFinished) {
+      return {
+        realizado: true,
+        fechaFinalizada: getDeterministicCompletionDate(projectId, index),
+      };
+    }
+
+    if (isInProgress) {
+      return {
+        realizado: getDeterministicScore(projectId, index) >= 0.5,
+        fechaFinalizada: undefined,
+      };
+    }
+
+    return {
+      realizado: false,
+      fechaFinalizada: undefined,
+    };
+  };
+
+  const createTask = (
+    responsable: string,
+    requerimiento: string,
+    categoria: string
+  ): ProjectTask => {
+    const currentTaskIndex = taskIndex;
+    taskIndex += 1;
+    const taskState = buildTaskState(currentTaskIndex);
+
+    return {
+      id: taskId++,
+      responsable,
+      requerimiento,
+      categoria,
+      realizado: taskState.realizado,
+      fechaFinalizada: taskState.fechaFinalizada,
+    };
+  };
 
   // Tareas del JPRO (Jefe de Proyecto)
   if (hasJPRO) {
-    tasks.push({
-      id: taskId++,
-      responsable: 'JPRO',
-      requerimiento: 'Inducción al Proyecto',
-      categoria: 'Exámenes',
-      realizado: isFinished || (isInProgress && Math.random() > 0.5),
-      fechaFinalizada: isFinished ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined
-    });
-    tasks.push({
-      id: taskId++,
-      responsable: 'JPRO',
-      requerimiento: 'Licencia de Conducir',
-      categoria: 'Conducción',
-      realizado: isFinished,
-      fechaFinalizada: isFinished ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined
-    });
+    tasks.push(createTask('JPRO', 'Inducción al Proyecto', 'Exámenes'));
+    tasks.push(createTask('JPRO', 'Licencia de Conducir', 'Conducción'));
   }
 
-  // Tareas del EPR (Especialista en Prevención de Riesgo)
+  // Tareas del EPR (Especialista en Prevencion de Riesgo)
   if (hasEPR) {
-    tasks.push({
-      id: taskId++,
-      responsable: 'EPR',
-      requerimiento: 'Examen Pre-ocupacional',
-      categoria: 'Exámenes',
-      realizado: isFinished || (isInProgress && Math.random() > 0.3),
-      fechaFinalizada: isFinished ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined
-    });
-    tasks.push({
-      id: taskId++,
-      responsable: 'EPR',
-      requerimiento: 'Capacitación en Altura',
-      categoria: 'Exámenes',
-      realizado: isFinished,
-      fechaFinalizada: isFinished ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined
-    });
+    tasks.push(createTask('EPR', 'Examen Pre-ocupacional', 'Exámenes'));
+    tasks.push(createTask('EPR', 'Capacitación en Altura', 'Exámenes'));
   }
 
   // Tareas de RRHH
   if (hasRRHH) {
-    tasks.push({
-      id: taskId++,
-      responsable: 'RRHH',
-      requerimiento: 'Contrato de Trabajo',
-      categoria: 'Legal',
-      realizado: isFinished || (isInProgress && Math.random() > 0.4),
-      fechaFinalizada: isFinished ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined
-    });
+    tasks.push(createTask('RRHH', 'Contrato de Trabajo', 'Legal'));
   }
 
-  // Tareas del área Legal
+  // Tareas del area Legal
   if (hasLegal) {
-    tasks.push({
-      id: taskId++,
-      responsable: 'Legal',
-      requerimiento: 'Certificado Antecedentes',
-      categoria: 'Legal',
-      realizado: isFinished || (isInProgress && Math.random() > 0.6),
-      fechaFinalizada: isFinished ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined
-    });
+    tasks.push(createTask('Legal', 'Certificado Antecedentes', 'Legal'));
   }
 
-  // Si no hay responsables asignados, agregar tareas genéricas
+  // Si no hay responsables asignados, agregar tareas genericas
   if (tasks.length === 0) {
     tasks.push(
       {
@@ -98,7 +115,7 @@ export const generateProjectTasks = (
         requerimiento: 'Asignar responsables del proyecto',
         categoria: 'Administrativo',
         realizado: false,
-        fechaFinalizada: undefined
+        fechaFinalizada: undefined,
       },
       {
         id: taskId++,
@@ -106,7 +123,7 @@ export const generateProjectTasks = (
         requerimiento: 'Definir alcance del proyecto',
         categoria: 'Administrativo',
         realizado: false,
-        fechaFinalizada: undefined
+        fechaFinalizada: undefined,
       }
     );
   }
@@ -120,4 +137,3 @@ export const calculateCompletedTasks = (tasks: ProjectTask[]): { completed: numb
   const total = tasks.length;
   return { completed, total };
 };
-

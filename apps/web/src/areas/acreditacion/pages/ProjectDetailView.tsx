@@ -117,6 +117,45 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
     setProjectStatus(project.status);
   }, [project.status]);
 
+  const areRequirementsEquivalent = (
+    currentReq: ProjectRequirement,
+    nextReq: ProjectRequirement
+  ): boolean => {
+    return (
+      currentReq.id === nextReq.id &&
+      currentReq.responsable === nextReq.responsable &&
+      (currentReq.estado || '') === (nextReq.estado || '') &&
+      currentReq.realizado === nextReq.realizado &&
+      (currentReq.drive_doc_url || '') === (nextReq.drive_doc_url || '') &&
+      (currentReq.nombre_responsable || '') === (nextReq.nombre_responsable || '') &&
+      (currentReq.nombre_trabajador || '') === (nextReq.nombre_trabajador || '') &&
+      (currentReq.categoria_empresa || '') === (nextReq.categoria_empresa || '') &&
+      (currentReq.requerimiento || '') === (nextReq.requerimiento || '') &&
+      (currentReq.categoria || '') === (nextReq.categoria || '') &&
+      (currentReq.empresa_acreditacion || '') === (nextReq.empresa_acreditacion || '') &&
+      (currentReq.fechaFinalizada || '') === (nextReq.fechaFinalizada || '') &&
+      (currentReq.localFileUrl || '') === (nextReq.localFileUrl || '') &&
+      (currentReq.localFileName || '') === (nextReq.localFileName || '')
+    );
+  };
+
+  const areRequirementCollectionsEquivalent = (
+    currentRequirements: ProjectRequirement[],
+    nextRequirements: ProjectRequirement[]
+  ): boolean => {
+    if (currentRequirements.length !== nextRequirements.length) {
+      return false;
+    }
+
+    for (let i = 0; i < currentRequirements.length; i += 1) {
+      if (!areRequirementsEquivalent(currentRequirements[i], nextRequirements[i])) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   // Cargar requerimientos del proyecto al montar para saber cuáles tienen observaciones
   useEffect(() => {
     const loadRequerimientosConObservaciones = async () => {
@@ -169,35 +208,63 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
           drive_doc_url: req.drive_doc_url
         }));
 
-        // Actualizar el estado, pero preservar los archivos locales si existen
+        // Actualizar estado solo cuando hay cambios reales.
+        // Esto reduce re-render y evita "parpadeo" visual en la tabla/estadÃ­sticas.
         setRequirements(prev => {
-          return requerimientosActualizados.map(reqActualizado => {
-            // Buscar el requerimiento anterior para preservar archivos locales
-            const reqAnterior = prev.find(r => r.id === reqActualizado.id);
-            
-            if (reqAnterior) {
-              // Si hay un archivo local y ahora hay un drive_doc_url, limpiar el local
-              if (reqActualizado.drive_doc_url && reqAnterior.localFileUrl) {
-                URL.revokeObjectURL(reqAnterior.localFileUrl);
-                return {
-                  ...reqActualizado,
-                  localFileUrl: undefined,
-                  localFileName: undefined
-                };
-              }
-              
-              // Preservar archivos locales si no hay drive_doc_url
-              if (!reqActualizado.drive_doc_url && reqAnterior.localFileUrl) {
-                return {
-                  ...reqActualizado,
-                  localFileUrl: reqAnterior.localFileUrl,
-                  localFileName: reqAnterior.localFileName
-                };
-              }
+          const prevById = new Map(prev.map(req => [req.id, req]));
+
+          const mergedRequirements = requerimientosActualizados.map(reqActualizado => {
+            const reqAnterior = prevById.get(reqActualizado.id);
+
+            if (!reqAnterior) {
+              return reqActualizado;
             }
-            
+
+            // Si hay un archivo local y ahora hay un drive_doc_url, limpiar el local
+            if (reqActualizado.drive_doc_url && reqAnterior.localFileUrl) {
+              URL.revokeObjectURL(reqAnterior.localFileUrl);
+              return {
+                ...reqActualizado,
+                localFileUrl: undefined,
+                localFileName: undefined,
+              };
+            }
+
+            // Preservar archivos locales si todavÃ­a no hay drive_doc_url
+            if (!reqActualizado.drive_doc_url && reqAnterior.localFileUrl) {
+              return {
+                ...reqActualizado,
+                localFileUrl: reqAnterior.localFileUrl,
+                localFileName: reqAnterior.localFileName,
+              };
+            }
+
             return reqActualizado;
           });
+
+          // Mantener el orden actual de la UI:
+          // 1) conservar posiciones existentes
+          // 2) agregar nuevos requerimientos al final
+          const mergedById = new Map(mergedRequirements.map(req => [req.id, req]));
+          const orderedMergedRequirements: ProjectRequirement[] = [];
+
+          prev.forEach(prevReq => {
+            const currentReq = mergedById.get(prevReq.id);
+            if (currentReq) {
+              orderedMergedRequirements.push(currentReq);
+              mergedById.delete(prevReq.id);
+            }
+          });
+
+          mergedById.forEach(newReq => {
+            orderedMergedRequirements.push(newReq);
+          });
+
+          if (areRequirementCollectionsEquivalent(prev, orderedMergedRequirements)) {
+            return prev;
+          }
+
+          return orderedMergedRequirements;
         });
       } catch (error) {
         console.error('Error al actualizar requerimientos:', error);
