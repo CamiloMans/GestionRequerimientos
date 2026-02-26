@@ -359,6 +359,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
               console.log('📡 Llamando a API /asignar-folder...');
               const payload = {
                 codigo_proyecto: project.projectCode,
+                id_proyecto: project.id,
                 registros: registrosInsertados.map((registro: any) => {
                   const registroPayload: any = {
                     id: registro.id,
