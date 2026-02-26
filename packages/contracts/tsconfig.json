@@ -3,19 +3,18 @@
     "target": "ES2022",
     "module": "ESNext",
     "lib": ["ES2022"],
+    "composite": true,
     "declaration": true,
     "declarationMap": true,
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "allowJs": false,
-    "strict": true,
-    "noEmit": true
+    "strict": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }
-
 
 
 

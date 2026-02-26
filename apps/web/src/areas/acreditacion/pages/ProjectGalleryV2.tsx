@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FieldRequestFormSnapshot, ProjectGalleryItem } from '../types';
+import type { AcreditacionAccessLevel } from '../utils/navigationPolicy';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
 import ProjectDetailView from './ProjectDetailView';
 import SelectCompanyAndRequirementsView from './SelectCompanyAndRequirementsView';
@@ -11,9 +12,16 @@ interface ProjectGalleryV2Props {
   projects: ProjectGalleryItem[];
   onProjectUpdate?: () => void;
   onFilterSidebarChange?: (isOpen: boolean) => void;
+  accessLevel?: AcreditacionAccessLevel;
 }
 
-const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProjectUpdate, onFilterSidebarChange }) => {
+const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
+  projects,
+  onProjectUpdate,
+  onFilterSidebarChange,
+  accessLevel: accessLevelProp,
+}) => {
+  const accessLevel: AcreditacionAccessLevel = accessLevelProp ?? 'none';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClient, setFilterClient] = useState('');
@@ -191,7 +199,36 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     }
   };
 
+  const normalizeProjectStatus = (status: string) => (status || '').toLowerCase().trim();
+
+  const canOpenProjectCard = (
+    project: ProjectGalleryItem,
+    userAccessLevel: AcreditacionAccessLevel = accessLevel
+  ): boolean => {
+    if (userAccessLevel === 'admin') {
+      return true;
+    }
+
+    if (userAccessLevel === 'editor' || userAccessLevel === 'viewer') {
+      const normalizedStatus = normalizeProjectStatus(project.status);
+      return (
+        normalizedStatus.includes('en proceso') ||
+        normalizedStatus.includes('finalizado') ||
+        normalizedStatus.includes('finalizada')
+      );
+    }
+
+    return false;
+  };
+
   const handleProjectClick = (project: ProjectGalleryItem) => {
+    if (!canOpenProjectCard(project)) {
+      alert(
+        'No puedes abrir esta solicitud en su estado actual. Solo administradores pueden abrir cualquier estado. Usuarios con rol editor/viewer solo pueden abrir estados "En proceso" o "Finalizado".'
+      );
+      return;
+    }
+
     setSelectedProject(project);
     
     const statusLower = project.status.toLowerCase();
@@ -818,16 +855,24 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                 if (statusLower.includes('atrasado')) return 'group-hover:to-orange-50';
                 return 'group-hover:to-gray-50';
               };
+              const canOpenCard = canOpenProjectCard(project);
+              const blockedCardTitle = canOpenCard
+                ? undefined
+                : 'Solo administradores pueden abrir cualquier estado. Editor/Viewer solo pueden abrir estados En proceso o Finalizado.';
               const razonSocialContratista = project.razonSocialContratista?.trim();
 
               return (
                 <div
                   key={project.id}
                   onClick={() => handleProjectClick(project)}
-                  className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer group"
+                  aria-disabled={!canOpenCard}
+                  title={blockedCardTitle}
+                  className={`bg-white rounded-xl shadow-sm overflow-hidden transition-shadow duration-300 group ${
+                    canOpenCard ? 'hover:shadow-lg cursor-pointer' : 'cursor-not-allowed'
+                  }`}
                 >
                   {/* Project Header Compacto */}
-                  <div className={`bg-gradient-to-r from-gray-50 to-white px-5 py-3 group-hover:from-gray-100 ${getHoverColor()} ${getLeftBorderColor(project.status)} transition-colors duration-300`}>
+                  <div className={`bg-gradient-to-r from-gray-50 to-white px-5 py-3 ${canOpenCard ? `group-hover:from-gray-100 ${getHoverColor()}` : ''} ${getLeftBorderColor(project.status)} transition-colors duration-300`}>
                   {/* Título y Estado en línea */}
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">

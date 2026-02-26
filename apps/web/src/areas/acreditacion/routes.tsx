@@ -7,6 +7,11 @@ import ProjectGalleryV2 from './pages/ProjectGalleryV2';
 import DashboardView from './pages/DashboardView';
 import { RequestItem, NewRequestPayload, ProjectGalleryItem } from './types';
 import { ACREDITACION_ROUTES } from './utils/routes';
+import { getUserPermissions } from '@shared/rbac/permissionsService';
+import {
+  DEFAULT_ACREDITACION_NAVIGATION_POLICY,
+  buildAcreditacionNavigationPolicy,
+} from './utils/navigationPolicy';
 import {
   fetchPersonaRequerimientos,
   createPersonaRequerimiento,
@@ -27,6 +32,37 @@ const AcreditacionRoutes: React.FC = () => {
   const [projects, setProjects] = React.useState<ProjectGalleryItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadingProjects, setLoadingProjects] = React.useState(false);
+  const [navigationPolicy, setNavigationPolicy] = React.useState(
+    DEFAULT_ACREDITACION_NAVIGATION_POLICY
+  );
+  const [navigationPolicyLoading, setNavigationPolicyLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    const loadNavigationPolicy = async () => {
+      try {
+        setNavigationPolicyLoading(true);
+        const permissions = await getUserPermissions();
+        if (!mounted) return;
+        setNavigationPolicy(buildAcreditacionNavigationPolicy(permissions));
+      } catch (error) {
+        console.error('Error loading acreditacion navigation policy:', error);
+        if (!mounted) return;
+        setNavigationPolicy(DEFAULT_ACREDITACION_NAVIGATION_POLICY);
+      } finally {
+        if (mounted) {
+          setNavigationPolicyLoading(false);
+        }
+      }
+    };
+
+    void loadNavigationPolicy();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const loadRequests = React.useCallback(async () => {
     try {
@@ -42,8 +78,20 @@ const AcreditacionRoutes: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    loadRequests();
-  }, [loadRequests]);
+    if (navigationPolicyLoading) return;
+
+    if (!navigationPolicy.canAccessRequestsSst) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    void loadRequests();
+  }, [
+    loadRequests,
+    navigationPolicyLoading,
+    navigationPolicy.canAccessRequestsSst,
+  ]);
 
   const loadProjects = React.useCallback(async () => {
     try {
@@ -59,15 +107,30 @@ const AcreditacionRoutes: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
+    if (navigationPolicyLoading) return;
+    if (!navigationPolicy.canAccessReports) {
+      setProjects([]);
+      setLoadingProjects(false);
+      return;
+    }
+
+    void loadProjects();
+  }, [loadProjects, navigationPolicyLoading, navigationPolicy.canAccessReports]);
 
   // Actualizar proyectos cuando se navega a la ruta "reports"
   React.useEffect(() => {
+    if (navigationPolicyLoading) return;
+    if (!navigationPolicy.canAccessReports) return;
+
     if (location.pathname.includes('/reports')) {
-      loadProjects();
+      void loadProjects();
     }
-  }, [location.pathname, loadProjects]);
+  }, [
+    location.pathname,
+    loadProjects,
+    navigationPolicyLoading,
+    navigationPolicy.canAccessReports,
+  ]);
 
   const handleEdit = (item: RequestItem) => {
     setEditingItem(item);
@@ -138,12 +201,29 @@ const AcreditacionRoutes: React.FC = () => {
     }
   };
 
+  if (navigationPolicyLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+          <p className="text-gray-600">Verificando permisos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const shouldRedirectRestrictedCollaborator =
+    navigationPolicy.isRestrictedCollaborator === true;
+  const defaultRoute = navigationPolicy.defaultRoute;
+
   return (
     <Routes>
       <Route
         path="requests"
         element={
-          loading ? (
+          shouldRedirectRestrictedCollaborator ? (
+            <Navigate to="reports" replace />
+          ) : loading ? (
             <div className="flex items-center justify-center h-full min-h-screen">
               <div className="text-center">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
@@ -162,17 +242,23 @@ const AcreditacionRoutes: React.FC = () => {
       <Route
         path="requests/create"
         element={
-          <RequestForm
-            onBack={() => window.history.back()}
-            onSave={handleSave}
-            initialData={null}
-          />
+          shouldRedirectRestrictedCollaborator ? (
+            <Navigate to="reports" replace />
+          ) : (
+            <RequestForm
+              onBack={() => window.history.back()}
+              onSave={handleSave}
+              initialData={null}
+            />
+          )
         }
       />
       <Route
         path="requests/edit"
         element={
-          editingItem ? (
+          shouldRedirectRestrictedCollaborator ? (
+            <Navigate to="reports" replace />
+          ) : editingItem ? (
             <RequestForm
               onBack={() => window.history.back()}
               onSave={handleSave}
@@ -207,22 +293,25 @@ const AcreditacionRoutes: React.FC = () => {
               projects={projects}
               onProjectUpdate={loadProjects}
               onFilterSidebarChange={() => {}}
+              accessLevel={navigationPolicy.accessLevel}
             />
           )
         }
       />
       <Route
         path="dashboards"
-        element={<DashboardView />}
+        element={
+          shouldRedirectRestrictedCollaborator ? (
+            <Navigate to="reports" replace />
+          ) : (
+            <DashboardView />
+          )
+        }
       />
-      <Route path="/" element={<Navigate to="dashboards" replace />} />
-      <Route path="*" element={<Navigate to="dashboards" replace />} />
+      <Route path="/" element={<Navigate to={defaultRoute} replace />} />
+      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
     </Routes>
   );
 };
 
 export default AcreditacionRoutes;
-
-
-
-

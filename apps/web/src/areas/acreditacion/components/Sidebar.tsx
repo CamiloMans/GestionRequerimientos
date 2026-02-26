@@ -3,9 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
-import { getUserPermissions, hasAreaAdminPermission } from '@shared/rbac/permissionsService';
+import { getUserPermissions } from '@shared/rbac/permissionsService';
 import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
 import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
+import {
+  DEFAULT_ACREDITACION_NAVIGATION_POLICY,
+  buildAcreditacionNavigationPolicy,
+} from '../utils/navigationPolicy';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -28,6 +32,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   const [showAccessRequestsModal, setShowAccessRequestsModal] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [navigationPolicy, setNavigationPolicy] = useState(
+    DEFAULT_ACREDITACION_NAVIGATION_POLICY
+  );
   const menuRef = useRef<HTMLDivElement>(null);
   
   // Determinar vista activa basada en la ruta
@@ -54,28 +62,41 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   // Obtener información del usuario y verificar si es admin
   useEffect(() => {
     const getUser = async () => {
+      setPermissionsLoading(true);
+
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
 
-        // Verificar si el usuario es admin específicamente del módulo de Acreditación
         if (user) {
           const permissions = await getUserPermissions();
-          const isAcreditacionAdmin = hasAreaAdminPermission(permissions, AreaId.ACREDITACION);
-          setIsAdmin(isAcreditacionAdmin);
+          const policy = buildAcreditacionNavigationPolicy(permissions);
+          setNavigationPolicy(policy);
+          setIsAdmin(policy.isAdmin);
 
           // Si es admin de Acreditación, cargar el contador de solicitudes pendientes
-          if (isAcreditacionAdmin) {
+          if (policy.isAdmin) {
             const requests = await fetchPendingAccessRequests();
             // Filtrar solo solicitudes del módulo de Acreditación
             const acreditacionRequests = requests.filter(
               (req) => req.modulo_solicitado.toLowerCase() === 'acreditacion'
             );
             setPendingRequestsCount(acreditacionRequests.length);
+          } else {
+            setPendingRequestsCount(0);
           }
+        } else {
+          setNavigationPolicy(DEFAULT_ACREDITACION_NAVIGATION_POLICY);
+          setIsAdmin(false);
+          setPendingRequestsCount(0);
         }
       } catch (error) {
         console.error('Error obteniendo usuario:', error);
+        setNavigationPolicy(DEFAULT_ACREDITACION_NAVIGATION_POLICY);
+        setIsAdmin(false);
+        setPendingRequestsCount(0);
+      } finally {
+        setPermissionsLoading(false);
       }
     };
 
@@ -87,6 +108,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
         setUser(null);
         setIsAdmin(false);
         setPendingRequestsCount(0);
+        setPermissionsLoading(false);
+        setNavigationPolicy(DEFAULT_ACREDITACION_NAVIGATION_POLICY);
       }
     });
 
@@ -226,85 +249,93 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
             
             {/* Navigation */}
             <nav className="flex flex-col gap-3 w-full px-3">
-              {/* Dashboard */}
-              <button 
-                onClick={handleDashboardsClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isDashboardsActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Dashboard"
-              >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isDashboardsActive ? 'fill' : ''}`}>dashboard</span>
-                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                  isDashboardsActive 
-                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
-                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                }`}>
-                  Dashboard
-                </span>
-              </button>
+              {/* Dashboard (solo admins) */}
+              {!permissionsLoading && navigationPolicy.canAccessDashboards && (
+                <button 
+                  onClick={handleDashboardsClick}
+                  className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                    isDashboardsActive 
+                      ? 'bg-primary text-white hover:bg-primary-hover' 
+                      : 'text-[#616f89] hover:bg-gray-100'
+                  }`}
+                  title="Dashboard"
+                >
+                  <span className={`material-symbols-outlined text-2xl pointer-events-none ${isDashboardsActive ? 'fill' : ''}`}>dashboard</span>
+                  <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isDashboardsActive 
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}>
+                    Dashboard
+                  </span>
+                </button>
+              )}
               
-              {/* Requerimientos SST */}
-              <button 
-                onClick={handleRequestsClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isRequestsActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Requerimientos SST"
-              >
-                <span className={`material-symbols-outlined fill text-2xl pointer-events-none ${isRequestsActive ? 'fill' : ''}`}>description</span>
-                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                  isRequestsActive 
-                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
-                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                }`}>
-                  Requerimientos SST
-                </span>
-              </button>
+              {/* Requerimientos SST (solo admins) */}
+              {!permissionsLoading && navigationPolicy.canAccessRequestsSst && (
+                <button 
+                  onClick={handleRequestsClick}
+                  className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                    isRequestsActive 
+                      ? 'bg-primary text-white hover:bg-primary-hover' 
+                      : 'text-[#616f89] hover:bg-gray-100'
+                  }`}
+                  title="Requerimientos SST"
+                >
+                  <span className={`material-symbols-outlined fill text-2xl pointer-events-none ${isRequestsActive ? 'fill' : ''}`}>description</span>
+                  <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isRequestsActive 
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}>
+                    Requerimientos SST
+                  </span>
+                </button>
+              )}
               
-              {/* Nueva solicitud de acreditación */}
-              <button 
-                onClick={handleFieldRequestClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isFieldRequestActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Nueva solicitud de acreditación"
-              >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isFieldRequestActive ? 'fill' : ''}`}>engineering</span>
-                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                  isFieldRequestActive 
-                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
-                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                }`}>
-                  Nueva solicitud de acreditación
-                </span>
-              </button>
+              {/* Nueva solicitud de acreditación (admin + colaboradores) */}
+              {navigationPolicy.canAccessFieldRequest && (
+                <button 
+                  onClick={handleFieldRequestClick}
+                  className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                    isFieldRequestActive 
+                      ? 'bg-primary text-white hover:bg-primary-hover' 
+                      : 'text-[#616f89] hover:bg-gray-100'
+                  }`}
+                  title="Nueva solicitud de acreditación"
+                >
+                  <span className={`material-symbols-outlined text-2xl pointer-events-none ${isFieldRequestActive ? 'fill' : ''}`}>engineering</span>
+                  <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isFieldRequestActive 
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}>
+                    Nueva solicitud de acreditación
+                  </span>
+                </button>
+              )}
               
-              {/* Solicitudes de acreditación */}
-              <button 
-                onClick={handleReportsClick}
-                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
-                  isReportsActive 
-                    ? 'bg-primary text-white hover:bg-primary-hover' 
-                    : 'text-[#616f89] hover:bg-gray-100'
-                }`}
-                title="Solicitudes de acreditación"
-              >
-                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isReportsActive ? 'fill' : ''}`}>assessment</span>
-                <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
-                  isReportsActive 
-                    ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
-                    : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
-                }`}>
-                  Solicitudes de acreditación
-                </span>
-              </button>
+              {/* Solicitudes de acreditación (admin + colaboradores) */}
+              {navigationPolicy.canAccessReports && (
+                <button 
+                  onClick={handleReportsClick}
+                  className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                    isReportsActive 
+                      ? 'bg-primary text-white hover:bg-primary-hover' 
+                      : 'text-[#616f89] hover:bg-gray-100'
+                  }`}
+                  title="Solicitudes de acreditación"
+                >
+                  <span className={`material-symbols-outlined text-2xl pointer-events-none ${isReportsActive ? 'fill' : ''}`}>assessment</span>
+                  <span className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isReportsActive 
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100' 
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}>
+                    Solicitudes de acreditación
+                  </span>
+                </button>
+              )}
 
               {/* Solicitudes de acceso (solo para admins) */}
               {isAdmin && (
