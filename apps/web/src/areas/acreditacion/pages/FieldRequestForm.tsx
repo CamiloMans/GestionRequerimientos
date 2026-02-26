@@ -107,6 +107,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [searchQueryCliente, setSearchQueryCliente] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [showDropdownCliente, setShowDropdownCliente] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Limpiar todos los campos cuando se monta el componente
   useEffect(() => {
@@ -654,8 +655,11 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (isSaving) return;
+
     try {
+      setIsSaving(true);
       const requiereAcreditarEmpresa = formData.companyAccreditationRequired === 'yes';
       const requiereAcreditarTrabajadoresMyma = formData.requiereAcreditarTrabajadoresMyma === 'yes';
       const requiereAcreditarContratista = formData.requiereAcreditarContratista === 'yes';
@@ -968,6 +972,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     } catch (error) {
       console.error('ERROR al guardar la solicitud:', error);
       alert('Error al guardar la solicitud. Por favor, revisa la consola para más detalles.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1199,6 +1205,25 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   return (
     <div className="layout-container flex h-full grow flex-col">
+      {isSaving && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+          style={{ pointerEvents: 'auto' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-4"></div>
+            <h3 className="text-lg font-semibold text-[#111318] mb-2">Guardando solicitud...</h3>
+            <p className="text-sm text-[#616f89] text-center">
+              Por favor espera mientras se guarda la solicitud y se procesan los datos relacionados.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12">
         
         {/* Breadcrumb */}
@@ -2193,10 +2218,20 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </button>
             <button 
               type="submit" 
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm"
+              disabled={isSaving}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <span className="material-symbols-outlined text-[20px]">save</span>
-              Guardar Solicitud
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px]">save</span>
+                  Guardar Solicitud
+                </>
+              )}
             </button>
           </div>
 
