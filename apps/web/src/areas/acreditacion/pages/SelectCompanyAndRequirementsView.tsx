@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ProjectGalleryItem } from '../types';
-import { fetchClientes, fetchEmpresaRequerimientos, createProyectoRequerimientos, fetchCatalogoRequerimientos } from '../services/acreditacionService';
+import {
+  fetchClientes,
+  fetchEmpresaRequerimientos,
+  createProyectoRequerimientos,
+  fetchCatalogoRequerimientos,
+  fetchSolicitudRequerimientoCategoryAvailability,
+  SolicitudRequerimientoCategoryAvailability
+} from '../services/acreditacionService';
 import { Cliente, EmpresaRequerimiento } from '../types';
 import { updateSolicitudAcreditacion } from '../services/acreditacionService';
 import { ACREDITACION_PROXY_ENDPOINTS } from '../services/acreditacionProxyEndpoints';
@@ -19,6 +26,53 @@ interface CatalogoRequerimiento {
   [key: string]: any;
 }
 
+type CategoriaSolicitudKey = 'empresa' | 'trabajadores' | 'conductores' | 'vehiculos';
+
+const CATEGORIAS_SOLICITUD: Array<{ key: CategoriaSolicitudKey; label: string }> = [
+  { key: 'empresa', label: 'Empresa' },
+  { key: 'trabajadores', label: 'Trabajadores' },
+  { key: 'conductores', label: 'Conductores' },
+  { key: 'vehiculos', label: 'Vehículos' },
+];
+
+const normalizeCategoryText = (value?: string | null): string => {
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+};
+
+const getCategoriaSolicitudKey = (categoria?: string | null): CategoriaSolicitudKey | null => {
+  const normalized = normalizeCategoryText(categoria);
+
+  if (!normalized) return null;
+
+  if (
+    normalized === 'empresa' ||
+    normalized === 'empresa myma' ||
+    normalized === 'empresa subcontrato' ||
+    normalized === 'empresa subcontratista' ||
+    normalized === 'carpeta de arranque'
+  ) {
+    return 'empresa';
+  }
+
+  if (normalized === 'trabajadores' || normalized === 'trabajador') {
+    return 'trabajadores';
+  }
+
+  if (normalized === 'conductores' || normalized === 'conductor') {
+    return 'conductores';
+  }
+
+  if (normalized === 'vehiculos' || normalized === 'vehiculo') {
+    return 'vehiculos';
+  }
+
+  return null;
+};
+
 const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsViewProps> = ({
   project,
   onBack,
@@ -34,9 +88,13 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [categoryAvailabilityWarning, setCategoryAvailabilityWarning] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showAddRequerimiento, setShowAddRequerimiento] = useState(false);
   const [catalogoRequerimientos, setCatalogoRequerimientos] = useState<CatalogoRequerimiento[]>([]);
+  const [categoryAvailability, setCategoryAvailability] = useState<SolicitudRequerimientoCategoryAvailability | null>(null);
+  const [loadingCategoryAvailability, setLoadingCategoryAvailability] = useState(false);
+  const [categoryAvailabilityLoaded, setCategoryAvailabilityLoaded] = useState(false);
   const [newRequerimiento, setNewRequerimiento] = useState<{
     requerimientoId: string;
     requerimiento: string;
@@ -56,6 +114,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLDivElement>(null);
   const hasLoadedEmpresaRef = useRef(false);
+  const categoryAvailabilityPromiseRef = useRef<Promise<SolicitudRequerimientoCategoryAvailability | null> | null>(null);
 
   // Cerrar el dropdown cuando se hace click fuera
   useEffect(() => {
@@ -94,6 +153,82 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     }
   };
 
+  const isCategoriaAplicableParaSolicitud = useCallback((
+    categoria: string | undefined | null,
+    availabilityOverride?: SolicitudRequerimientoCategoryAvailability | null
+  ) => {
+    const availability = availabilityOverride === undefined ? categoryAvailability : availabilityOverride;
+
+    // Fail-open: si no se pudo validar contra BD, mantener comportamiento actual.
+    if (!availability) return true;
+
+    const categoriaKey = getCategoriaSolicitudKey(categoria);
+    if (!categoriaKey) return false;
+
+    return Boolean(availability[categoriaKey]);
+  }, [categoryAvailability]);
+
+  const filtrarRequerimientosPorSolicitud = useCallback((
+    requerimientos: EmpresaRequerimiento[],
+    availabilityOverride?: SolicitudRequerimientoCategoryAvailability | null
+  ) => {
+    return requerimientos.filter(req =>
+      isCategoriaAplicableParaSolicitud(req.categoria_requerimiento, availabilityOverride)
+    );
+  }, [isCategoriaAplicableParaSolicitud]);
+
+  const loadCategoryAvailability = useCallback(async (): Promise<SolicitudRequerimientoCategoryAvailability | null> => {
+    if (!project.id) {
+      setCategoryAvailability(null);
+      setCategoryAvailabilityLoaded(true);
+      return null;
+    }
+
+    if (categoryAvailabilityPromiseRef.current) {
+      return categoryAvailabilityPromiseRef.current;
+    }
+
+    setLoadingCategoryAvailability(true);
+
+    const promise = fetchSolicitudRequerimientoCategoryAvailability(project.id)
+      .then((data) => {
+        setCategoryAvailability(data);
+        setCategoryAvailabilityWarning(null);
+        return data;
+      })
+      .catch((err) => {
+        console.error('Error validando categorías implícitas de la solicitud:', err);
+        setCategoryAvailability(null);
+        setCategoryAvailabilityWarning(
+          'No se pudo validar las categorías implícitas de la solicitud. Se muestran todos los requerimientos (modo fallback).'
+        );
+        return null;
+      })
+      .finally(() => {
+        setLoadingCategoryAvailability(false);
+        setCategoryAvailabilityLoaded(true);
+        categoryAvailabilityPromiseRef.current = null;
+      });
+
+    categoryAvailabilityPromiseRef.current = promise;
+    return promise;
+  }, [project.id]);
+
+  const ensureCategoryAvailability = useCallback(async (): Promise<SolicitudRequerimientoCategoryAvailability | null> => {
+    if (categoryAvailability) return categoryAvailability;
+    if (categoryAvailabilityLoaded) return null;
+    return loadCategoryAvailability();
+  }, [categoryAvailability, categoryAvailabilityLoaded, loadCategoryAvailability]);
+
+  useEffect(() => {
+    hasLoadedEmpresaRef.current = false;
+    setCategoryAvailability(null);
+    setCategoryAvailabilityLoaded(false);
+    setCategoryAvailabilityWarning(null);
+    categoryAvailabilityPromiseRef.current = null;
+    void loadCategoryAvailability();
+  }, [project.id, loadCategoryAvailability]);
+
   const handleEmpresaChange = useCallback(async (empresaId: string, empresaNombre?: string) => {
     const selectedCliente = clientes.find(c => c.id.toString() === empresaId);
     const nombre = empresaNombre || selectedCliente?.nombre || '';
@@ -106,8 +241,12 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
       setEmpresaRequerimientos([]);
       
       try {
-        const reqs = await fetchEmpresaRequerimientos(nombre);
-        setEmpresaRequerimientos(reqs);
+        const [reqs, availability] = await Promise.all([
+          fetchEmpresaRequerimientos(nombre),
+          ensureCategoryAvailability()
+        ]);
+        const reqsFiltrados = filtrarRequerimientosPorSolicitud(reqs, availability);
+        setEmpresaRequerimientos(reqsFiltrados);
       } catch (error) {
         console.error('Error cargando requerimientos:', error);
         setEmpresaRequerimientos([]);
@@ -117,7 +256,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     } else {
       setEmpresaRequerimientos([]);
     }
-  }, [clientes]);
+  }, [clientes, ensureCategoryAvailability, filtrarRequerimientosPorSolicitud]);
 
   useEffect(() => {
     // Solo cargar una vez cuando el componente se monta y hay datos disponibles
@@ -158,6 +297,11 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     );
 
     if (requerimientoSeleccionado) {
+      if (!isCategoriaAplicableParaSolicitud(requerimientoSeleccionado.categoria_requerimiento)) {
+        alert('La categoría de este requerimiento no aplica para la Solicitud de Acreditación seleccionada.');
+        setShowSearchResults(false);
+        return;
+      }
       // Autocompletar categoría y responsable desde el catálogo usando el ID
       setNewRequerimiento({
         requerimientoId: requerimientoId,
@@ -184,22 +328,28 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
 
   // Filtrar requerimientos basado en la búsqueda
   // Si no hay término de búsqueda, mostrar todos los requerimientos
+  const catalogoRequerimientosAplicables = catalogoRequerimientos.filter(req =>
+    isCategoriaAplicableParaSolicitud(req.categoria_requerimiento)
+  );
+
   const filteredRequerimientos = searchTerm.trim() 
-    ? catalogoRequerimientos.filter(req => {
+    ? catalogoRequerimientosAplicables.filter(req => {
         const searchLower = searchTerm.toLowerCase();
         const requerimientoMatch = req.requerimiento?.toLowerCase().includes(searchLower);
         const categoriaMatch = req.categoria_requerimiento?.toLowerCase().includes(searchLower);
         return requerimientoMatch || categoriaMatch;
       })
-    : catalogoRequerimientos;
+    : catalogoRequerimientosAplicables;
 
   // Categorías disponibles (solo las especificadas)
-  const categoriasDisponibles = [
-    'Carpeta de Arranque',
-    'Trabajadores',
-    'Empresa MyMA',
-    'Empresa Subcontrato'
-  ];
+  const categoriasDisponibles = CATEGORIAS_SOLICITUD
+    .filter(categoria => isCategoriaAplicableParaSolicitud(categoria.label))
+    .map(categoria => categoria.label);
+
+  const noHayCategoriasAplicables =
+    categoryAvailabilityLoaded &&
+    !!categoryAvailability &&
+    categoriasDisponibles.length === 0;
 
   const handleEditRequerimiento = (index: number) => {
     const req = empresaRequerimientos[index];
@@ -247,6 +397,11 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
     }
 
     // Si está editando, actualizar el requerimiento existente
+    if (!isCategoriaAplicableParaSolicitud(newRequerimiento.categoria_requerimiento)) {
+      alert('La categoría seleccionada no aplica para la Solicitud de Acreditación seleccionada.');
+      return;
+    }
+
     if (editingIndex !== null) {
       const updatedReqs = [...empresaRequerimientos];
       updatedReqs[editingIndex] = {
@@ -604,15 +759,42 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                 </div>
                 <button
                   onClick={() => setShowAddRequerimiento(!showAddRequerimiento)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                  disabled={loadingCategoryAvailability || noHayCategoriasAplicables}
+                  title={noHayCategoriasAplicables ? 'Esta solicitud no tiene categorías aplicables para agregar requerimientos.' : undefined}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
                 >
                   <span className="material-symbols-outlined text-lg">add</span>
                   Agregar Requerimiento
                 </button>
               </div>
 
+              {loadingCategoryAvailability && (
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                  Validando categorías implícitas de la solicitud...
+                </div>
+              )}
+
+              {categoryAvailabilityWarning && (
+                <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {categoryAvailabilityWarning}
+                </div>
+              )}
+
+              {categoryAvailability && (
+                <div className="mb-4 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 text-xs text-[#516079]">
+                  Categorías aplicables: {categoriasDisponibles.length > 0 ? categoriasDisponibles.join(', ') : 'Ninguna'}.
+                  {' '}Registros detectados: Trabajadores {categoryAvailability.counts.trabajadores}, Conductores {categoryAvailability.counts.conductores}, Vehículos {categoryAvailability.counts.vehiculos}.
+                </div>
+              )}
+
+              {noHayCategoriasAplicables && (
+                <div className="mb-4 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  La Solicitud de Acreditación seleccionada no tiene categorías aplicables (Empresa, Trabajadores, Conductores o Vehículos). No se mostrarán ni se podrán agregar requerimientos.
+                </div>
+              )}
+
               {/* Formulario para agregar/editar requerimiento */}
-              {showAddRequerimiento && (
+              {showAddRequerimiento && !noHayCategoriasAplicables && (
                 <div className="mb-4 p-4 bg-white rounded-lg border-2 border-blue-300">
                   <h5 className="text-sm font-bold text-[#111318] mb-3">
                     {editingIndex !== null ? 'Editar Requerimiento' : 'Nuevo Requerimiento'}
@@ -739,7 +921,7 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                         value={newRequerimiento.categoria_requerimiento}
                         onChange={(e) => setNewRequerimiento({ ...newRequerimiento, categoria_requerimiento: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        disabled={!isOtroSelected && !editingIndex && !!newRequerimiento.requerimientoId && !!newRequerimiento.categoria_requerimiento && newRequerimiento.categoria_requerimiento.trim() !== ''}
+                        disabled={noHayCategoriasAplicables || (!isOtroSelected && !editingIndex && !!newRequerimiento.requerimientoId && !!newRequerimiento.categoria_requerimiento && newRequerimiento.categoria_requerimiento.trim() !== '')}
                       >
                         <option value="">
                           {isOtroSelected ? "Seleccionar categoría *" : "Se completará automáticamente"}
@@ -783,7 +965,8 @@ const SelectCompanyAndRequirementsView: React.FC<SelectCompanyAndRequirementsVie
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={handleAddRequerimiento}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                      disabled={noHayCategoriasAplicables}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
                     >
                       {editingIndex !== null ? 'Actualizar' : 'Agregar'}
                     </button>

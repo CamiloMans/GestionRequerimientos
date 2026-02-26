@@ -2176,6 +2176,108 @@ export const fetchProyectoVehiculosByProyecto = async (
   return data || [];
 };
 
+export interface SolicitudRequerimientoCategoryAvailability {
+  empresa: boolean;
+  trabajadores: boolean;
+  conductores: boolean;
+  vehiculos: boolean;
+  counts: {
+    trabajadores: number;
+    conductores: number;
+    vehiculos: number;
+  };
+  flags: {
+    requiereAcreditarEmpresa: boolean;
+    requiereAcreditarContratista: boolean;
+  };
+}
+
+const normalizeDbBoolean = (value: any): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return ['true', 't', '1', 'yes', 'y', 'si', 'sí'].includes(normalized);
+  }
+  return false;
+};
+
+export const fetchSolicitudRequerimientoCategoryAvailability = async (
+  idProyecto: number
+): Promise<SolicitudRequerimientoCategoryAvailability> => {
+  const [
+    solicitudResult,
+    trabajadoresCountResult,
+    conductoresCountResult,
+    vehiculosCountResult
+  ] = await Promise.all([
+    supabase
+      .from('fct_acreditacion_solicitud')
+      .select('requiere_acreditar_empresa, requiere_acreditar_contratista')
+      .eq('id', idProyecto)
+      .single(),
+    supabase
+      .from('fct_acreditacion_solicitud_trabajador_manual')
+      .select('id', { count: 'exact', head: true })
+      .eq('id_proyecto', idProyecto),
+    supabase
+      .from('fct_acreditacion_solicitud_conductor_manual')
+      .select('id', { count: 'exact', head: true })
+      .eq('id_proyecto', idProyecto),
+    supabase
+      .from('fct_acreditacion_solicitud_vehiculos')
+      .select('id', { count: 'exact', head: true })
+      .eq('id_proyecto', idProyecto),
+  ]);
+
+  if (solicitudResult.error) {
+    console.error('Error obteniendo flags de solicitud para categorías:', solicitudResult.error);
+    throw solicitudResult.error;
+  }
+
+  if (trabajadoresCountResult.error) {
+    console.error('Error contando trabajadores del proyecto:', trabajadoresCountResult.error);
+    throw trabajadoresCountResult.error;
+  }
+
+  if (conductoresCountResult.error) {
+    console.error('Error contando conductores del proyecto:', conductoresCountResult.error);
+    throw conductoresCountResult.error;
+  }
+
+  if (vehiculosCountResult.error) {
+    console.error('Error contando vehículos del proyecto:', vehiculosCountResult.error);
+    throw vehiculosCountResult.error;
+  }
+
+  const requiereAcreditarEmpresa = normalizeDbBoolean(
+    solicitudResult.data?.requiere_acreditar_empresa
+  );
+  const requiereAcreditarContratista = normalizeDbBoolean(
+    solicitudResult.data?.requiere_acreditar_contratista
+  );
+
+  const trabajadoresCount = trabajadoresCountResult.count || 0;
+  const conductoresCount = conductoresCountResult.count || 0;
+  const vehiculosCount = vehiculosCountResult.count || 0;
+
+  return {
+    empresa: requiereAcreditarEmpresa || requiereAcreditarContratista,
+    trabajadores: trabajadoresCount > 0,
+    conductores: conductoresCount > 0,
+    vehiculos: vehiculosCount > 0,
+    counts: {
+      trabajadores: trabajadoresCount,
+      conductores: conductoresCount,
+      vehiculos: vehiculosCount,
+    },
+    flags: {
+      requiereAcreditarEmpresa,
+      requiereAcreditarContratista,
+    },
+  };
+};
+
 // Función para enviar el resumen de solicitud a logs de backend (edge function)
 export const logResumenSolicitudAcreditacion = async (resumen: any): Promise<void> => {
   try {
