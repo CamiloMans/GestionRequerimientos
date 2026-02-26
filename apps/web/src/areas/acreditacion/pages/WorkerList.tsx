@@ -6,6 +6,7 @@ interface WorkerListProps {
   workers: Worker[];
   onAddWorker: (worker: Worker) => void;
   onRemoveWorker: (id: string) => void;
+  readOnly?: boolean;
   requireCompanySelection?: boolean; // Para mostrar selector de empresa contratista
   companies?: string[]; // Lista de empresas contratistas
   selectedCompany?: string; // Empresa contratista seleccionada desde el formulario padre
@@ -17,6 +18,7 @@ export const WorkerList: React.FC<WorkerListProps> = ({
   workers, 
   onAddWorker, 
   onRemoveWorker,
+  readOnly = false,
   requireCompanySelection = false,
   companies = [],
   selectedCompany: selectedCompanyProp = '',
@@ -57,15 +59,22 @@ export const WorkerList: React.FC<WorkerListProps> = ({
 
   // Cargar personas de Supabase
   useEffect(() => {
+    if (readOnly) {
+      setLoading(false);
+      return;
+    }
     loadPersonas();
-  }, []);
+  }, [readOnly]);
   
   // Cargar proveedores desde dim_core_proveedor cuando requireCompanySelection es true
   useEffect(() => {
+    if (readOnly) {
+      return;
+    }
     if (requireCompanySelection) {
       loadProveedores();
     }
-  }, [requireCompanySelection]);
+  }, [requireCompanySelection, readOnly]);
 
   const loadPersonas = async () => {
     try {
@@ -221,6 +230,84 @@ export const WorkerList: React.FC<WorkerListProps> = ({
   const isTargetMet = targetWorkerCount > 0 && workers.length === targetWorkerCount;
   const isOverTarget = targetWorkerCount > 0 && workers.length > targetWorkerCount;
   const isUnderTarget = targetWorkerCount > 0 && workers.length < targetWorkerCount;
+
+  if (readOnly) {
+    return (
+      <div className="flex flex-col gap-4 md:col-span-2 border-2 border-dashed border-primary/20 rounded-xl p-5 bg-gray-50/40">
+        <div className="flex flex-col gap-1 mb-2">
+          <h4 className="text-[#111318] text-sm font-bold">Trabajadores registrados</h4>
+          <p className="text-xs text-[#616f89]">
+            Vista de solo lectura de los trabajadores ingresados al momento del envío.
+          </p>
+        </div>
+
+        <div className="mt-1 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[#111318] text-[10px] font-bold uppercase tracking-wider text-gray-500">Lista de Asistentes</span>
+            {targetWorkerCount > 0 && (
+              <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                isTargetMet
+                  ? 'bg-green-100 text-green-700'
+                  : isOverTarget
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {workers.length} / {targetWorkerCount}
+              </span>
+            )}
+          </div>
+          <div className="bg-white border border-[#dbdfe6] rounded-lg overflow-hidden shadow-sm">
+            {workers.length === 0 ? (
+              <div className="p-6 flex flex-col items-center justify-center text-center gap-2">
+                <span className="material-symbols-outlined text-gray-300 text-4xl">group</span>
+                <p className="text-xs text-gray-500">No hay trabajadores registrados.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#dbdfe6]">
+                {workers.map((worker) => (
+                  <div key={worker.id} className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
+                        worker.type === WorkerType.INTERNAL
+                          ? 'bg-blue-100 text-primary'
+                          : 'bg-orange-100 text-orange-600'
+                      }`}>
+                        {worker.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-[#111318]">{worker.name}</span>
+                          <span className={`px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wide border ${
+                            worker.type === WorkerType.INTERNAL
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-orange-50 text-orange-700 border-orange-200'
+                          }`}>
+                            {worker.type === WorkerType.INTERNAL ? 'Interno' : 'Externo'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-[#616f89] mt-0.5">
+                          {worker.phone && (
+                            <span className="flex items-center gap-1">
+                              <span className="material-symbols-outlined text-xs">phone</span> {worker.phone}
+                            </span>
+                          )}
+                          {worker.company && (
+                            <span className="flex items-center gap-1 text-gray-500">
+                              • <span className="material-symbols-outlined text-xs">business</span> {worker.company}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 md:col-span-2 border-2 border-dashed border-primary/40 rounded-xl p-5 bg-blue-50/20">

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ProjectGalleryItem } from '../types';
+import { FieldRequestFormSnapshot, ProjectGalleryItem } from '../types';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
 import ProjectDetailView from './ProjectDetailView';
 import SelectCompanyAndRequirementsView from './SelectCompanyAndRequirementsView';
-import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables, fetchProjectGalleryItems, deleteSolicitudAcreditacion } from '../services/acreditacionService';
+import FieldRequestForm from './FieldRequestForm';
+import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables, fetchProjectGalleryItems, deleteSolicitudAcreditacion, fetchFieldRequestFormSnapshotByProjectId } from '../services/acreditacionService';
 import { supabase } from '../../../shared/api-client/supabase';
 
 interface ProjectGalleryV2Props {
@@ -21,6 +22,10 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showDetailView, setShowDetailView] = useState(false);
   const [showCompanyView, setShowCompanyView] = useState(false);
+  const [showSubmittedFormView, setShowSubmittedFormView] = useState(false);
+  const [loadingSubmittedForm, setLoadingSubmittedForm] = useState(false);
+  const [submittedFormSnapshot, setSubmittedFormSnapshot] = useState<FieldRequestFormSnapshot | null>(null);
+  const [submittedFormError, setSubmittedFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState<{ title: string; message: string; details?: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +232,44 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
       onProjectUpdate();
     }
   };
+
+  const handleBackFromSubmittedForm = () => {
+    setShowSubmittedFormView(false);
+    setLoadingSubmittedForm(false);
+    setSubmittedFormSnapshot(null);
+    setSubmittedFormError(null);
+    setSelectedProject(null);
+  };
+
+  const handleViewSubmittedForm = async (project: ProjectGalleryItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!project.id || typeof project.id !== 'number') {
+      alert('Error: El proyecto no tiene un ID válido');
+      return;
+    }
+
+    setSelectedProject(project);
+    setShowSubmittedFormView(true);
+    setSubmittedFormSnapshot(null);
+    setSubmittedFormError(null);
+    setLoadingSubmittedForm(true);
+
+    try {
+      const snapshot = await fetchFieldRequestFormSnapshotByProjectId(project.id);
+      setSubmittedFormSnapshot(snapshot);
+    } catch (snapshotError) {
+      console.error('Error reconstruyendo formulario enviado:', snapshotError);
+      setSubmittedFormError(
+        snapshotError instanceof Error
+          ? snapshotError.message
+          : 'No fue posible reconstruir el formulario enviado.'
+      );
+    } finally {
+      setLoadingSubmittedForm(false);
+    }
+  };
+
   const handleDeleteProject = (project: ProjectGalleryItem, e: React.MouseEvent) => {
     e.stopPropagation(); // Evitar que se active el onClick del contenedor
     
@@ -547,6 +590,47 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
     : 0;
 
   // Si se está mostrando la vista de selección de empresa, renderizar ese componente
+  if (showSubmittedFormView && selectedProject) {
+    if (submittedFormError && !loadingSubmittedForm && !submittedFormSnapshot) {
+      return (
+        <div className="layout-container flex h-full grow flex-col">
+          <div className="mx-auto flex w-full max-w-[900px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-6">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-red-600">error</span>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold text-red-900">No se pudo cargar el formulario enviado</h2>
+                  <p className="text-sm text-red-800 mt-1">{submittedFormError}</p>
+                  <button
+                    type="button"
+                    onClick={handleBackFromSubmittedForm}
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                    Volver a la galería
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <FieldRequestForm
+        onBack={handleBackFromSubmittedForm}
+        mode="view"
+        initialSnapshot={submittedFormSnapshot}
+        loadingSnapshot={loadingSubmittedForm}
+        snapshotMeta={{
+          projectCode: selectedProject.projectCode,
+          createdAt: selectedProject.createdAt,
+        }}
+      />
+    );
+  }
+
   if (showCompanyView && selectedProject) {
     return <SelectCompanyAndRequirementsView project={selectedProject} onBack={handleBackFromCompanyView} onUpdate={onProjectUpdate} />;
   }
@@ -836,6 +920,14 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({ projects, onProject
                         );
                       })()}
                       {/* Botón de eliminar - Solo visible para cmansilla@myma.cl */}
+                      <button
+                        onClick={(e) => handleViewSubmittedForm(project, e)}
+                        className="mt-1 px-2 py-1 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded text-xs font-medium transition-colors flex items-center gap-1"
+                        title="Ver formulario enviado"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">visibility</span>
+                        Ver formulario
+                      </button>
                       {userEmail === 'cmansilla@myma.cl' && (
                         <button
                           onClick={(e) => handleDeleteProject(project, e)}

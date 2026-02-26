@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
-import { Worker, WorkerType, RequestFormData, MOCK_COMPANIES, Persona, Cliente } from '../types';
+import { Worker, WorkerType, RequestFormData, MOCK_COMPANIES, Persona, Cliente, FieldRequestFormSnapshot } from '../types';
 import {
   createSolicitudAcreditacion,
   createProyectoTrabajadores,
@@ -34,9 +34,23 @@ interface VehiculoContratista {
 
 interface FieldRequestFormProps {
   onBack: () => void;
+  mode?: 'create' | 'view';
+  initialSnapshot?: FieldRequestFormSnapshot | null;
+  loadingSnapshot?: boolean;
+  snapshotMeta?: {
+    projectCode?: string;
+    createdAt?: string;
+  };
 }
 
-const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
+const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
+  onBack,
+  mode = 'create',
+  initialSnapshot = null,
+  loadingSnapshot = false,
+  snapshotMeta,
+}) => {
+  const isViewMode = mode === 'view';
   const [formData, setFormData] = useState<RequestFormData>({
     requestDate: '',
     requesterName: '',
@@ -109,8 +123,41 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const [showDropdownCliente, setShowDropdownCliente] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    if (!isViewMode || !initialSnapshot) {
+      return;
+    }
+
+    setFormData(initialSnapshot.formData);
+    setWorkers(initialSnapshot.workers || []);
+    setWorkersContratista(initialSnapshot.workersContratista || []);
+    setTargetWorkerCountMyma(initialSnapshot.targetWorkerCountMyma || 0);
+    setTargetWorkerCountContratista(initialSnapshot.targetWorkerCountContratista || 0);
+    setHorarios(initialSnapshot.horarios || []);
+    setVehiculosMyma(initialSnapshot.vehiculosMyma || []);
+    setVehiculosContratista(initialSnapshot.vehiculosContratista || []);
+
+    // Sincronizar inputs tipo buscador mientras las listas remotas cargan.
+    setSearchQuerySolicitante(initialSnapshot.formData.requesterName || '');
+    setSearchQueryJefeProyecto(initialSnapshot.formData.projectManager || '');
+    setSearchQueryAdminContrato(initialSnapshot.formData.contractAdmin || '');
+    setSearchQueryCliente(initialSnapshot.formData.clientName || '');
+
+    setSelectedPersonaSolicitante(null);
+    setSelectedPersonaJefeProyecto(null);
+    setSelectedPersonaAdminContrato(null);
+    setSelectedCliente(null);
+    setShowDropdownSolicitante(false);
+    setShowDropdownJefeProyecto(false);
+    setShowDropdownAdminContrato(false);
+    setShowDropdownCliente(false);
+  }, [isViewMode, initialSnapshot]);
+
   // Limpiar todos los campos cuando se monta el componente
   useEffect(() => {
+    if (isViewMode) {
+      return;
+    }
     // Limpiar sessionStorage para evitar cargar borradores previos
     const STORAGE_KEY = 'field_request_form_draft';
     try {
@@ -176,7 +223,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     setSearchQueryCliente('');
     setSelectedCliente(null);
     setShowDropdownCliente(false);
-  }, []); // Solo se ejecuta al montar el componente
+  }, [isViewMode]); // Solo se ejecuta al montar el componente (modo creación)
 
   // Cargar proveedores desde la base de datos
   useEffect(() => {
@@ -335,6 +382,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   // Guardar datos cuando cambian
   useEffect(() => {
+    if (isViewMode) {
+      return;
+    }
     try {
       const dataToSave = {
         formData,
@@ -365,6 +415,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     vehiculosContratista,
     selectedPersonaSolicitante,
     searchQuerySolicitante,
+    isViewMode,
   ]);
 
   // Filtrar personas cuando cambia el término de búsqueda del solicitante
@@ -656,6 +707,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isViewMode) return;
     if (isSaving) return;
 
     try {
@@ -1000,6 +1052,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   // Función para rellenar el formulario con datos aleatorios
   const fillRandomData = () => {
+    if (isViewMode) return;
     const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
     const randomItem = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
     
@@ -1223,6 +1276,21 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           </div>
         </div>
       )}
+      {isViewMode && loadingSnapshot && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center"
+          style={{ pointerEvents: 'auto' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 flex flex-col items-center">
+            <div className="inline-block animate-spin rounded-full h-14 w-14 border-4 border-primary border-t-transparent mb-4"></div>
+            <h3 className="text-lg font-semibold text-[#111318] mb-2">Cargando formulario enviado...</h3>
+            <p className="text-sm text-[#616f89] text-center">
+              Estamos reconstruyendo la solicitud desde la base de datos.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-6 py-8 md:px-10 lg:px-12">
         
@@ -1236,18 +1304,41 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             Proyectos
           </button>
           <span className="material-symbols-outlined text-[#616f89] text-base">chevron_right</span>
-          <span className="text-[#111318] text-sm font-medium">Nueva Solicitud</span>
+          <span className="text-[#111318] text-sm font-medium">
+            {isViewMode ? 'Solicitud Enviada (solo lectura)' : 'Nueva Solicitud'}
+          </span>
         </div>
 
         {/* Header */}
         <div className="mb-8 flex flex-wrap justify-between gap-4 border-b border-[#e5e7eb] pb-6">
           <div className="flex flex-col gap-2">
-            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">Formulario de solicitud de Acreditación</h1>
+            <h1 className="text-[#111318] text-2xl lg:text-3xl font-bold tracking-tight">
+              {isViewMode ? 'Solicitud de Acreditación enviada (solo lectura)' : 'Formulario de solicitud de Acreditación'}
+            </h1>
             <p className="text-[#616f89] text-sm lg:text-base font-normal">
-              Ingrese los datos requeridos para la gestión de terreno y acreditación.
+              {isViewMode
+                ? 'Visualización de la solicitud registrada. Los datos no se pueden editar desde esta vista.'
+                : 'Ingrese los datos requeridos para la gestión de terreno y acreditación.'}
             </p>
+            {isViewMode && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                {snapshotMeta?.projectCode && (
+                  <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
+                    <span className="material-symbols-outlined text-[14px]">folder_open</span>
+                    {snapshotMeta.projectCode}
+                  </span>
+                )}
+                {snapshotMeta?.createdAt && (
+                  <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1">
+                    <span className="material-symbols-outlined text-[14px]">schedule</span>
+                    Creada: {new Date(snapshotMeta.createdAt).toLocaleString('es-CL')}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="hidden lg:flex items-center gap-3">
+            {!isViewMode && (
             <button 
               type="button"
               onClick={fillRandomData}
@@ -1256,18 +1347,20 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               <span className="material-symbols-outlined text-[20px]">auto_fix_high</span>
               Rellenar Datos
             </button>
+            )}
             <button 
               onClick={handleBack}
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-[#616f89] border border-gray-200 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all"
             >
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-              Volver al Listado
+              {isViewMode ? 'Volver' : 'Volver al Listado'}
             </button>
           </div>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-8 pb-12">
+          <fieldset disabled={isViewMode} className="contents">
           
           {/* Section 1: Identificación de la Solicitud */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
@@ -1799,8 +1892,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 workers={workers} 
                 onAddWorker={handleAddWorker} 
                 onRemoveWorker={handleRemoveWorker}
+                readOnly={isViewMode}
                 targetWorkerCount={targetWorkerCountMyma}
-                onTargetWorkerCountChange={setTargetWorkerCountMyma}
+                onTargetWorkerCountChange={isViewMode ? undefined : setTargetWorkerCountMyma}
               />
             </div>
           </div>
@@ -2095,11 +2189,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 workers={workersContratista} 
                 onAddWorker={handleAddWorkerContratista} 
                 onRemoveWorker={handleRemoveWorkerContratista}
+                readOnly={isViewMode}
                 requireCompanySelection={true}
                 companies={proveedores.length > 0 ? proveedores : MOCK_COMPANIES.map(c => c.name)}
                 selectedCompany={formData.razonSocialContratista}
                 targetWorkerCount={targetWorkerCountContratista}
-                onTargetWorkerCountChange={setTargetWorkerCountContratista}
+                onTargetWorkerCountChange={isViewMode ? undefined : setTargetWorkerCountContratista}
               />
             </div>
           </div>
@@ -2207,32 +2302,47 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </>
           )}
 
+          </fieldset>
+
           {/* Footer Actions */}
           <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
-            <button 
-              type="button" 
-              onClick={onBack}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
-            >
-              Cancelar
-            </button>
-            <button 
-              type="submit" 
-              disabled={isSaving}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[20px]">save</span>
-                  Guardar Solicitud
-                </>
-              )}
-            </button>
+            {isViewMode ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-colors text-sm flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                Volver
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[20px]">save</span>
+                      Guardar Solicitud
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
 
         </form>

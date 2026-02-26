@@ -1,5 +1,5 @@
 import { supabase } from '@shared/api-client/supabase';
-import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento, ProyectoTrabajador } from '../types';
+import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento, ProyectoTrabajador, FieldRequestFormSnapshot, RequestFormData, Worker, WorkerType } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 import { ACREDITACION_PROXY_ENDPOINTS } from './acreditacionProxyEndpoints';
 
@@ -2174,6 +2174,239 @@ export const fetchProyectoVehiculosByProyecto = async (
   }
 
   return data || [];
+};
+
+const createEmptyFieldRequestFormData = (): RequestFormData => ({
+  requestDate: '',
+  requesterName: '',
+  kickoffDate: '',
+  projectCode: '',
+  requirement: '',
+  clientName: '',
+  clientContactName: '',
+  clientContactEmail: '',
+  projectManager: '',
+  accreditationFollowUp: '',
+  fieldStartDate: '',
+  riskPreventionNotice: '',
+  companyAccreditationRequired: '',
+  requiereAcreditarTrabajadoresMyma: '',
+  contractAdmin: '',
+  nombreContrato: '',
+  numeroContrato: '',
+  administradorContrato: '',
+  jornadaTrabajo: '',
+  horarioTrabajo: '',
+  cantidadVehiculos: '',
+  placaPatente: '',
+  requiereAcreditarContratista: '',
+  requiereAcreditarTrabajadoresContratista: '',
+  modalidadContrato: '',
+  razonSocialContratista: '',
+  nombreResponsableContratista: '',
+  telefonoResponsableContratista: '',
+  emailResponsableContratista: '',
+  cantidadVehiculosContratista: '',
+  placasVehiculosContratista: '',
+  registroSstTerreo: '',
+  cantidad_trabajadores_myma: 0,
+  cantidad_trabajadores_contratista: 0,
+});
+
+const sortByCreatedAtOrId = <T extends { created_at?: string; id?: number }>(rows: T[]): T[] => {
+  return [...rows].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    if (aTime !== bTime) return aTime - bTime;
+    return (a.id || 0) - (b.id || 0);
+  });
+};
+
+const toYesNoValue = (value: any): string => {
+  if (value === null || value === undefined || value === '') return '';
+  return normalizeDbBoolean(value) ? 'yes' : 'no';
+};
+
+export const fetchFieldRequestFormSnapshotByProjectId = async (
+  idProyecto: number
+): Promise<FieldRequestFormSnapshot> => {
+  if (!idProyecto || typeof idProyecto !== 'number') {
+    throw new Error('ID de proyecto inválido para reconstruir formulario');
+  }
+
+  const missingFields = [
+    'accreditationFollowUp',
+    'horarioTrabajo',
+  ];
+
+  const [
+    solicitudResult,
+    trabajadoresResult,
+    horariosResult,
+    conductoresResult,
+    vehiculosResult,
+  ] = await Promise.all([
+    supabase
+      .from('fct_acreditacion_solicitud')
+      .select('*')
+      .eq('id', idProyecto)
+      .single(),
+    supabase
+      .from('fct_acreditacion_solicitud_trabajador_manual')
+      .select('*')
+      .eq('id_proyecto', idProyecto),
+    supabase
+      .from('fct_acreditacion_solicitud_horario_manual')
+      .select('*')
+      .eq('id_proyecto', idProyecto),
+    supabase
+      .from('fct_acreditacion_solicitud_conductor_manual')
+      .select('*')
+      .eq('id_proyecto', idProyecto),
+    supabase
+      .from('fct_acreditacion_solicitud_vehiculos')
+      .select('*')
+      .eq('id_proyecto', idProyecto),
+  ]);
+
+  if (solicitudResult.error || !solicitudResult.data) {
+    console.error('Error reconstruyendo formulario: solicitud no encontrada', solicitudResult.error);
+    throw solicitudResult.error || new Error(`No se encontró la solicitud ${idProyecto}`);
+  }
+
+  if (trabajadoresResult.error) {
+    console.error('Error obteniendo trabajadores para snapshot:', trabajadoresResult.error);
+    missingFields.push('workers (error de lectura en tabla de trabajadores)');
+  }
+  if (horariosResult.error) {
+    console.error('Error obteniendo horarios para snapshot:', horariosResult.error);
+    missingFields.push('horarios (error de lectura en tabla de horarios)');
+  }
+  if (conductoresResult.error) {
+    console.error('Error obteniendo conductores para snapshot:', conductoresResult.error);
+    missingFields.push('vehiculos/conductores (error de lectura en tabla de conductores)');
+  }
+  if (vehiculosResult.error) {
+    console.error('Error obteniendo vehiculos para snapshot:', vehiculosResult.error);
+    missingFields.push('vehiculos (error de lectura en tabla de vehiculos)');
+  }
+
+  const solicitud = solicitudResult.data as any;
+  const trabajadoresRows = sortByCreatedAtOrId((trabajadoresResult.data || []) as any[]);
+  const horariosRows = sortByCreatedAtOrId((horariosResult.data || []) as any[]);
+  const conductoresRows = sortByCreatedAtOrId((conductoresResult.data || []) as any[]);
+  const vehiculosRows = sortByCreatedAtOrId((vehiculosResult.data || []) as any[]);
+
+  const razonSocialContratista = (solicitud.razon_social_contratista || '').trim();
+
+  const trabajadoresMymaRows = trabajadoresRows.filter((row) => row.categoria_empresa === 'MyMA');
+  const trabajadoresContratistaRows = trabajadoresRows.filter((row) => row.categoria_empresa !== 'MyMA');
+
+  const workers: Worker[] = trabajadoresMymaRows.map((row) => ({
+    id: String(row.id ?? `${idProyecto}-myma-${row.nombre_trabajador ?? 'trabajador'}`),
+    name: row.nombre_trabajador || 'Sin nombre',
+    type: WorkerType.INTERNAL,
+    phone: row.telefono || undefined,
+    rut: row.rut || undefined,
+    personaId: row.persona_id ?? undefined,
+  }));
+
+  const workersContratista: Worker[] = trabajadoresContratistaRows.map((row) => ({
+    id: String(row.id ?? `${idProyecto}-contratista-${row.nombre_trabajador ?? 'trabajador'}`),
+    name: row.nombre_trabajador || 'Sin nombre',
+    type: WorkerType.EXTERNAL,
+    phone: row.telefono || undefined,
+    rut: row.rut || undefined,
+    company: razonSocialContratista || 'Contratista',
+  }));
+
+  const buildVehiculosPorCategoria = (categoriaEmpresa: 'MyMA' | 'Contratista') => {
+    const conductoresCategoria = conductoresRows
+      .filter((row) => row.categoria_empresa === categoriaEmpresa)
+      .map((row) => ({
+        placa: (row.patente || '').toString().trim(),
+        conductor: (row.nombre_conductor || '').toString().trim(),
+      }));
+
+    if (conductoresCategoria.length > 0) {
+      return conductoresCategoria;
+    }
+
+    return vehiculosRows
+      .filter((row) => row.categoria_empresa === categoriaEmpresa)
+      .map((row) => ({
+        placa: (row.patente || '').toString().trim(),
+        conductor: '',
+      }));
+  };
+
+  const vehiculosMyma = buildVehiculosPorCategoria('MyMA');
+  const vehiculosContratista = buildVehiculosPorCategoria('Contratista');
+
+  const horarios = horariosRows.map((row) => ({
+    dias: (row.dias || '').toString(),
+    horario: (row.horario || '').toString(),
+  }));
+
+  const targetWorkerCountMyma = Number(solicitud.cantidad_trabajadores_myma ?? workers.length ?? 0) || 0;
+  const targetWorkerCountContratista = Number(solicitud.cantidad_trabajadores_contratista ?? workersContratista.length ?? 0) || 0;
+
+  const requiereAcreditarTrabajadoresMyma = targetWorkerCountMyma > 0 || workers.length > 0 ? 'yes' : 'no';
+  const requiereAcreditarTrabajadoresContratista =
+    targetWorkerCountContratista > 0 || workersContratista.length > 0 ? 'yes' : 'no';
+
+  const formData: RequestFormData = {
+    ...createEmptyFieldRequestFormData(),
+    requestDate: solicitud.fecha_solicitud || '',
+    requesterName: solicitud.nombre_solicitante || '',
+    kickoffDate: solicitud.fecha_reunion_arranque || '',
+    projectCode: solicitud.codigo_proyecto || '',
+    requirement: solicitud.requisito || '',
+    clientName: solicitud.nombre_cliente || '',
+    clientContactName: solicitud.nombre_contacto_cliente || solicitud.contacto_cliente_nombre || '',
+    clientContactEmail: solicitud.email_contacto_cliente || solicitud.contacto_cliente_email || '',
+    projectManager: solicitud.jefe_proyectos_myma || '',
+    accreditationFollowUp: '',
+    fieldStartDate: solicitud.fecha_inicio_terreno || '',
+    riskPreventionNotice: toYesNoValue(solicitud.aviso_prevencion_riesgo),
+    companyAccreditationRequired: toYesNoValue(solicitud.requiere_acreditar_empresa),
+    requiereAcreditarTrabajadoresMyma,
+    contractAdmin: solicitud.admin_contrato_myma || '',
+    nombreContrato: solicitud.nombre_contrato || '',
+    numeroContrato: solicitud.numero_contrato || '',
+    administradorContrato: solicitud.administrador_contrato || '',
+    jornadaTrabajo: solicitud.condiciones_laborales || '',
+    horarioTrabajo: '',
+    cantidadVehiculos: String(vehiculosMyma.length),
+    placaPatente: '',
+    requiereAcreditarContratista: toYesNoValue(solicitud.requiere_acreditar_contratista),
+    requiereAcreditarTrabajadoresContratista,
+    modalidadContrato: solicitud.modalidad_contrato_contratista || '',
+    razonSocialContratista,
+    nombreResponsableContratista:
+      solicitud.nombre_responsable_contratista || solicitud.responsable_contratista_nombre || '',
+    telefonoResponsableContratista:
+      solicitud.telefono_responsable_contratista || solicitud.responsable_contratista_telefono || '',
+    emailResponsableContratista:
+      solicitud.email_responsable_contratista || solicitud.responsable_contratista_email || '',
+    cantidadVehiculosContratista: String(vehiculosContratista.length),
+    placasVehiculosContratista: '',
+    registroSstTerreo: toYesNoValue(solicitud.registro_sst_terreno),
+    cantidad_trabajadores_myma: targetWorkerCountMyma,
+    cantidad_trabajadores_contratista: targetWorkerCountContratista,
+  };
+
+  return {
+    formData,
+    workers,
+    workersContratista,
+    targetWorkerCountMyma,
+    targetWorkerCountContratista,
+    horarios,
+    vehiculosMyma,
+    vehiculosContratista,
+    missingFields,
+  };
 };
 
 export interface SolicitudRequerimientoCategoryAvailability {

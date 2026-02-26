@@ -243,6 +243,27 @@ export interface RequestFormData {
   cantidad_trabajadores_contratista?: number;
 }
 
+export interface FieldRequestFormSnapshot {
+  formData: RequestFormData;
+  workers: Worker[];
+  workersContratista: Worker[];
+  targetWorkerCountMyma: number;
+  targetWorkerCountContratista: number;
+  horarios: Array<{
+    dias: string;
+    horario: string;
+  }>;
+  vehiculosMyma: Array<{
+    placa: string;
+    conductor: string;
+  }>;
+  vehiculosContratista: Array<{
+    placa: string;
+    conductor: string;
+  }>;
+  missingFields?: string[];
+}
+
 // Tipo para la tabla solicitud_acreditacion
 export interface SolicitudAcreditacion {
   id: number;
