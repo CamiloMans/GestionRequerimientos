@@ -5,9 +5,15 @@ interface RequestListProps {
   requests: RequestItem[];
   onCreateNew: () => void;
   onEdit: (item: RequestItem) => void;
+  canManageActions: boolean;
 }
 
-const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit }) => {
+const RequestList: React.FC<RequestListProps> = ({
+  requests,
+  onCreateNew,
+  onEdit,
+  canManageActions,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [openDriveMenuId, setOpenDriveMenuId] = useState<string | null>(null);
@@ -153,6 +159,22 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
     setPreviewLink(null);
   };
 
+  const handleCreateNewClick = () => {
+    if (!canManageActions) {
+      return;
+    }
+
+    onCreateNew();
+  };
+
+  const handleEditClick = (item: RequestItem) => {
+    if (!canManageActions) {
+      return;
+    }
+
+    onEdit(item);
+  };
+
   return (
     <div className="layout-container flex h-full grow flex-col">
       <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8 md:px-10 lg:px-12">
@@ -194,13 +216,24 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
                   </span>
                 </div>
               </div>
+              {!canManageActions && (
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold w-fit">
+                  <span className="material-symbols-outlined text-[16px]">visibility</span>
+                  <span>Modo solo lectura: puedes filtrar y visualizar documentos</span>
+                </div>
+              )}
             </div>
             
             {/* Botón de acción */}
             <div className="flex-shrink-0">
               <button 
-                onClick={onCreateNew}
-                className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-xl font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-200 hover:scale-105 active:scale-95"
+                onClick={handleCreateNewClick}
+                disabled={!canManageActions}
+                className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold shadow-md transition-all duration-200 ${
+                  canManageActions
+                    ? 'bg-primary hover:bg-primary-hover text-white shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-105 active:scale-95'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
               >
                 <span className="material-symbols-outlined text-xl">add_circle</span>
                 <span className="hidden sm:inline">Nuevo Requerimiento</span>
@@ -379,8 +412,13 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button 
-                        onClick={() => onEdit(req)}
-                        className="text-gray-400 hover:text-primary hover:bg-primary-light p-1.5 rounded-full transition-colors" 
+                        onClick={() => handleEditClick(req)}
+                        disabled={!canManageActions}
+                        className={`p-1.5 rounded-full transition-colors ${
+                          canManageActions
+                            ? 'text-gray-400 hover:text-primary hover:bg-primary-light'
+                            : 'text-gray-300 cursor-not-allowed'
+                        }`} 
                         title="Editar Solicitud"
                       >
                         <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -496,8 +534,13 @@ const RequestList: React.FC<RequestListProps> = ({ requests, onCreateNew, onEdit
 
               {/* Action Button */}
               <button 
-                onClick={() => onEdit(req)}
-                className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary hover:bg-primary hover:text-white px-4 py-2.5 rounded-lg font-medium transition-all border border-primary/20"
+                onClick={() => handleEditClick(req)}
+                disabled={!canManageActions}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all border ${
+                  canManageActions
+                    ? 'bg-primary/10 text-primary hover:bg-primary hover:text-white border-primary/20'
+                    : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                }`}
               >
                 <span className="material-symbols-outlined text-[20px]">edit</span>
                 Editar Solicitud

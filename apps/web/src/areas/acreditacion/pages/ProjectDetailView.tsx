@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectGalleryItem, RequestItem, RequestStatus } from '../types';
+import type { AcreditacionAccessLevel } from '../utils/navigationPolicy';
 import { updateRequerimientoEstado, fetchProyectoRequerimientoObservaciones, fetchProyectoRequerimientos, fetchPersonaRequerimientosByNombre, sendWebhookViaEdgeFunction, fetchSolicitudAcreditacionByCodigo, enviarIdProyectoN8n } from '../services/acreditacionService';
 import { supabase } from '@shared/api-client/supabase';
 
@@ -27,11 +28,28 @@ interface ProjectDetailViewProps {
   onBack: () => void;
   onUpdate?: () => void;
   onFilterSidebarChange?: (isOpen: boolean) => void;
+  accessLevel?: AcreditacionAccessLevel;
 }
 
-const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onUpdate, onFilterSidebarChange }) => {
+const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
+  project,
+  onBack,
+  onUpdate,
+  onFilterSidebarChange,
+  accessLevel = 'none',
+}) => {
   // Estado local para el status del proyecto (para actualizar sin recargar)
   const [projectStatus, setProjectStatus] = useState<string>(project.status);
+
+  const isReadOnlyCollaborator = accessLevel === 'editor' || accessLevel === 'viewer';
+  const canUploadDocuments = !isReadOnlyCollaborator;
+  const canDeleteDocuments = !isReadOnlyCollaborator;
+  const canToggleRealizado = !isReadOnlyCollaborator;
+  const canOpenWorkerName = !isReadOnlyCollaborator;
+  const canSaveLinkedDocument = !isReadOnlyCollaborator;
+  const canPreviewDocument = true;
+  const canOpenDriveDocument = true;
+  const canSendProjectDetail = accessLevel !== 'none';
   
   // Estado para controlar qué dropdown de columna está abierto
   const [openFilterDropdown, setOpenFilterDropdown] = useState<string | null>(null);
@@ -372,6 +390,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
   const handleToggleRealizado = async (e: React.MouseEvent, id: number) => {
     // Detener la propagación para evitar que se active el click del contenedor
     e.stopPropagation();
+
+    if (!canToggleRealizado) {
+      return;
+    }
     
     const requirement = requirements.find(r => r.id === id);
     if (!requirement) return;
@@ -517,6 +539,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para manejar el clic en el nombre del trabajador
   const handleTrabajadorClick = async (nombreTrabajador: string) => {
+    if (!canOpenWorkerName) return;
     if (!nombreTrabajador) return;
     
     setPersonaSeleccionada(nombreTrabajador);
@@ -546,6 +569,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para manejar la selección de documentos (solo uno, y no "Vencida" o "Sin documento")
   const handleToggleDocumentoSeleccionado = (documentoId: string, estado: string, tieneLink: boolean) => {
+    if (!canSaveLinkedDocument) {
+      return;
+    }
+
     // No permitir seleccionar documentos en estado "Vencida" o "Sin documento"
     if (estado === 'Vencida' || estado === 'Sin documento' || !tieneLink) {
       return;
@@ -614,6 +641,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para abrir el popup de confirmación de eliminación
   const handleEliminarDocumentoRequerimiento = (requerimientoId: number) => {
+    if (!canDeleteDocuments) {
+      return;
+    }
+
     const requerimiento = requirements.find(req => req.id === requerimientoId);
     
     // Permitir eliminar si hay drive_doc_url o localFileUrl
@@ -635,6 +666,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para confirmar y enviar webhook de eliminación de documento (no elimina, solo envía información)
   const confirmarEliminacionDocumento = async () => {
+    if (!canDeleteDocuments) {
+      return;
+    }
+
     if (!requerimientoAEliminar) return;
 
     // Obtener el requerimiento del estado local para tener todos los datos
@@ -803,6 +838,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para enviar el ID del proyecto a n8n
   const handleEnviarIdProyecto = async () => {
+    if (!canSendProjectDetail) {
+      return;
+    }
+
     if (!project.id) {
       alert('Error: No se pudo obtener el ID del proyecto.');
       return;
@@ -844,6 +883,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para enviar webhook con el documento seleccionado
   const handleGuardarDocumentos = async () => {
+    if (!canSaveLinkedDocument) {
+      return;
+    }
+
     if (!documentoSeleccionado) {
       alert('Por favor, selecciona un documento para guardar.');
       return;
@@ -1040,6 +1083,10 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
   // Función para manejar la subida de un documento
   const handleSubirDocumento = async (file: File, requerimiento: ProjectRequirement) => {
+    if (!canUploadDocuments) {
+      return;
+    }
+
     if (!file) {
       alert('Por favor, selecciona un archivo para subir.');
       return;
@@ -1392,9 +1439,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
             <div className="flex items-center gap-3">
               <button
                 onClick={handleEnviarIdProyecto}
-                disabled={enviandoProyecto}
+                disabled={enviandoProyecto || !canSendProjectDetail}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all shadow-sm ${
-                  enviandoProyecto
+                  enviandoProyecto || !canSendProjectDetail
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white hover:shadow-md'
                 }`}
@@ -1788,12 +1835,18 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                           <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-gray-600 text-[20px]">person</span>
                             {req.nombre_trabajador ? (
-                              <button
-                                onClick={() => handleTrabajadorClick(req.nombre_trabajador!)}
-                                className="text-sm text-primary hover:text-primary-hover hover:underline font-medium transition-colors cursor-pointer"
-                              >
-                                {req.nombre_trabajador}
-                              </button>
+                              canOpenWorkerName ? (
+                                <button
+                                  onClick={() => handleTrabajadorClick(req.nombre_trabajador!)}
+                                  className="text-sm text-primary hover:text-primary-hover hover:underline font-medium transition-colors cursor-pointer"
+                                >
+                                  {req.nombre_trabajador}
+                                </button>
+                              ) : (
+                                <span className="text-sm font-medium text-gray-900">
+                                  {req.nombre_trabajador}
+                                </span>
+                              )
                             ) : isVehicleRequirement(req) ? (
                               <span className="text-sm font-medium text-gray-900">
                                 {getRequirementEntityLabel(req)}
@@ -1862,48 +1915,52 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
 
                         {/* Documentos */}
                         <td className="px-6 py-4">
-                          <label className="cursor-pointer">
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
+                          {canUploadDocuments ? (
+                            <label className="cursor-pointer">
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    e.stopPropagation();
+                                    await handleSubirDocumento(file, req);
+                                    // Resetear el input para permitir subir el mismo archivo de nuevo
+                                    e.target.value = '';
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
                                   e.stopPropagation();
-                                  await handleSubirDocumento(file, req);
-                                  // Resetear el input para permitir subir el mismo archivo de nuevo
-                                  e.target.value = '';
-                                }
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const input = e.currentTarget.parentElement?.querySelector('input[type="file"]') as HTMLInputElement;
-                                input?.click();
-                              }}
-                              disabled={subiendoDocumento === req.id}
-                              className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg transition-colors text-xs font-semibold ${
-                                subiendoDocumento === req.id
-                                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300'
-                              }`}
-                            >
-                              {subiendoDocumento === req.id ? (
-                                <>
-                                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                                  <span>Subiendo...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="material-symbols-outlined text-[18px]">upload_file</span>
-                                  <span>Subir</span>
-                                </>
-                              )}
-                            </button>
-                          </label>
+                                  const input = e.currentTarget.parentElement?.querySelector('input[type="file"]') as HTMLInputElement;
+                                  input?.click();
+                                }}
+                                disabled={subiendoDocumento === req.id}
+                                className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg transition-colors text-xs font-semibold ${
+                                  subiendoDocumento === req.id
+                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                    : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-300'
+                                }`}
+                              >
+                                {subiendoDocumento === req.id ? (
+                                  <>
+                                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                                    <span>Subiendo...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="material-symbols-outlined text-[18px]">upload_file</span>
+                                    <span>Subir</span>
+                                  </>
+                                )}
+                              </button>
+                            </label>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
                         </td>
 
                         {/* Documento */}
@@ -1911,39 +1968,45 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                           {req.drive_doc_url ? (
                             // Si hay link de Drive, mostrar todos los iconos (Drive está disponible)
                             <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleVerDocumentoRequerimiento(req.drive_doc_url!);
-                                }}
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
-                                title="Visualizar documento"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAbrirDocumentoRequerimiento(req.drive_doc_url!);
-                                }}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-full transition-colors"
-                                title="Abrir en Google Drive"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">open_in_new</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEliminarDocumentoRequerimiento(req.id);
-                                }}
-                                className="text-gray-600 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-full transition-colors"
-                                title="Eliminar documento"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                              </button>
+                              {canPreviewDocument && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVerDocumentoRequerimiento(req.drive_doc_url!);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
+                                  title="Visualizar documento"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                </button>
+                              )}
+                              {canOpenDriveDocument && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAbrirDocumentoRequerimiento(req.drive_doc_url!);
+                                  }}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                                  title="Abrir en Google Drive"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                                </button>
+                              )}
+                              {canDeleteDocuments && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEliminarDocumentoRequerimiento(req.id);
+                                  }}
+                                  className="text-gray-600 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                                  title="Eliminar documento"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                              )}
                             </div>
                           ) : req.localFileUrl ? (
                             // Si solo hay archivo local, mostrar solo el icono de visualización
@@ -1971,10 +2034,15 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                             <button
                               type="button"
                               onClick={(e) => handleToggleRealizado(e, req.id)}
+                              disabled={!canToggleRealizado}
                               className={`inline-flex items-center justify-center w-10 h-10 rounded-full transition-all ${
                                 req.realizado 
-                                  ? 'bg-green-100 hover:bg-green-200 border-2 border-green-500' 
-                                  : 'bg-gray-100 hover:bg-gray-200 border-2 border-gray-300'
+                                  ? canToggleRealizado
+                                    ? 'bg-green-100 hover:bg-green-200 border-2 border-green-500'
+                                    : 'bg-green-100 border-2 border-green-500 cursor-not-allowed opacity-70'
+                                  : canToggleRealizado
+                                    ? 'bg-gray-100 hover:bg-gray-200 border-2 border-gray-300'
+                                    : 'bg-gray-100 border-2 border-gray-300 cursor-not-allowed opacity-70'
                               }`}
                             >
                             {req.realizado ? (
@@ -2159,8 +2227,8 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
                         const esVencida = doc.status === RequestStatus.Expired;
                         const esSinDocumento = !doc.link;
                         const estaSeleccionado = documentoSeleccionado === doc.id;
-                        const puedeSeleccionar = !esVencida && !esSinDocumento;
-                        const estaDeshabilitado = esVencida || esSinDocumento;
+                        const puedeSeleccionar = canSaveLinkedDocument && !esVencida && !esSinDocumento;
+                        const estaDeshabilitado = !canSaveLinkedDocument || esVencida || esSinDocumento;
                         
                         return (
                         <tr 
@@ -2252,9 +2320,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, 
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleGuardarDocumentos}
-                  disabled={!documentoSeleccionado || guardandoDocumentos}
+                  disabled={!canSaveLinkedDocument || !documentoSeleccionado || guardandoDocumentos}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                    !documentoSeleccionado || guardandoDocumentos
+                    !canSaveLinkedDocument || !documentoSeleccionado || guardandoDocumentos
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-primary hover:bg-primary-hover text-white shadow-md hover:shadow-lg'
                   }`}

@@ -673,7 +673,15 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
 
   // Si se está mostrando la vista de detalle, renderizar ese componente
   if (showDetailView && selectedProject) {
-    return <ProjectDetailView project={selectedProject} onBack={handleBackFromDetail} onUpdate={onProjectUpdate} onFilterSidebarChange={onFilterSidebarChange} />;
+    return (
+      <ProjectDetailView
+        project={selectedProject}
+        onBack={handleBackFromDetail}
+        onUpdate={onProjectUpdate}
+        onFilterSidebarChange={onFilterSidebarChange}
+        accessLevel={accessLevel}
+      />
+    );
   }
 
   return (

@@ -133,16 +133,31 @@ const AcreditacionRoutes: React.FC = () => {
   ]);
 
   const handleEdit = (item: RequestItem) => {
+    if (!navigationPolicy.canManageRequestsSst) {
+      alert('Modo solo lectura: no puedes editar requerimientos SST.');
+      return;
+    }
+
     setEditingItem(item);
     navigate(ACREDITACION_ROUTES.requestsEdit);
   };
 
   const handleCreateNew = () => {
+    if (!navigationPolicy.canManageRequestsSst) {
+      alert('Modo solo lectura: no puedes crear requerimientos SST.');
+      return;
+    }
+
     setEditingItem(null);
     navigate(ACREDITACION_ROUTES.requestsCreate);
   };
 
   const handleSave = async (data: NewRequestPayload) => {
+    if (!navigationPolicy.canManageRequestsSst) {
+      alert('Modo solo lectura: no puedes guardar cambios en requerimientos SST.');
+      return;
+    }
+
     console.log('🔥 handleSave recibió:', data);
     console.log('🔥 Estado en data:', data.estado);
 
@@ -177,6 +192,11 @@ const AcreditacionRoutes: React.FC = () => {
   };
 
   const handleDelete = async () => {
+    if (!navigationPolicy.canManageRequestsSst) {
+      alert('Modo solo lectura: no puedes eliminar requerimientos SST.');
+      return;
+    }
+
     if (!editingItem || !editingItem.id) {
       return;
     }
@@ -213,6 +233,8 @@ const AcreditacionRoutes: React.FC = () => {
   }
 
   const shouldRedirectFromRequestsSst = !navigationPolicy.canAccessRequestsSst;
+  const shouldRedirectFromRequestsSstManage = !navigationPolicy.canManageRequestsSst;
+  const canManageRequestsSst = navigationPolicy.canManageRequestsSst;
   const canAccessDashboards = navigationPolicy.canAccessDashboards;
   const shouldRedirectFromDashboards = !canAccessDashboards;
   const defaultRoute = navigationPolicy.defaultRoute;
@@ -236,6 +258,7 @@ const AcreditacionRoutes: React.FC = () => {
               requests={requests}
               onCreateNew={handleCreateNew}
               onEdit={handleEdit}
+              canManageActions={canManageRequestsSst}
             />
           )
         }
@@ -245,6 +268,8 @@ const AcreditacionRoutes: React.FC = () => {
         element={
           shouldRedirectFromRequestsSst ? (
             <Navigate to="reports" replace />
+          ) : shouldRedirectFromRequestsSstManage ? (
+            <Navigate to="requests" replace />
           ) : (
             <RequestForm
               onBack={() => window.history.back()}
@@ -259,6 +284,8 @@ const AcreditacionRoutes: React.FC = () => {
         element={
           shouldRedirectFromRequestsSst ? (
             <Navigate to="reports" replace />
+          ) : shouldRedirectFromRequestsSstManage ? (
+            <Navigate to="requests" replace />
           ) : editingItem ? (
             <RequestForm
               onBack={() => window.history.back()}

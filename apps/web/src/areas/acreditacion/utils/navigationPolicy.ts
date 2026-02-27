@@ -15,6 +15,7 @@ export interface AcreditacionNavigationPolicy {
   isRestrictedCollaborator: boolean;
   canAccessDashboards: boolean;
   canAccessRequestsSst: boolean;
+  canManageRequestsSst: boolean;
   canAccessFieldRequest: boolean;
   canAccessReports: boolean;
   defaultRoute: 'dashboards' | 'reports';
@@ -27,6 +28,7 @@ export const DEFAULT_ACREDITACION_NAVIGATION_POLICY: AcreditacionNavigationPolic
   isRestrictedCollaborator: false,
   canAccessDashboards: false,
   canAccessRequestsSst: false,
+  canManageRequestsSst: false,
   // Fail-closed para botones restringidos; estos dos quedan visibles para evitar UI vacía
   // mientras se resuelven permisos del colaborador.
   canAccessFieldRequest: true,
@@ -76,6 +78,7 @@ export const buildAcreditacionNavigationPolicy = (
       isRestrictedCollaborator: false,
       canAccessDashboards: true,
       canAccessRequestsSst: true,
+      canManageRequestsSst: true,
       canAccessFieldRequest: true,
       canAccessReports: true,
       defaultRoute: 'dashboards',
@@ -90,6 +93,7 @@ export const buildAcreditacionNavigationPolicy = (
       isRestrictedCollaborator: false,
       canAccessDashboards: true,
       canAccessRequestsSst: true,
+      canManageRequestsSst: true,
       canAccessFieldRequest: true,
       canAccessReports: true,
       defaultRoute: 'dashboards',
@@ -97,15 +101,14 @@ export const buildAcreditacionNavigationPolicy = (
   }
 
   if (isRestrictedCollaborator) {
-    const canAccessRequestsSst = accessLevel === 'editor';
-
     return {
       accessLevel,
       isAdmin: false,
       isAccreditor: false,
       isRestrictedCollaborator: true,
       canAccessDashboards: false,
-      canAccessRequestsSst,
+      canAccessRequestsSst: true,
+      canManageRequestsSst: false,
       canAccessFieldRequest: true,
       canAccessReports: true,
       defaultRoute: 'reports',
@@ -119,6 +122,7 @@ export const buildAcreditacionNavigationPolicy = (
     isRestrictedCollaborator: false,
     canAccessDashboards: false,
     canAccessRequestsSst: false,
+    canManageRequestsSst: false,
     canAccessFieldRequest: false,
     canAccessReports: false,
     defaultRoute: 'reports',
