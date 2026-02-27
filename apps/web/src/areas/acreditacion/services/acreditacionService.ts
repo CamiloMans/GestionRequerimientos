@@ -62,33 +62,44 @@ export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => 
   }
 };
 
+interface EnviarIdProyectoN8nOptions {
+  emailUsuario?: string | null;
+  solicitudPrueba?: boolean;
+}
+
 // Función para enviar el ID del proyecto a la edge function de n8n
-export const enviarIdProyectoN8n = async (idProyecto: number): Promise<any> => {
+export const enviarIdProyectoN8n = async (
+  idProyecto: number,
+  options?: EnviarIdProyectoN8nOptions
+): Promise<any> => {
   console.log('🔗 Invocando función edge: Enviar_id_proyecto_n8n');
   console.log('📦 ID Proyecto:', idProyecto);
   
   // Obtener el correo del usuario autenticado
-  let userEmail: string | null = null;
+  let userEmail: string | null = options?.emailUsuario ?? null;
+  const solicitudPrueba = options?.solicitudPrueba ?? false;
   
-  // Intentar primero con getSession (más confiable)
-  try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (session?.user?.email && !sessionError) {
-      userEmail = session.user.email;
-      console.log('👤 Correo obtenido desde session:', userEmail);
-    } else {
-      // Si no funciona con getSession, intentar con getUser
-      console.log('⚠️ No se obtuvo correo desde session, intentando getUser...');
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (user?.email && !userError) {
-        userEmail = user.email;
-        console.log('👤 Correo obtenido desde getUser:', userEmail);
+  if (!userEmail) {
+    // Intentar primero con getSession (más confiable)
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (session?.user?.email && !sessionError) {
+        userEmail = session.user.email;
+        console.log('👤 Correo obtenido desde session:', userEmail);
       } else {
-        console.warn('⚠️ No se pudo obtener el correo del usuario:', userError || sessionError);
+        // Si no funciona con getSession, intentar con getUser
+        console.log('⚠️ No se obtuvo correo desde session, intentando getUser...');
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (user?.email && !userError) {
+          userEmail = user.email;
+          console.log('👤 Correo obtenido desde getUser:', userEmail);
+        } else {
+          console.warn('⚠️ No se pudo obtener el correo del usuario:', userError || sessionError);
+        }
       }
+    } catch (error) {
+      console.error('❌ Error al obtener usuario:', error);
     }
-  } catch (error) {
-    console.error('❌ Error al obtener usuario:', error);
   }
   
   if (!userEmail) {
@@ -99,6 +110,7 @@ export const enviarIdProyectoN8n = async (idProyecto: number): Promise<any> => {
   const payload = { 
     id_proyecto: idProyecto,
     email_usuario: userEmail,
+    solicitud_prueba: solicitudPrueba,
   };
   
   console.log('📤 Payload completo a enviar a edge function:', payload);

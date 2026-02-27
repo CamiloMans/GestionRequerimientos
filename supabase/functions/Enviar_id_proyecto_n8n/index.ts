@@ -63,9 +63,15 @@ Deno.serve(async (req) => {
     }
 
     // Preparar el payload para n8n - SIEMPRE incluir email_usuario
+    const parsedSolicitudPrueba =
+      typeof payload.solicitud_prueba === 'boolean'
+        ? payload.solicitud_prueba
+        : String(payload.solicitud_prueba).toLowerCase() === 'true';
+
     const n8nPayload: any = {
       id_proyecto: payload.id_proyecto,
       timestamp: new Date().toISOString(),
+      solicitud_prueba: parsedSolicitudPrueba,
     };
 
     // Incluir email_usuario SIEMPRE (incluso si es null o undefined)
@@ -78,8 +84,11 @@ Deno.serve(async (req) => {
     // Logging detallado
     console.log('📧 Email usuario en payload recibido:', payload.email_usuario);
     console.log('📧 Email usuario tipo:', typeof payload.email_usuario);
+    console.log('🧪 solicitud_prueba recibida:', payload.solicitud_prueba);
+    console.log('🧪 solicitud_prueba parseada:', parsedSolicitudPrueba);
     console.log('📤 Payload completo a enviar a n8n:', JSON.stringify(n8nPayload, null, 2));
     console.log('📤 Verificación - email_usuario en n8nPayload:', n8nPayload.email_usuario);
+    console.log('📤 Verificación - solicitud_prueba en n8nPayload:', n8nPayload.solicitud_prueba);
 
     // Enviar al webhook de n8n
     console.log('🌐 Enviando a webhook:', WEBHOOK_URL);
@@ -143,4 +152,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-

@@ -15,7 +15,9 @@ import {
   fetchProyectoVehiculosByProyecto,
   logResumenSolicitudAcreditacion,
   crearCarpetasProyecto,
+  enviarIdProyectoN8n,
 } from '../services/acreditacionService';
+import { supabase } from '@shared/api-client/supabase';
 
 interface Horario {
   dias: string;
@@ -122,6 +124,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [showDropdownCliente, setShowDropdownCliente] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [solicitudPrueba, setSolicitudPrueba] = useState(true);
 
   useEffect(() => {
     if (!isViewMode || !initialSnapshot) {
@@ -712,6 +715,19 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
 
     try {
       setIsSaving(true);
+      let emailUsuario: string | null = null;
+
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!error && user?.email) {
+          emailUsuario = user.email;
+        } else {
+          console.warn('No se pudo obtener email del usuario autenticado:', error);
+        }
+      } catch (authError) {
+        console.warn('Error obteniendo usuario autenticado:', authError);
+      }
+
       const requiereAcreditarEmpresa = formData.companyAccreditationRequired === 'yes';
       const requiereAcreditarTrabajadoresMyma = formData.requiereAcreditarTrabajadoresMyma === 'yes';
       const requiereAcreditarContratista = formData.requiereAcreditarContratista === 'yes';
@@ -739,6 +755,8 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
         aviso_prevencion_riesgo: formData.riskPreventionNotice === 'yes', // Convertir a boolean
         requiere_acreditar_empresa: requiereAcreditarEmpresa, // Convertir a boolean
         admin_contrato_myma: formData.contractAdmin || null,
+        email_usuario: emailUsuario,
+        solicitud_prueba: solicitudPrueba,
         estado_solicitud_acreditacion: 'Por asignar requerimientos', // Estado inicial del proyecto
       };
 
@@ -795,6 +813,21 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
       const result = await createSolicitudAcreditacion(solicitudData);
       
       console.log('✅ Solicitud guardada exitosamente:', result);
+
+      if (result.id) {
+        try {
+          await enviarIdProyectoN8n(result.id, {
+            emailUsuario,
+            solicitudPrueba,
+          });
+          console.log('✅ Payload enviado a Enviar_id_proyecto_n8n');
+        } catch (edgeError) {
+          console.error('ERROR al enviar payload a Enviar_id_proyecto_n8n:', edgeError);
+          alert(
+            'ADVERTENCIA: La solicitud se guardó, pero falló el envío del payload a la función de Supabase.'
+          );
+        }
+      }
       
       // Guardar trabajadores en fct_acreditacion_solicitud_trabajador_manual
       if (result.id && result.codigo_proyecto) {
@@ -2317,6 +2350,33 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               </button>
             ) : (
               <>
+                <div className="w-full sm:mr-auto sm:w-auto">
+                  <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+                    <span className="text-xs font-medium text-gray-600">solicitud_prueba</span>
+                    <button
+                      type="button"
+                      onClick={() => setSolicitudPrueba(true)}
+                      className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                        solicitudPrueba
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      true
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSolicitudPrueba(false)}
+                      className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                        !solicitudPrueba
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      false
+                    </button>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={onBack}

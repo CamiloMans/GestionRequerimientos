@@ -300,6 +300,8 @@ export interface SolicitudAcreditacion {
   vehiculos_contratista_cantidad?: number;
   vehiculos_contratista_placas?: any; // JSON con array de placas
   registro_sst_terreno?: string;
+  email_usuario?: string | null;
+  solicitud_prueba?: boolean;
   estado?: string;
   estado_solicitud_acreditacion?: string; // Estado específico de la solicitud
   // Responsables del proyecto
