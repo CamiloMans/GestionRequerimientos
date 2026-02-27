@@ -88,7 +88,10 @@ const PermissionsDebug: React.FC = () => {
                       {perms.admin && (
                         <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">admin</span>
                       )}
-                      {!perms.view && !perms.create && !perms.edit && !perms.delete && !perms.admin && (
+                      {perms.acreditar && (
+                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">acreditar</span>
+                      )}
+                      {!perms.view && !perms.create && !perms.edit && !perms.delete && !perms.admin && !perms.acreditar && (
                         <span className="text-gray-400 text-xs">Sin permisos</span>
                       )}
                     </div>

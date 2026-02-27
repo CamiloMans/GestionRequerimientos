@@ -4,7 +4,10 @@ import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
 import { usePermissions } from '@shared/rbac/usePermissions';
-import { getUserPermissions, hasAreaAdminPermission } from '@shared/rbac/permissionsService';
+import {
+  getUserPermissions,
+  hasAnyAdminPermission,
+} from '@shared/rbac/permissionsService';
 import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
 import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
 import { adendasList, adendasReporte } from '../utils/routes';
@@ -38,21 +41,22 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
 
-        // Verificar si el usuario es admin específicamente del módulo de Adendas
+        // Verificar si el usuario tiene al menos un rol admin en cualquier modulo
         if (user) {
           const permissions = await getUserPermissions();
-          const isAdendasAdmin = hasAreaAdminPermission(permissions, AreaId.ADENDAS);
-          setIsAdmin(isAdendasAdmin);
+          const canManageAccess = hasAnyAdminPermission(permissions);
+          setIsAdmin(canManageAccess);
 
-          // Si es admin de Adendas, cargar el contador de solicitudes pendientes
-          if (isAdendasAdmin) {
+          // Si puede gestionar accesos, cargar el total de solicitudes pendientes gestionables
+          if (canManageAccess) {
             const requests = await fetchPendingAccessRequests();
-            // Filtrar solo solicitudes del módulo de Adendas
-            const adendasRequests = requests.filter(
-              (req) => req.modulo_solicitado.toLowerCase() === 'adendas'
-            );
-            setPendingRequestsCount(adendasRequests.length);
+            setPendingRequestsCount(requests.length);
+          } else {
+            setPendingRequestsCount(0);
           }
+        } else {
+          setIsAdmin(false);
+          setPendingRequestsCount(0);
         }
       } catch (error) {
         console.error('Error obteniendo usuario:', error);
@@ -82,11 +86,7 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
     const updateCount = async () => {
       try {
         const requests = await fetchPendingAccessRequests();
-        // Filtrar solo solicitudes del módulo de Adendas
-        const adendasRequests = requests.filter(
-          (req) => req.modulo_solicitado.toLowerCase() === 'adendas'
-        );
-        setPendingRequestsCount(adendasRequests.length);
+        setPendingRequestsCount(requests.length);
       } catch (error) {
         console.error('Error updating requests count:', error);
       }
@@ -352,11 +352,7 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
           // Actualizar contador al cerrar
           if (isAdmin) {
             fetchPendingAccessRequests().then((requests) => {
-              // Filtrar solo solicitudes del módulo de Adendas
-              const adendasRequests = requests.filter(
-                (req) => req.modulo_solicitado.toLowerCase() === 'adendas'
-              );
-              setPendingRequestsCount(adendasRequests.length);
+              setPendingRequestsCount(requests.length);
             });
           }
         }}

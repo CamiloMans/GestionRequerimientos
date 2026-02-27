@@ -18,6 +18,7 @@ export interface ModulePermissions {
   edit: boolean;
   delete: boolean;
   admin?: boolean;
+  acreditar?: boolean;
 }
 
 /**
@@ -52,6 +53,8 @@ const ACTION_CODE_MAP: Record<string, keyof ModulePermissions> = {
   delete: 'delete',
   remove: 'delete',
   admin: 'admin',
+  acreditar: 'acreditar',
+  accreditar: 'acreditar',
 };
 
 /**
@@ -116,11 +119,12 @@ export const transformPermissions = (
         edit: false,
         delete: false,
         admin: false,
+        acreditar: false,
       };
     }
 
     if (permissionType in result[module]) {
-      (result[module] as Record<string, boolean>)[permissionType] = true;
+      result[module][permissionType] = true;
     } else {
       debugWarn(
         `Tipo de permiso no reconocido: ${permissionType} para módulo ${module}`
@@ -195,6 +199,61 @@ export const hasModuleViewPermission = (
 };
 
 /**
+ * Verificar si el usuario tiene cualquier permiso util en un modulo especifico
+ */
+export const hasModuleAccessPermission = (
+  permissions: PermissionsByModule,
+  moduleCode: string
+): boolean => {
+  const module = findModuleInPermissions(permissions, moduleCode);
+
+  if (!module) {
+    debugWarn(
+      `Modulo "${moduleCode}" no encontrado en permisos. Modulos disponibles:`,
+      Object.keys(permissions)
+    );
+    return false;
+  }
+
+  const modulePerms = permissions[module];
+  const hasAccess = Boolean(
+    modulePerms?.view ||
+      modulePerms?.create ||
+      modulePerms?.edit ||
+      modulePerms?.delete ||
+      modulePerms?.admin ||
+      modulePerms?.acreditar
+  );
+
+  if (!hasAccess) {
+    debugWarn(
+      `Modulo "${moduleCode}" encontrado pero sin permisos de acceso.`,
+      modulePerms
+    );
+  }
+
+  return hasAccess;
+};
+
+/**
+ * Verificar si el usuario tiene al menos un permiso util en algun modulo
+ */
+export const hasAnyModuleAccessPermissions = (
+  permissions: PermissionsByModule
+): boolean => {
+  return Object.values(permissions).some((modulePerms) =>
+    Boolean(
+      modulePerms.view ||
+        modulePerms.create ||
+        modulePerms.edit ||
+        modulePerms.delete ||
+        modulePerms.admin ||
+        modulePerms.acreditar
+    )
+  );
+};
+
+/**
  * Mapear AreaId a module_code
  */
 export const areaIdToModuleCode = (areaId: AreaId): string => {
@@ -209,7 +268,7 @@ export const hasAreaAccess = (
   areaId: AreaId
 ): boolean => {
   const moduleCode = areaIdToModuleCode(areaId);
-  return hasModuleViewPermission(permissions, moduleCode);
+  return hasModuleAccessPermission(permissions, moduleCode);
 };
 
 /**
@@ -224,6 +283,26 @@ export const hasModuleAdminPermission = (
 };
 
 /**
+ * Obtener cÃ³digos de mÃ³dulos donde el usuario tiene permiso admin
+ */
+export const getAdminModuleCodes = (
+  permissions: PermissionsByModule
+): string[] => {
+  return Object.entries(permissions)
+    .filter(([_, modulePerms]) => modulePerms.admin === true)
+    .map(([moduleCode]) => moduleCode.toLowerCase().trim());
+};
+
+/**
+ * Verificar si el usuario tiene al menos un permiso admin en cualquier mÃ³dulo
+ */
+export const hasAnyAdminPermission = (
+  permissions: PermissionsByModule
+): boolean => {
+  return getAdminModuleCodes(permissions).length > 0;
+};
+
+/**
  * Verificar si el usuario tiene permiso admin en un área específica
  */
 export const hasAreaAdminPermission = (
@@ -233,3 +312,4 @@ export const hasAreaAdminPermission = (
   const moduleCode = areaIdToModuleCode(areaId);
   return hasModuleAdminPermission(permissions, moduleCode);
 };
+

@@ -23,6 +23,7 @@ export const AREA_PERMISSIONS: Record<AreaId, AreaPermission[]> = {
     'acreditacion:edit',
     'acreditacion:delete',
     'acreditacion:admin',
+    'acreditacion:acreditar',
   ],
   [AreaId.FINANZAS]: [
     'finanzas:view',
@@ -70,4 +71,3 @@ export const getAllAreas = () => Object.values(AREAS);
  * Obtener área por ID
  */
 export const getAreaById = (areaId: AreaId) => AREAS[areaId];
-

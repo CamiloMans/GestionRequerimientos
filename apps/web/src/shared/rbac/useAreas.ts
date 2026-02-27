@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../api-client/supabase';
 import { AreaId, AREAS } from '@contracts/areas';
-import { getUserPermissions, hasAreaAccess, PermissionsByModule } from './permissionsService';
+import {
+  getUserPermissions,
+  hasAreaAccess,
+  hasAnyModuleAccessPermissions,
+  PermissionsByModule,
+} from './permissionsService';
 import { getCachedPermissions, saveCachedPermissions, clearCachedPermissions } from './permissionsCache';
 
 export interface UserArea {
@@ -101,9 +106,7 @@ export const useAreas = () => {
           debugLog('No hay caché, consultando permisos desde la base de datos');
           userPermissions = await getUserPermissions();
 
-          const hasAnyPermission = Object.values(userPermissions).some(
-            (modulePerms) => modulePerms.view === true
-          );
+          const hasAnyPermission = hasAnyModuleAccessPermissions(userPermissions);
 
           saveCachedPermissions(user.id, hasAnyPermission, userPermissions);
         }

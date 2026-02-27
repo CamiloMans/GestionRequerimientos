@@ -3,7 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
-import { getUserPermissions } from '@shared/rbac/permissionsService';
+import {
+  getUserPermissions,
+  hasAnyAdminPermission,
+} from '@shared/rbac/permissionsService';
 import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
 import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
 import {
@@ -53,6 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   const isFieldRequestActive = currentActiveView === 'fieldRequest';
   const isReportsActive = currentActiveView === 'reports';
   const isDashboardsActive = currentActiveView === 'dashboards';
+  const canAccessDashboards = !permissionsLoading && navigationPolicy.canAccessDashboards;
 
   // Construir rutas del área
   const getAreaPath = (path: string) => {
@@ -72,16 +76,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           const permissions = await getUserPermissions();
           const policy = buildAcreditacionNavigationPolicy(permissions);
           setNavigationPolicy(policy);
-          setIsAdmin(policy.isAdmin);
+          const canManageAccess = hasAnyAdminPermission(permissions);
+          setIsAdmin(canManageAccess);
 
-          // Si es admin de Acreditación, cargar el contador de solicitudes pendientes
-          if (policy.isAdmin) {
+          // Si tiene al menos un rol admin, cargar el total de solicitudes pendientes gestionables
+          if (canManageAccess) {
             const requests = await fetchPendingAccessRequests();
-            // Filtrar solo solicitudes del módulo de Acreditación
-            const acreditacionRequests = requests.filter(
-              (req) => req.modulo_solicitado.toLowerCase() === 'acreditacion'
-            );
-            setPendingRequestsCount(acreditacionRequests.length);
+            setPendingRequestsCount(requests.length);
           } else {
             setPendingRequestsCount(0);
           }
@@ -125,11 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
     const updateCount = async () => {
       try {
         const requests = await fetchPendingAccessRequests();
-        // Filtrar solo solicitudes del módulo de Acreditación
-        const acreditacionRequests = requests.filter(
-          (req) => req.modulo_solicitado.toLowerCase() === 'acreditacion'
-        );
-        setPendingRequestsCount(acreditacionRequests.length);
+        setPendingRequestsCount(requests.length);
       } catch (error) {
         console.error('Error updating requests count:', error);
       }
@@ -249,8 +246,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
             
             {/* Navigation */}
             <nav className="flex flex-col gap-3 w-full px-3">
-              {/* Dashboard (solo admins) */}
-              {!permissionsLoading && navigationPolicy.canAccessDashboards && (
+              {/* Dashboard (admins + rol acreditacion:acreditar) */}
+              {canAccessDashboards && (
                 <button 
                   onClick={handleDashboardsClick}
                   className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
@@ -271,7 +268,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
                 </button>
               )}
               
-              {/* Requerimientos SST (solo admins) */}
+              {/* Requerimientos SST segun politica de navegacion */}
               {!permissionsLoading && navigationPolicy.canAccessRequestsSst && (
                 <button 
                   onClick={handleRequestsClick}
@@ -294,7 +291,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               )}
               
               {/* Nueva solicitud de acreditación (admin + colaboradores) */}
-              {navigationPolicy.canAccessFieldRequest && (
+              {!permissionsLoading && navigationPolicy.canAccessFieldRequest && (
                 <button 
                   onClick={handleFieldRequestClick}
                   className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
@@ -316,7 +313,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               )}
               
               {/* Solicitudes de acreditación (admin + colaboradores) */}
-              {navigationPolicy.canAccessReports && (
+              {!permissionsLoading && navigationPolicy.canAccessReports && (
                 <button 
                   onClick={handleReportsClick}
                   className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
@@ -459,11 +456,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           // Actualizar contador al cerrar
           if (isAdmin) {
             fetchPendingAccessRequests().then((requests) => {
-              // Filtrar solo solicitudes del módulo de Acreditación
-              const acreditacionRequests = requests.filter(
-                (req) => req.modulo_solicitado.toLowerCase() === 'acreditacion'
-              );
-              setPendingRequestsCount(acreditacionRequests.length);
+              setPendingRequestsCount(requests.length);
             });
           }
         }}

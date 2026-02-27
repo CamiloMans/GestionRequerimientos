@@ -1,5 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { AccessRequest, fetchPendingAccessRequests, approveAccessRequest, rejectAccessRequest, PermissionType } from './accessRequestsService';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AccessRequest,
+  ManagedUserModulePermission,
+  PermissionLevel,
+  PermissionType,
+  approveAccessRequest,
+  fetchManagedUsersPermissions,
+  fetchManageableModuleCodes,
+  fetchPendingAccessRequests,
+  rejectAccessRequest,
+  revokeManagedUserModuleAccess,
+  updateManagedUserPermissionLevel,
+} from './accessRequestsService';
 import { formatModuleName } from './modulesService';
 
 interface AccessRequestsModalProps {
@@ -7,277 +19,541 @@ interface AccessRequestsModalProps {
   onClose: () => void;
 }
 
-const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({ isOpen, onClose }) => {
-  const [requests, setRequests] = useState<AccessRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [rejectConfirm, setRejectConfirm] = useState<{ show: boolean; requestId: number | null; requestInfo: AccessRequest | null }>({
-    show: false,
-    requestId: null,
-    requestInfo: null,
-  });
-  const [approveConfirm, setApproveConfirm] = useState<{ show: boolean; requestId: number | null; requestInfo: AccessRequest | null }>({
-    show: false,
-    requestId: null,
-    requestInfo: null,
-  });
-  const [selectedPermissions, setSelectedPermissions] = useState<PermissionType[]>(['view']);
+type Tab = 'pending' | 'permissions';
+
+interface UserPermissionsGroup {
+  user_id: string;
+  user_name: string | null;
+  user_email: string | null;
+  permissions: ManagedUserModulePermission[];
+}
+
+const ACREDITACION_MODULE_CODE = 'acreditacion';
+
+const getPermissionLevelLabel = (level: PermissionLevel): string => {
+  if (level === 'admin') return 'Admin';
+  if (level === 'acreditar') return 'Acreditar';
+  if (level === 'editor') return 'Editor';
+  return 'Viewer';
+};
+
+const getPermissionTypeLabel = (permission: PermissionType): string => {
+  if (permission === 'admin') return 'Admin';
+  if (permission === 'acreditar') return 'Acreditar';
+  if (permission === 'edit') return 'Editor';
+  return 'Viewer';
+};
+
+const getAvailablePermissionLevels = (moduleCode: string): PermissionLevel[] => {
+  if (moduleCode.toLowerCase().trim() === ACREDITACION_MODULE_CODE) {
+    return ['viewer', 'editor', 'acreditar', 'admin'];
+  }
+
+  return ['viewer', 'editor', 'admin'];
+};
+
+const getAvailableApprovalPermissions = (moduleCode: string): PermissionType[] => {
+  if (moduleCode.toLowerCase().trim() === ACREDITACION_MODULE_CODE) {
+    return ['edit', 'acreditar', 'admin'];
+  }
+
+  return ['edit', 'admin'];
+};
+
+const getUserDisplayName = (
+  userName: string | null,
+  userEmail: string | null,
+  _userId: string
+): string => {
+  if (userName) return userName;
+  if (userEmail) return userEmail;
+  return 'Usuario sin nombre';
+};
+
+const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const [tab, setTab] = useState<Tab>('pending');
+
+  const [pending, setPending] = useState<AccessRequest[]>([]);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const [processingRequestId, setProcessingRequestId] = useState<number | null>(null);
+
+  const [permissions, setPermissions] = useState<ManagedUserModulePermission[]>([]);
+  const [loadingPermissions, setLoadingPermissions] = useState(true);
+  const [permissionsError, setPermissionsError] = useState<string | null>(null);
+
+  const [manageableModules, setManageableModules] = useState<string[]>([]);
+
+  const [search, setSearch] = useState('');
+
+  const [approveRequest, setApproveRequest] = useState<AccessRequest | null>(null);
+  const [approvePermissions, setApprovePermissions] = useState<PermissionType[]>([
+    'view',
+  ]);
+
+  const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [draftLevelsByModule, setDraftLevelsByModule] = useState<
+    Record<string, PermissionLevel>
+  >({});
+  const [addModuleCode, setAddModuleCode] = useState('');
+  const [addLevel, setAddLevel] = useState<PermissionLevel>('viewer');
+
+  const [processingPermissionKey, setProcessingPermissionKey] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
-    if (isOpen) {
-      loadRequests();
-    }
+    if (!isOpen) return;
+
+    setTab('pending');
+    setSearch('');
+    setEditUserId(null);
+    setDraftLevelsByModule({});
+    setAddModuleCode('');
+    setAddLevel('viewer');
+
+    void Promise.all([
+      loadPending(),
+      loadPermissions(),
+      loadManageableModules(),
+    ]);
   }, [isOpen]);
 
-  const loadRequests = async () => {
+  const loadPending = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchPendingAccessRequests();
-      setRequests(data);
-    } catch (err: any) {
-      console.error('Error loading requests:', err);
-      setError('Error al cargar las solicitudes');
+      setLoadingPending(true);
+      setPendingError(null);
+      setPending(await fetchPendingAccessRequests());
+    } catch (error) {
+      console.error('Error loading pending access requests:', error);
+      setPendingError('Error al cargar solicitudes pendientes.');
     } finally {
-      setLoading(false);
+      setLoadingPending(false);
     }
   };
 
-  const handleApproveClick = (request: AccessRequest) => {
-    setSelectedPermissions(['view']); // Reset a solo viewer por defecto
-    setApproveConfirm({
-      show: true,
-      requestId: request.id,
-      requestInfo: request,
-    });
+  const loadPermissions = async () => {
+    try {
+      setLoadingPermissions(true);
+      setPermissionsError(null);
+      setPermissions(await fetchManagedUsersPermissions());
+    } catch (error) {
+      console.error('Error loading managed permissions:', error);
+      setPermissionsError('Error al cargar permisos actuales.');
+    } finally {
+      setLoadingPermissions(false);
+    }
   };
 
-  const togglePermission = (perm: PermissionType) => {
-    setSelectedPermissions((prev) => {
-      if (prev.includes(perm)) {
-        // Si está seleccionado, removerlo (excepto view que siempre debe estar)
-        if (perm === 'view') return prev; // Viewer siempre debe estar
-        return prev.filter((p) => p !== perm);
-      } else {
-        // Si no está seleccionado, agregarlo
-        return [...prev, perm];
+  const loadManageableModules = async () => {
+    try {
+      const modules = await fetchManageableModuleCodes();
+      setManageableModules(modules.sort((a, b) => a.localeCompare(b)));
+    } catch (error) {
+      console.error('Error loading manageable modules:', error);
+      setManageableModules([]);
+    }
+  };
+
+  const openApproveModal = (request: AccessRequest) => {
+    setApproveRequest(request);
+    setApprovePermissions(['view']);
+  };
+
+  const toggleApprovePermission = (permission: PermissionType) => {
+    setApprovePermissions((current) => {
+      if (permission === 'view') return current;
+      if (current.includes(permission)) {
+        return current.filter((item) => item !== permission);
       }
+      return [...current, permission];
     });
   };
 
-  const handleApproveConfirm = async () => {
-    if (!approveConfirm.requestId || selectedPermissions.length === 0) return;
+  const submitApprove = async () => {
+    if (!approveRequest) return;
 
     try {
-      setProcessingId(approveConfirm.requestId);
-      setApproveConfirm({ show: false, requestId: null, requestInfo: null });
-      await approveAccessRequest(approveConfirm.requestId, selectedPermissions);
-      await loadRequests(); // Recargar lista
-    } catch (err: any) {
-      console.error('Error approving request:', err);
-      alert('Error al aprobar la solicitud. Por favor, inténtalo de nuevo.');
+      setProcessingRequestId(approveRequest.id);
+      await approveAccessRequest(approveRequest.id, approvePermissions);
+      setApproveRequest(null);
+      await Promise.all([loadPending(), loadPermissions()]);
+    } catch (error) {
+      console.error('Error approving request:', error);
+      alert('No se pudo aprobar la solicitud.');
     } finally {
-      setProcessingId(null);
+      setProcessingRequestId(null);
     }
   };
 
-  const handleApproveCancel = () => {
-    setApproveConfirm({ show: false, requestId: null, requestInfo: null });
-    setSelectedPermissions(['view']);
+  const submitReject = async (request: AccessRequest) => {
+    const confirmed = window.confirm(
+      'Esta accion rechazara la solicitud de acceso. Deseas continuar?'
+    );
+    if (!confirmed) return;
+
+    try {
+      setProcessingRequestId(request.id);
+      await rejectAccessRequest(request.id);
+      await loadPending();
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      alert('No se pudo rechazar la solicitud.');
+    } finally {
+      setProcessingRequestId(null);
+    }
   };
 
-  const handleRejectClick = (request: AccessRequest) => {
-    setRejectConfirm({
-      show: true,
-      requestId: request.id,
-      requestInfo: request,
+  const usersById = useMemo(() => {
+    const grouped = new Map<string, UserPermissionsGroup>();
+
+    permissions.forEach((entry) => {
+      if (!grouped.has(entry.user_id)) {
+        grouped.set(entry.user_id, {
+          user_id: entry.user_id,
+          user_name: entry.user_name,
+          user_email: entry.user_email,
+          permissions: [],
+        });
+      }
+
+      grouped.get(entry.user_id)!.permissions.push(entry);
     });
-  };
 
-  const handleRejectConfirm = async () => {
-    if (!rejectConfirm.requestId) return;
+    grouped.forEach((group) => {
+      group.permissions.sort((a, b) =>
+        a.module_code.localeCompare(b.module_code)
+      );
+    });
+
+    return grouped;
+  }, [permissions]);
+
+  const userGroups = useMemo(() => {
+    return Array.from(usersById.values()).sort((a, b) => {
+      const labelA = (a.user_name || a.user_email || '').toLowerCase();
+      const labelB = (b.user_name || b.user_email || '').toLowerCase();
+      return labelA.localeCompare(labelB);
+    });
+  }, [usersById]);
+
+  const filteredUsers = useMemo(() => {
+    const term = search.toLowerCase().trim();
+    if (!term) return userGroups;
+
+    return userGroups.filter((user) => {
+      const haystack = `${user.user_name || ''} ${user.user_email || ''} ${user.user_id}`.toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [userGroups, search]);
+
+  const selectedUser = useMemo(() => {
+    if (!editUserId) return null;
+    return usersById.get(editUserId) || null;
+  }, [editUserId, usersById]);
+
+  const selectedUserRoleCodes = useMemo(() => {
+    if (!selectedUser) return [];
+    return Array.from(
+      new Set(selectedUser.permissions.flatMap((entry) => entry.role_codes))
+    ).sort();
+  }, [selectedUser]);
+
+  useEffect(() => {
+    if (!editUserId) return;
+
+    const user = usersById.get(editUserId);
+    if (!user) return;
+
+    const nextDrafts: Record<string, PermissionLevel> = {};
+    user.permissions.forEach((entry) => {
+      nextDrafts[entry.module_code] = entry.level;
+    });
+    setDraftLevelsByModule(nextDrafts);
+  }, [editUserId, usersById]);
+
+  const addableModules = useMemo(() => {
+    if (!selectedUser) return manageableModules;
+    const assigned = new Set(selectedUser.permissions.map((entry) => entry.module_code));
+    return manageableModules.filter((moduleCode) => !assigned.has(moduleCode));
+  }, [manageableModules, selectedUser]);
+
+  useEffect(() => {
+    if (!editUserId) return;
+
+    if (addableModules.length > 0) {
+      setAddModuleCode((current) => {
+        if (current && addableModules.includes(current)) return current;
+        return addableModules[0];
+      });
+    } else {
+      setAddModuleCode('');
+    }
+  }, [editUserId, addableModules]);
+
+  useEffect(() => {
+    if (!addModuleCode) return;
+
+    const availableLevels = getAvailablePermissionLevels(addModuleCode);
+    if (!availableLevels.includes(addLevel)) {
+      setAddLevel(availableLevels[0]);
+    }
+  }, [addModuleCode, addLevel]);
+
+  const submitUpdateModulePermission = async (
+    entry: ManagedUserModulePermission
+  ) => {
+    if (!selectedUser) return;
+
+    const targetLevel = draftLevelsByModule[entry.module_code] || entry.level;
+    const key = `update:${selectedUser.user_id}:${entry.module_code}`;
 
     try {
-      setProcessingId(rejectConfirm.requestId);
-      setRejectConfirm({ show: false, requestId: null, requestInfo: null });
-      await rejectAccessRequest(rejectConfirm.requestId);
-      await loadRequests(); // Recargar lista
-    } catch (err: any) {
-      console.error('Error rejecting request:', err);
-      alert('Error al rechazar la solicitud. Por favor, inténtalo de nuevo.');
+      setProcessingPermissionKey(key);
+      await updateManagedUserPermissionLevel({
+        userId: selectedUser.user_id,
+        moduleCode: entry.module_code,
+        level: targetLevel,
+      });
+      await loadPermissions();
+    } catch (error: any) {
+      console.error('Error updating module permission:', error);
+      alert(error?.message || 'No se pudo actualizar el permiso.');
     } finally {
-      setProcessingId(null);
+      setProcessingPermissionKey(null);
     }
   };
 
-  const handleRejectCancel = () => {
-    setRejectConfirm({ show: false, requestId: null, requestInfo: null });
+  const submitRevokeModulePermission = async (
+    entry: ManagedUserModulePermission
+  ) => {
+    if (!selectedUser) return;
+
+    const confirmed = window.confirm(
+      `Se revocara el acceso al modulo ${formatModuleName(entry.module_code)} para ${getUserDisplayName(
+        selectedUser.user_name,
+        selectedUser.user_email,
+        selectedUser.user_id
+      )}. Deseas continuar?`
+    );
+    if (!confirmed) return;
+
+    const key = `revoke:${selectedUser.user_id}:${entry.module_code}`;
+
+    try {
+      setProcessingPermissionKey(key);
+      await revokeManagedUserModuleAccess({
+        userId: selectedUser.user_id,
+        moduleCode: entry.module_code,
+      });
+      await loadPermissions();
+    } catch (error: any) {
+      console.error('Error revoking module permission:', error);
+      alert(error?.message || 'No se pudo revocar el permiso.');
+    } finally {
+      setProcessingPermissionKey(null);
+    }
+  };
+
+  const submitAddModulePermission = async () => {
+    if (!selectedUser || !addModuleCode) return;
+
+    const key = `add:${selectedUser.user_id}:${addModuleCode}`;
+
+    try {
+      setProcessingPermissionKey(key);
+      await updateManagedUserPermissionLevel({
+        userId: selectedUser.user_id,
+        moduleCode: addModuleCode,
+        level: addLevel,
+      });
+      await loadPermissions();
+    } catch (error: any) {
+      console.error('Error adding module permission:', error);
+      alert(error?.message || 'No se pudo agregar el permiso.');
+    } finally {
+      setProcessingPermissionKey(null);
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 bg-black/50 z-50"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
+      <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
-          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col"
+          onClick={(event) => event.stopPropagation()}
         >
-          {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Solicitudes de Acceso Pendientes
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Gestiona las solicitudes de acceso a módulos
-              </p>
+              <h2 className="text-2xl font-bold text-gray-900">Gestion de accesos</h2>
+              <p className="text-sm text-gray-500">Solicitudes y permisos actuales</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <span className="material-symbols-outlined text-gray-600">close</span>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
+              <span className="material-symbols-outlined">close</span>
             </button>
           </div>
 
-          {/* Content */}
+          <div className="px-6 py-3 border-b border-gray-200 flex gap-2">
+            <button
+              onClick={() => setTab('pending')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                tab === 'pending' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Pendientes ({pending.length})
+            </button>
+            <button
+              onClick={() => setTab('permissions')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                tab === 'permissions' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Permisos por persona ({userGroups.length})
+            </button>
+          </div>
+
           <div className="flex-1 overflow-y-auto p-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-                <span className="ml-3 text-gray-600">Cargando solicitudes...</span>
-              </div>
-            ) : error ? (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800 text-sm">{error}</p>
-              </div>
-            ) : requests.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                  <span className="material-symbols-outlined text-gray-400 text-3xl">check_circle</span>
-                </div>
-                <p className="text-gray-600 font-medium">No hay solicitudes pendientes</p>
-                <p className="text-gray-500 text-sm mt-1">
-                  Todas las solicitudes han sido procesadas
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {requests.map((request) => (
-                  <div
-                    key={request.id}
-                    className="border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        {/* Información del usuario */}
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center">
-                            <span className="text-white text-sm font-semibold">
-                              {request.user_name?.charAt(0).toUpperCase() ||
-                                request.user_email?.charAt(0).toUpperCase() ||
-                                'U'}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {request.user_name || 'Usuario sin nombre'}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {request.user_email}
-                            </p>
-                          </div>
-                        </div>
+            {tab === 'pending' && (
+              <>
+                {loadingPending && <p className="text-sm text-gray-600">Cargando solicitudes...</p>}
+                {pendingError && <p className="text-sm text-red-600">{pendingError}</p>}
+                {!loadingPending && !pendingError && pending.length === 0 && (
+                  <p className="text-sm text-gray-600">No hay solicitudes pendientes.</p>
+                )}
 
-                        {/* Módulo solicitado */}
-                        <div className="mb-3">
-                          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-100 text-teal-800 text-sm font-medium">
-                            <span className="material-symbols-outlined text-sm">category</span>
-                            {formatModuleName(request.modulo_solicitado)}
-                          </span>
-                        </div>
-
-                        {/* Mensaje */}
-                        {request.mensaje && (
-                          <div className="mb-3">
-                            <p className="text-sm font-medium text-gray-700 mb-1">Mensaje:</p>
-                            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
-                              {request.mensaje}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Fecha */}
-                        <p className="text-xs text-gray-400">
-                          Solicitado el {new Date(request.created_at).toLocaleString('es-ES')}
+                <div className="space-y-3">
+                  {pending.map((request) => (
+                    <div
+                      key={request.id}
+                      className="border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">
+                          {getUserDisplayName(
+                            request.user_name || null,
+                            request.user_email || null,
+                            request.user_id
+                          )}
+                        </p>
+                        <p className="text-sm text-gray-500 truncate">
+                          {request.user_email || 'Sin correo'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Modulo: {formatModuleName(request.modulo_solicitado)}
                         </p>
                       </div>
-
-                      {/* Acciones */}
-                      <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleApproveClick(request)}
-                          disabled={processingId === request.id}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          onClick={() => openApproveModal(request)}
+                          disabled={processingRequestId === request.id}
+                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                         >
-                          {processingId === request.id ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              <span>Procesando...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="material-symbols-outlined text-sm">check</span>
-                              <span>Aprobar</span>
-                            </>
-                          )}
+                          Aprobar
                         </button>
                         <button
-                          onClick={() => handleRejectClick(request)}
-                          disabled={processingId === request.id}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          onClick={() => submitReject(request)}
+                          disabled={processingRequestId === request.id}
+                          className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
                         >
-                          {processingId === request.id ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              <span>Procesando...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="material-symbols-outlined text-sm">close</span>
-                              <span>Rechazar</span>
-                            </>
-                          )}
+                          Rechazar
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {tab === 'permissions' && (
+              <>
+                <div className="mb-5">
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Buscar por persona (nombre o correo)"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  />
+                </div>
+
+                {loadingPermissions && <p className="text-sm text-gray-600">Cargando permisos...</p>}
+                {permissionsError && <p className="text-sm text-red-600">{permissionsError}</p>}
+                {!loadingPermissions && !permissionsError && filteredUsers.length === 0 && (
+                  <p className="text-sm text-gray-600">No hay usuarios para mostrar.</p>
+                )}
+
+                <div className="space-y-4">
+                  {filteredUsers.map((user) => {
+                    const allRoleCodes = Array.from(
+                      new Set(user.permissions.flatMap((entry) => entry.role_codes))
+                    ).sort();
+
+                    return (
+                      <div
+                        key={user.user_id}
+                        className="border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-base font-semibold text-gray-900 truncate">
+                              {getUserDisplayName(user.user_name, user.user_email, user.user_id)}
+                            </p>
+                            <p className="text-sm text-gray-500 truncate">
+                              {user.user_email || 'Sin correo'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setEditUserId(user.user_id)}
+                            className="px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700"
+                          >
+                            Editar permisos
+                          </button>
+                        </div>
+
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-gray-600">Modulos y nivel actual</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {user.permissions.map((entry) => (
+                              <span
+                                key={`${user.user_id}-${entry.module_code}-level`}
+                                className="text-xs px-2.5 py-1 rounded-md bg-[#e9f7f4] text-[#0f766e] border border-[#cdeee7]"
+                              >
+                                {formatModuleName(entry.module_code)} - {getPermissionLevelLabel(entry.level)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-gray-600">Roles asignados</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {allRoleCodes.map((roleCode) => (
+                              <span
+                                key={`${user.user_id}-${roleCode}`}
+                                className="text-xs px-2.5 py-1 rounded-md bg-gray-50 border border-gray-200 text-gray-700"
+                              >
+                                {roleCode}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-            <p className="text-sm text-gray-600">
-              {requests.length > 0 && (
-                <span>
-                  {requests.length} solicitud{requests.length !== 1 ? 'es' : ''} pendiente{requests.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </p>
+          <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
             >
               Cerrar
             </button>
@@ -285,269 +561,240 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({ isOpen, onClo
         </div>
       </div>
 
-      {/* Modal de confirmación para rechazar */}
-      {rejectConfirm.show && rejectConfirm.requestInfo && (
-        <>
+      {approveRequest && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div
-            className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm"
-            onClick={handleRejectCancel}
+            className="fixed inset-0 bg-black/60"
+            onClick={() => setApproveRequest(null)}
           />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header con icono de advertencia */}
-              <div className="bg-gradient-to-br from-red-50 to-orange-50 p-6 text-center border-b border-red-100">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
-                  <span className="material-symbols-outlined text-red-600 text-4xl">warning</span>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  ¿Rechazar solicitud?
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Esta acción no se puede deshacer
-                </p>
-              </div>
-
-              {/* Información de la solicitud */}
-              <div className="p-6 space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center">
-                      <span className="text-white text-xs font-semibold">
-                        {rejectConfirm.requestInfo.user_name?.charAt(0).toUpperCase() ||
-                          rejectConfirm.requestInfo.user_email?.charAt(0).toUpperCase() ||
-                          'U'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">
-                        {rejectConfirm.requestInfo.user_name || 'Usuario sin nombre'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {rejectConfirm.requestInfo.user_email}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t border-gray-200">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 text-xs font-medium">
-                      <span className="material-symbols-outlined text-xs">category</span>
-                      {formatModuleName(rejectConfirm.requestInfo.modulo_solicitado)}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-600 text-center">
-                  ¿Estás seguro de que deseas <strong className="text-red-600">rechazar</strong> esta solicitud de acceso?
-                </p>
-              </div>
-
-              {/* Botones de acción */}
-              <div className="flex gap-3 p-6 bg-gray-50 border-t border-gray-200">
-                <button
-                  onClick={handleRejectCancel}
-                  className="flex-1 px-4 py-2.5 bg-white text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium border border-gray-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleRejectConfirm}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-sm">close</span>
-                  Sí, rechazar
-                </button>
-              </div>
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Aprobar solicitud</h3>
+            <p className="text-sm text-gray-600">
+              Usuario:{' '}
+              {getUserDisplayName(
+                approveRequest.user_name || null,
+                approveRequest.user_email || null,
+                approveRequest.user_id
+              )}
+            </p>
+            <p className="text-sm text-gray-600">
+              Modulo: {formatModuleName(approveRequest.modulo_solicitado)}
+            </p>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked readOnly />
+                <span>Viewer (requerido)</span>
+              </label>
+              {getAvailableApprovalPermissions(approveRequest.modulo_solicitado).map(
+                (permission) => (
+                  <label
+                    key={`approve-option-${permission}`}
+                    className="flex items-center gap-2 text-sm text-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={approvePermissions.includes(permission)}
+                      onChange={() => toggleApprovePermission(permission)}
+                    />
+                    <span>{getPermissionTypeLabel(permission)}</span>
+                  </label>
+                )
+              )}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setApproveRequest(null)}
+                className="px-3 py-2 bg-gray-200 rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={submitApprove}
+                className="px-3 py-2 bg-green-600 text-white rounded-lg"
+              >
+                Aprobar
+              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Modal de confirmación para aprobar con selección de permisos */}
-      {approveConfirm.show && approveConfirm.requestInfo && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm"
-            onClick={handleApproveCancel}
-          />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header con icono de éxito */}
-              <div className="bg-gradient-to-br from-green-50 to-teal-50 p-6 text-center border-b border-green-100">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-                  <span className="material-symbols-outlined text-green-600 text-4xl">check_circle</span>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  Aprobar solicitud
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Selecciona los permisos a otorgar
-                </p>
-              </div>
+      {selectedUser && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60" onClick={() => setEditUserId(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-teal-50 to-blue-50">
+              <h3 className="text-xl font-semibold text-gray-900">Editar permisos por modulo</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {getUserDisplayName(
+                  selectedUser.user_name,
+                  selectedUser.user_email,
+                  selectedUser.user_id
+                )}
+                {' - '}
+                {selectedUser.user_email || 'Sin correo'}
+              </p>
+            </div>
 
-              {/* Información de la solicitud */}
-              <div className="p-6 space-y-4">
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center">
-                      <span className="text-white text-xs font-semibold">
-                        {approveConfirm.requestInfo.user_name?.charAt(0).toUpperCase() ||
-                          approveConfirm.requestInfo.user_email?.charAt(0).toUpperCase() ||
-                          'U'}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              <div className="border border-teal-100 rounded-xl bg-teal-50/70 p-4">
+                <h4 className="text-sm font-semibold text-teal-800 mb-2">
+                  Roles actuales del usuario
+                </h4>
+                {selectedUserRoleCodes.length === 0 ? (
+                  <p className="text-sm text-teal-700">Sin roles asignados.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedUserRoleCodes.map((roleCode) => (
+                      <span
+                        key={`${selectedUser.user_id}-summary-${roleCode}`}
+                        className="text-xs px-2.5 py-1 rounded-md bg-white border border-teal-200 text-teal-800"
+                      >
+                        {roleCode}
                       </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">
-                        {approveConfirm.requestInfo.user_name || 'Usuario sin nombre'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {approveConfirm.requestInfo.user_email}
-                      </p>
-                    </div>
+                    ))}
                   </div>
-                  <div className="pt-2 border-t border-gray-200">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 text-xs font-medium">
-                      <span className="material-symbols-outlined text-xs">category</span>
-                      {formatModuleName(approveConfirm.requestInfo.modulo_solicitado)}
-                    </span>
-                  </div>
-                </div>
+                )}
+              </div>
 
-                {/* Selección de permisos */}
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-3">
-                    Permisos a otorgar:
-                  </p>
-                  <div className="space-y-2">
-                    {/* Viewer - Siempre seleccionado y deshabilitado */}
-                    <label className="flex items-center gap-3 p-3 rounded-lg border-2 border-green-500 bg-green-50 cursor-not-allowed">
-                      <div className="w-5 h-5 rounded border-2 border-green-500 bg-green-500 flex items-center justify-center flex-shrink-0">
-                        <svg
-                          className="w-3 h-3 text-white"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={3}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">Viewer</div>
-                        <div className="text-xs text-gray-500">Ver contenido del módulo (requerido)</div>
-                      </div>
-                    </label>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Permisos actuales</h4>
+                <div className="space-y-3">
+                  {selectedUser.permissions.length === 0 && (
+                    <p className="text-sm text-gray-500">El usuario no tiene permisos asignados.</p>
+                  )}
 
-                    {/* Editor */}
-                    <label
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                        selectedPermissions.includes('edit')
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50'
-                      }`}
-                      onClick={() => togglePermission('edit')}
-                    >
+                  {selectedUser.permissions.map((entry) => {
+                    const updateKey = `update:${selectedUser.user_id}:${entry.module_code}`;
+                    const revokeKey = `revoke:${selectedUser.user_id}:${entry.module_code}`;
+                    const updating = processingPermissionKey === updateKey;
+                    const revoking = processingPermissionKey === revokeKey;
+                    const currentDraft = draftLevelsByModule[entry.module_code] || entry.level;
+
+                    return (
                       <div
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                          selectedPermissions.includes('edit')
-                            ? 'border-blue-500 bg-blue-500'
-                            : 'border-gray-300'
-                        }`}
+                        key={`${selectedUser.user_id}-${entry.module_code}`}
+                        className="border border-gray-200 rounded-xl p-4"
                       >
-                        {selectedPermissions.includes('edit') && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">Editor</div>
-                        <div className="text-xs text-gray-500">Editar y modificar contenido</div>
-                      </div>
-                    </label>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {formatModuleName(entry.module_code)}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Nivel actual: {getPermissionLevelLabel(entry.level)}
+                            </p>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {entry.role_codes.map((roleCode) => (
+                                <span
+                                  key={`${selectedUser.user_id}-${entry.module_code}-${roleCode}`}
+                                  className="text-xs px-2.5 py-1 rounded-md bg-gray-100 text-gray-700"
+                                >
+                                  {roleCode}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
 
-                    {/* Admin */}
-                    <label
-                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                        selectedPermissions.includes('admin')
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50/50'
-                      }`}
-                      onClick={() => togglePermission('admin')}
-                    >
-                      <div
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                          selectedPermissions.includes('admin')
-                            ? 'border-purple-500 bg-purple-500'
-                            : 'border-gray-300'
-                        }`}
-                      >
-                        {selectedPermissions.includes('admin') && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={3}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              value={currentDraft}
+                              onChange={(event) =>
+                                setDraftLevelsByModule((prev) => ({
+                                  ...prev,
+                                  [entry.module_code]: event.target.value as PermissionLevel,
+                                }))
+                              }
+                              className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+                              disabled={updating || revoking}
+                            >
+                              {getAvailablePermissionLevels(entry.module_code).map(
+                                (levelOption) => (
+                                  <option key={levelOption} value={levelOption}>
+                                    {getPermissionLevelLabel(levelOption)}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                            <button
+                              onClick={() => submitUpdateModulePermission(entry)}
+                              disabled={updating || revoking}
+                              className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {updating ? 'Guardando...' : 'Guardar'}
+                            </button>
+                            <button
+                              onClick={() => submitRevokeModulePermission(entry)}
+                              disabled={updating || revoking}
+                              className="px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
+                            >
+                              {revoking ? 'Revocando...' : 'Revocar'}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">Admin</div>
-                        <div className="text-xs text-gray-500">Administrar módulo y gestionar solicitudes</div>
-                      </div>
-                    </label>
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Botones de acción */}
-              <div className="flex gap-3 p-6 bg-gray-50 border-t border-gray-200">
-                <button
-                  onClick={handleApproveCancel}
-                  className="flex-1 px-4 py-2.5 bg-white text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium border border-gray-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleApproveConfirm}
-                  className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-sm">check</span>
-                  Aprobar con permisos
-                </button>
+              <div className="border-t border-gray-200 pt-5">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Agregar permiso a modulo</h4>
+                {addableModules.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No hay mas modulos disponibles para agregar a este usuario.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={addModuleCode}
+                      onChange={(event) => setAddModuleCode(event.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+                    >
+                      {addableModules.map((moduleCode) => (
+                        <option key={moduleCode} value={moduleCode}>
+                          {formatModuleName(moduleCode)}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={addLevel}
+                      onChange={(event) => setAddLevel(event.target.value as PermissionLevel)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+                    >
+                      {getAvailablePermissionLevels(addModuleCode).map((levelOption) => (
+                        <option key={`add-level-${levelOption}`} value={levelOption}>
+                          {getPermissionLevelLabel(levelOption)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={submitAddModulePermission}
+                      disabled={!addModuleCode || processingPermissionKey === `add:${selectedUser.user_id}:${addModuleCode}`}
+                      className="px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                    >
+                      {processingPermissionKey === `add:${selectedUser.user_id}:${addModuleCode}`
+                        ? 'Agregando...'
+                        : 'Agregar permiso'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
+
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setEditUserId(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </>
   );
 };
 
 export default AccessRequestsModal;
-

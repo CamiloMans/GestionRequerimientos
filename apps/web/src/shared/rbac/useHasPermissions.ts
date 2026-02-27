@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../api-client/supabase';
-import { getUserPermissions, PermissionsByModule } from './permissionsService';
+import {
+  getUserPermissions,
+  hasAnyModuleAccessPermissions,
+  PermissionsByModule,
+} from './permissionsService';
 import { getCachedPermissions, saveCachedPermissions, clearCachedPermissions } from './permissionsCache';
 
 /**
  * Hook para verificar si el usuario tiene permisos en algun modulo
- * Retorna true si tiene al menos un permiso de view en algun modulo
+ * Retorna true si tiene al menos un permiso efectivo en algun modulo
  * Usa cache en sessionStorage para evitar verificaciones innecesarias
  */
 export const useHasPermissions = () => {
@@ -42,9 +46,7 @@ export const useHasPermissions = () => {
         const userPermissions = await getUserPermissions();
         setPermissions(userPermissions);
 
-        const hasAnyPermission = Object.values(userPermissions).some(
-          (modulePerms) => modulePerms.view === true
-        );
+        const hasAnyPermission = hasAnyModuleAccessPermissions(userPermissions);
 
         setHasPermissions(hasAnyPermission);
         saveCachedPermissions(user.id, hasAnyPermission, userPermissions);

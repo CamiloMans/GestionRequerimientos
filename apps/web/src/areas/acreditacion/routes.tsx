@@ -212,8 +212,9 @@ const AcreditacionRoutes: React.FC = () => {
     );
   }
 
-  const shouldRedirectRestrictedCollaborator =
-    navigationPolicy.isRestrictedCollaborator === true;
+  const shouldRedirectFromRequestsSst = !navigationPolicy.canAccessRequestsSst;
+  const canAccessDashboards = navigationPolicy.canAccessDashboards;
+  const shouldRedirectFromDashboards = !canAccessDashboards;
   const defaultRoute = navigationPolicy.defaultRoute;
 
   return (
@@ -221,7 +222,7 @@ const AcreditacionRoutes: React.FC = () => {
       <Route
         path="requests"
         element={
-          shouldRedirectRestrictedCollaborator ? (
+          shouldRedirectFromRequestsSst ? (
             <Navigate to="reports" replace />
           ) : loading ? (
             <div className="flex items-center justify-center h-full min-h-screen">
@@ -242,7 +243,7 @@ const AcreditacionRoutes: React.FC = () => {
       <Route
         path="requests/create"
         element={
-          shouldRedirectRestrictedCollaborator ? (
+          shouldRedirectFromRequestsSst ? (
             <Navigate to="reports" replace />
           ) : (
             <RequestForm
@@ -256,7 +257,7 @@ const AcreditacionRoutes: React.FC = () => {
       <Route
         path="requests/edit"
         element={
-          shouldRedirectRestrictedCollaborator ? (
+          shouldRedirectFromRequestsSst ? (
             <Navigate to="reports" replace />
           ) : editingItem ? (
             <RequestForm
@@ -301,7 +302,7 @@ const AcreditacionRoutes: React.FC = () => {
       <Route
         path="dashboards"
         element={
-          shouldRedirectRestrictedCollaborator ? (
+          shouldRedirectFromDashboards ? (
             <Navigate to="reports" replace />
           ) : (
             <DashboardView />

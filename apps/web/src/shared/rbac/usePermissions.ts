@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../api-client/supabase';
-import { AreaId, AreaPermission } from './constants';
+import { AreaId } from '@contracts/areas';
+import { AreaPermission } from './constants';
 import { getUserPermissions, areaIdToModuleCode, PermissionsByModule } from './permissionsService';
 
 /**
@@ -43,6 +44,8 @@ export const usePermissions = (areaId?: AreaId) => {
           create: false,
           edit: false,
           delete: false,
+          admin: false,
+          acreditar: false,
         };
 
         // Convertir a formato de permisos (areaId:action)
@@ -52,6 +55,7 @@ export const usePermissions = (areaId?: AreaId) => {
         if (modulePerms.edit) permissionList.push(`${areaId}:edit`);
         if (modulePerms.delete) permissionList.push(`${areaId}:delete`);
         if (modulePerms.admin) permissionList.push(`${areaId}:admin`);
+        if (modulePerms.acreditar) permissionList.push(`${areaId}:acreditar`);
 
         setPermissions(permissionList);
       } catch (err) {

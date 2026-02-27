@@ -4,7 +4,10 @@ import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
 import { usePermissions } from '@shared/rbac/usePermissions';
-import { getUserPermissions, hasAreaAdminPermission } from '@shared/rbac/permissionsService';
+import {
+  getUserPermissions,
+  hasAnyAdminPermission,
+} from '@shared/rbac/permissionsService';
 import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
 import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
 
@@ -52,21 +55,22 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
 
-        // Verificar si el usuario es admin específicamente del módulo de Proveedores
+        // Verificar si el usuario tiene al menos un rol admin en cualquier modulo
         if (user) {
           const permissions = await getUserPermissions();
-          const isProveedoresAdmin = hasAreaAdminPermission(permissions, AreaId.PROVEEDORES);
-          setIsAdmin(isProveedoresAdmin);
+          const canManageAccess = hasAnyAdminPermission(permissions);
+          setIsAdmin(canManageAccess);
 
-          // Si es admin de Proveedores, cargar el contador de solicitudes pendientes
-          if (isProveedoresAdmin) {
+          // Si puede gestionar accesos, cargar el total de solicitudes pendientes gestionables
+          if (canManageAccess) {
             const requests = await fetchPendingAccessRequests();
-            // Filtrar solo solicitudes del módulo de Proveedores
-            const proveedoresRequests = requests.filter(
-              (req) => req.modulo_solicitado.toLowerCase() === 'proveedores'
-            );
-            setPendingRequestsCount(proveedoresRequests.length);
+            setPendingRequestsCount(requests.length);
+          } else {
+            setPendingRequestsCount(0);
           }
+        } else {
+          setIsAdmin(false);
+          setPendingRequestsCount(0);
         }
       } catch (error) {
         console.error('Error obteniendo usuario:', error);
@@ -96,11 +100,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
     const updateCount = async () => {
       try {
         const requests = await fetchPendingAccessRequests();
-        // Filtrar solo solicitudes del módulo de Proveedores
-        const proveedoresRequests = requests.filter(
-          (req) => req.modulo_solicitado.toLowerCase() === 'proveedores'
-        );
-        setPendingRequestsCount(proveedoresRequests.length);
+        setPendingRequestsCount(requests.length);
       } catch (error) {
         console.error('Error updating requests count:', error);
       }
@@ -454,11 +454,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
           // Actualizar contador al cerrar
           if (isAdmin) {
             fetchPendingAccessRequests().then((requests) => {
-              // Filtrar solo solicitudes del módulo de Proveedores
-              const proveedoresRequests = requests.filter(
-                (req) => req.modulo_solicitado.toLowerCase() === 'proveedores'
-              );
-              setPendingRequestsCount(proveedoresRequests.length);
+              setPendingRequestsCount(requests.length);
             });
           }
         }}
@@ -468,5 +464,3 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 };
 
 export default ProveedoresSidebar;
-
-

@@ -4,7 +4,10 @@ import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
 import { usePermissions } from '@shared/rbac/usePermissions';
-import { getUserPermissions, hasAreaAdminPermission } from '@shared/rbac/permissionsService';
+import {
+  getUserPermissions,
+  hasAnyAdminPermission,
+} from '@shared/rbac/permissionsService';
 import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
 import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
 
@@ -46,21 +49,22 @@ const PersonasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
 
-        // Verificar si el usuario es admin específicamente del módulo de Personas
+        // Verificar si el usuario tiene al menos un rol admin en cualquier modulo
         if (user) {
           const permissions = await getUserPermissions();
-          const isPersonasAdmin = hasAreaAdminPermission(permissions, AreaId.PERSONAS);
-          setIsAdmin(isPersonasAdmin);
+          const canManageAccess = hasAnyAdminPermission(permissions);
+          setIsAdmin(canManageAccess);
 
-          // Si es admin de Personas, cargar el contador de solicitudes pendientes
-          if (isPersonasAdmin) {
+          // Si puede gestionar accesos, cargar el total de solicitudes pendientes gestionables
+          if (canManageAccess) {
             const requests = await fetchPendingAccessRequests();
-            // Filtrar solo solicitudes del módulo de Personas
-            const personasRequests = requests.filter(
-              (req) => req.modulo_solicitado.toLowerCase() === 'personas'
-            );
-            setPendingRequestsCount(personasRequests.length);
+            setPendingRequestsCount(requests.length);
+          } else {
+            setPendingRequestsCount(0);
           }
+        } else {
+          setIsAdmin(false);
+          setPendingRequestsCount(0);
         }
       } catch (error) {
         console.error('Error obteniendo usuario:', error);
@@ -92,11 +96,7 @@ const PersonasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
     const updateCount = async () => {
       try {
         const requests = await fetchPendingAccessRequests();
-        // Filtrar solo solicitudes del módulo de Personas
-        const personasRequests = requests.filter(
-          (req) => req.modulo_solicitado.toLowerCase() === 'personas'
-        );
-        setPendingRequestsCount(personasRequests.length);
+        setPendingRequestsCount(requests.length);
       } catch (error) {
         console.error('Error updating requests count:', error);
       }
@@ -404,8 +404,14 @@ const PersonasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
       {showAccessRequestsModal && (
         <AccessRequestsModal
           isOpen={showAccessRequestsModal}
-          onClose={() => setShowAccessRequestsModal(false)}
-          moduleName="Personas"
+          onClose={() => {
+            setShowAccessRequestsModal(false);
+            if (isAdmin) {
+              fetchPendingAccessRequests().then((requests) => {
+                setPendingRequestsCount(requests.length);
+              });
+            }
+          }}
         />
       )}
     </>
@@ -413,4 +419,3 @@ const PersonasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
 };
 
 export default PersonasSidebar;
-
