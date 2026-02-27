@@ -4,8 +4,6 @@ import { useAreas } from '@shared/rbac/useAreas';
 import AreaSelector from '@shared/rbac/AreaSelector';
 import { useAuth } from '@shared/auth/useAuth';
 import { useHasPermissions } from '@shared/rbac/useHasPermissions';
-import { AreaId } from '@contracts/areas';
-import PermissionsDebug from '@shared/rbac/PermissionsDebug';
 import OnboardingView from '@shared/onboarding/OnboardingView';
 
 interface MainLayoutProps {
@@ -90,9 +88,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Contenido */}
       {children}
-
-      {/* Componente de debug temporal para ver permisos */}
-      {import.meta.env.DEV && <PermissionsDebug />}
     </div>
   );
 };

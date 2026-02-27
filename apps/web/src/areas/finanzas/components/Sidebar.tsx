@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@shared/api-client/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AreaId } from '@contracts/areas';
+import SidebarSettingsButton from '@shared/layout/SidebarSettingsButton';
+import SidebarSettingsModal from '@shared/layout/SidebarSettingsModal';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -21,6 +23,7 @@ const FinanzasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const getAreaPath = (path: string) => {
@@ -136,7 +139,14 @@ const FinanzasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
           </div>
 
           {/* User Menu */}
-          <div className="w-full px-3 relative" ref={menuRef}>
+          <div className="w-full px-3 flex flex-col gap-2">
+            <SidebarSettingsButton
+              onClick={() => {
+                setShowUserMenu(false);
+                setShowSettingsModal(true);
+              }}
+            />
+            <div className="relative w-full" ref={menuRef}>
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="group flex items-center justify-center w-full aspect-square p-3 rounded-lg text-[#616f89] hover:bg-gray-100 transition-colors relative"
@@ -170,9 +180,15 @@ const FinanzasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       </aside>
+
+      <SidebarSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
     </>
   );
 };

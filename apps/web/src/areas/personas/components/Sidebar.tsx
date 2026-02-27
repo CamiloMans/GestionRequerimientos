@@ -10,6 +10,8 @@ import {
 } from '@shared/rbac/permissionsService';
 import { fetchPendingAccessRequests } from '@shared/rbac/accessRequestsService';
 import AccessRequestsModal from '@shared/rbac/AccessRequestsModal';
+import SidebarSettingsButton from '@shared/layout/SidebarSettingsButton';
+import SidebarSettingsModal from '@shared/layout/SidebarSettingsModal';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -26,6 +28,7 @@ const PersonasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAccessRequestsModal, setShowAccessRequestsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -328,7 +331,14 @@ const PersonasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
           </div>
 
           {/* User Menu */}
-          <div className="relative w-full px-3" ref={menuRef}>
+          <div className="w-full px-3 flex flex-col gap-2">
+            <SidebarSettingsButton
+              onClick={() => {
+                setShowUserMenu(false);
+                setShowSettingsModal(true);
+              }}
+            />
+            <div className="relative w-full" ref={menuRef}>
             <button
               onClick={handleLogoutClick}
               className="w-full flex items-center justify-center p-3 rounded-lg hover:bg-gray-100 transition-colors relative group"
@@ -396,9 +406,15 @@ const PersonasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, 
                 </button>
               </div>
             )}
+            </div>
           </div>
         </div>
       </aside>
+
+      <SidebarSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
 
       {/* Modal de solicitudes de acceso */}
       {showAccessRequestsModal && (

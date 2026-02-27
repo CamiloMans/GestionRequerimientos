@@ -13,6 +13,8 @@ import {
   DEFAULT_ACREDITACION_NAVIGATION_POLICY,
   buildAcreditacionNavigationPolicy,
 } from '../utils/navigationPolicy';
+import SidebarSettingsButton from '@shared/layout/SidebarSettingsButton';
+import SidebarSettingsModal from '@shared/layout/SidebarSettingsModal';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -33,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAccessRequestsModal, setShowAccessRequestsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
@@ -363,7 +366,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
           </div>
           
           {/* User Menu / Logout Button */}
-          <div className="w-full px-3 relative" ref={menuRef}>
+          <div className="w-full px-3 flex flex-col gap-2">
+            <SidebarSettingsButton
+              onClick={() => {
+                setShowUserMenu(false);
+                setShowSettingsModal(true);
+              }}
+            />
+            <div className="relative w-full" ref={menuRef}>
             <button 
               onClick={handleLogoutClick}
               className="group flex items-center justify-center w-full aspect-square p-3 rounded-lg text-[#616f89] hover:bg-gray-100 transition-colors relative" 
@@ -445,8 +455,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               </div>
             )}
           </div>
+          </div>
         </div>
       </aside>
+
+      <SidebarSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
 
       {/* Modal de solicitudes de acceso */}
       <AccessRequestsModal
