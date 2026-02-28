@@ -52,12 +52,24 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
   loadingSnapshot = false,
   snapshotMeta,
 }) => {
+  const PROJECT_CODE_PREFIX = 'MY-';
+  const PROJECT_CODE_REGEX = /^MY-\d{3}-\d{4}$/;
+  const formatProjectCodeInput = (rawValue: string): string => {
+    const digits = rawValue.replace(/\D/g, '').slice(0, 7);
+    const middleBlock = digits.slice(0, 3);
+    const yearBlock = digits.slice(3, 7);
+
+    if (digits.length === 0) return PROJECT_CODE_PREFIX;
+    if (middleBlock.length < 3) return `${PROJECT_CODE_PREFIX}${middleBlock}`;
+    return `${PROJECT_CODE_PREFIX}${middleBlock}-${yearBlock}`;
+  };
+
   const isViewMode = mode === 'view';
   const [formData, setFormData] = useState<RequestFormData>({
     requestDate: '',
     requesterName: '',
     kickoffDate: '',
-    projectCode: '',
+    projectCode: PROJECT_CODE_PREFIX,
     requirement: '',
     clientName: '',
     clientContactName: '',
@@ -125,6 +137,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
   const [showDropdownCliente, setShowDropdownCliente] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [solicitudPrueba, setSolicitudPrueba] = useState(true);
+  const [omitirCamposObligatorios, setOmitirCamposObligatorios] = useState(false);
 
   useEffect(() => {
     if (!isViewMode || !initialSnapshot) {
@@ -175,7 +188,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
       requestDate: '',
       requesterName: '',
       kickoffDate: '',
-      projectCode: '',
+      projectCode: PROJECT_CODE_PREFIX,
       requirement: '',
       clientName: '',
       clientContactName: '',
@@ -581,6 +594,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+
+    if (name === 'projectCode') {
+      setFormData(prev => ({ ...prev, projectCode: formatProjectCodeInput(value) }));
+      return;
+    }
+
     setFormData(prev => {
       const nextFormData = { ...prev, [name]: value };
 
@@ -726,6 +745,113 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
         }
       } catch (authError) {
         console.warn('Error obteniendo usuario autenticado:', authError);
+      }
+
+      if (!omitirCamposObligatorios) {
+      if (!PROJECT_CODE_REGEX.test(formData.projectCode)) {
+        alert('El codigo de proyecto debe tener formato MY-001-2026.');
+        return;
+      }
+
+      if (!formData.requirement) {
+        alert('Debes seleccionar un requisito.');
+        return;
+      }
+
+      if (!formData.requestDate) {
+        alert('La fecha de solicitud es obligatoria.');
+        return;
+      }
+
+      if (!formData.requesterName) {
+        alert('Debes seleccionar un nombre de solicitante desde el buscador.');
+        return;
+      }
+
+      if (!formData.fieldStartDate) {
+        alert('La fecha de inicio de terreno es obligatoria.');
+        return;
+      }
+
+      if (!formData.clientName) {
+        alert('Debes seleccionar un nombre de cliente desde el buscador.');
+        return;
+      }
+
+      if (!formData.projectManager) {
+        alert('Debes seleccionar un Jefe de Proyectos MYMA desde el buscador.');
+        return;
+      }
+
+      if (!formData.contractAdmin) {
+        alert('Debes seleccionar un Admin. de Contrato MYMA desde el buscador.');
+        return;
+      }
+
+      if (!formData.companyAccreditationRequired) {
+        alert('Debes responder la pregunta "Se requiere acreditar a Myma?".');
+        return;
+      }
+
+      if (!formData.requiereAcreditarTrabajadoresMyma) {
+        alert('Debes responder la pregunta "Se requiere acreditar a trabajadores de Myma?".');
+        return;
+      }
+
+      if (!formData.requiereAcreditarContratista) {
+        alert('Debes responder la pregunta "Se requiere acreditar a contratista?".');
+        return;
+      }
+
+      if (!formData.requiereAcreditarTrabajadoresContratista) {
+        alert('Debes responder la pregunta "Se requiere acreditar a trabajadores de contratista?".');
+        return;
+      }
+
+      if (
+        formData.requiereAcreditarTrabajadoresContratista === 'yes' &&
+        !formData.registroSstTerreo
+      ) {
+        alert('Debes responder la pregunta de Seguridad y Salud en el Trabajo (SST).');
+        return;
+      }
+
+      if (formData.requiereAcreditarContratista === 'yes') {
+        if (!formData.modalidadContrato.trim()) {
+          alert('Debes seleccionar la Modalidad de contrato.');
+          return;
+        }
+
+        if (!formData.razonSocialContratista.trim()) {
+          alert('Debes seleccionar la Razón social de contratista.');
+          return;
+        }
+
+        if (!formData.nombreResponsableContratista.trim()) {
+          alert('Debes completar el Nombre de contacto del contratista.');
+          return;
+        }
+
+        if (!formData.telefonoResponsableContratista.trim()) {
+          alert('Debes completar el Teléfono del contratista.');
+          return;
+        }
+
+        if (!formData.emailResponsableContratista.trim()) {
+          alert('Debes completar el Email del contratista.');
+          return;
+        }
+      }
+
+      if (formData.requiereAcreditarTrabajadoresMyma === 'yes' && workers.length === 0) {
+        alert('Debes agregar al menos un trabajador MYMA.');
+        return;
+      }
+
+      if ((workers.length > 0 || workersContratista.length > 0) && !formData.jornadaTrabajo.trim()) {
+        alert('Debes seleccionar una Condicion Laboral cuando agregas trabajadores.');
+        return;
+      }
       }
 
       const requiereAcreditarEmpresa = formData.companyAccreditationRequired === 'yes';
@@ -1116,11 +1242,11 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
     const nombreResponsable = randomItem(nombres);
 
     // Rellenar formData
-    setFormData({
+      setFormData({
       requestDate: randomDate(0),
       requesterName: personaAleatoria?.nombre_completo || randomItem(nombres),
       kickoffDate: randomDate(randomInt(1, 7)),
-      projectCode: `PRJ-${new Date().getFullYear()}-${String(randomInt(100, 999)).padStart(3, '0')}`,
+      projectCode: `MY-${String(randomInt(1, 999)).padStart(3, '0')}-${new Date().getFullYear()}`,
       requirement: randomItem(requisitos),
       clientName: empresaCliente,
       clientContactName: nombreCliente,
@@ -1204,13 +1330,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
       </div>
       <div className="p-6 space-y-6">
         <label className="flex flex-col gap-2 max-w-md">
-          <span className="text-[#111318] text-sm font-medium">Condiciones Laborales</span>
+          <span className="text-[#111318] text-sm font-medium">
+            Condiciones Laborales {hasAnyWorkerAdded && <span className="text-red-500">*</span>}
+          </span>
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">tune</span>
             <select
               name="jornadaTrabajo"
               value={formData.jornadaTrabajo}
               onChange={handleInputChange}
+              required={hasAnyWorkerAdded}
               className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none"
             >
               <option value="">Seleccionar condición laboral</option>
@@ -1288,6 +1417,51 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
       </div>
     </div>
   );
+
+  const hasAnsweredCompanyAccreditation =
+    formData.companyAccreditationRequired === 'yes' || formData.companyAccreditationRequired === 'no';
+  const hasAnsweredMymaWorkersAccreditation =
+    formData.requiereAcreditarTrabajadoresMyma === 'yes' || formData.requiereAcreditarTrabajadoresMyma === 'no';
+  const hasAnsweredContractorAccreditation =
+    formData.requiereAcreditarContratista === 'yes' || formData.requiereAcreditarContratista === 'no';
+  const hasAnsweredContractorWorkersAccreditation =
+    formData.requiereAcreditarTrabajadoresContratista === 'yes' || formData.requiereAcreditarTrabajadoresContratista === 'no';
+  const hasAnsweredSstTerreno =
+    formData.requiereAcreditarTrabajadoresContratista !== 'yes' ||
+    formData.registroSstTerreo === 'yes' ||
+    formData.registroSstTerreo === 'no';
+  const hasAtLeastOneMymaWorker = workers.length > 0;
+  const hasAnyWorkerAdded = workers.length > 0 || workersContratista.length > 0;
+  const hasCondicionLaboralWhenWorkers = !hasAnyWorkerAdded || formData.jornadaTrabajo.trim() !== '';
+  const hasRequiredContractorFields =
+    formData.requiereAcreditarContratista !== 'yes' ||
+    (
+      formData.modalidadContrato.trim() !== '' &&
+      formData.razonSocialContratista.trim() !== '' &&
+      formData.nombreResponsableContratista.trim() !== '' &&
+      formData.telefonoResponsableContratista.trim() !== '' &&
+      formData.emailResponsableContratista.trim() !== ''
+    );
+
+  const areAllRequiredFieldsCompleted =
+    PROJECT_CODE_REGEX.test(formData.projectCode) &&
+    formData.requirement.trim() !== '' &&
+    formData.requestDate.trim() !== '' &&
+    formData.requesterName.trim() !== '' &&
+    formData.fieldStartDate.trim() !== '' &&
+    formData.clientName.trim() !== '' &&
+    formData.projectManager.trim() !== '' &&
+    formData.contractAdmin.trim() !== '' &&
+    hasAnsweredCompanyAccreditation &&
+    hasAnsweredMymaWorkersAccreditation &&
+    hasAnsweredContractorAccreditation &&
+    hasAnsweredContractorWorkersAccreditation &&
+    hasAnsweredSstTerreno &&
+    hasRequiredContractorFields &&
+    (formData.requiereAcreditarTrabajadoresMyma !== 'yes' || hasAtLeastOneMymaWorker) &&
+    hasCondicionLaboralWhenWorkers;
+
+  const isSubmitDisabled = isSaving || (!areAllRequiredFieldsCompleted && !omitirCamposObligatorios);
 
   return (
     <div className="layout-container flex h-full grow flex-col">
@@ -1392,7 +1566,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-8 pb-12">
+        <form onSubmit={handleSubmit} noValidate={omitirCamposObligatorios} className="flex flex-col gap-8 pb-12">
           <fieldset disabled={isViewMode} className="contents">
           
           {/* Section 1: Identificación de la Solicitud */}
@@ -1405,22 +1579,31 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Código de Proyecto</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Código de Proyecto <span className="text-red-500">*</span>
+                </span>
                 <input 
                   type="text" 
                   name="projectCode"
                   value={formData.projectCode}
                   onChange={handleInputChange}
-                  placeholder="Ej: PRJ-2024-001"
+                  required
+                  placeholder="Ej: MY-001-2026"
+                  maxLength={11}
+                  pattern="MY-[0-9]{3}-[0-9]{4}"
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
+                <span className="text-xs text-[#616f89]">Ejemplo: MY-001-2026</span>
               </label>
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Requisito</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Requisito <span className="text-red-500">*</span>
+                </span>
                 <select 
                   name="requirement"
                   value={formData.requirement}
                   onChange={handleInputChange}
+                  required
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                 >
                   <option value="">Seleccione un requisito...</option>
@@ -1431,12 +1614,15 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                 </select>
               </label>
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Fecha de Solicitud</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Fecha de Solicitud <span className="text-red-500">*</span>
+                </span>
                 <input 
                   type="date" 
                   name="requestDate"
                   value={formData.requestDate}
                   onChange={handleInputChange}
+                  required
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>
@@ -1451,7 +1637,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                 />
               </label>
               <label className="flex flex-col gap-2 lg:col-span-2">
-                <span className="text-[#111318] text-sm font-medium">Nombre de Solicitante</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Nombre de Solicitante <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
                   <input 
@@ -1467,6 +1655,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     onFocus={() => setShowDropdownSolicitante(true)}
                     placeholder="Buscar por nombre o RUT..."
                     autoComplete="off"
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
                   />
                   {searchQuerySolicitante && (
@@ -1515,7 +1704,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                 </div>
               </label>
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Fecha de Inicio de Terreno</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Fecha de Inicio de Terreno <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">calendar_today</span>
                    <input 
@@ -1523,6 +1714,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     name="fieldStartDate"
                     value={formData.fieldStartDate}
                     onChange={handleInputChange}
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none pl-10" 
                   />
                 </div>
@@ -1540,7 +1732,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-[#111318] text-sm font-medium">Nombre de Cliente</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Nombre de Cliente <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
                   <input
@@ -1556,6 +1750,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     onFocus={() => setShowDropdownCliente(true)}
                     placeholder="Buscar por nombre o RUT..."
                     autoComplete="off"
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   />
                   {searchQueryCliente && (
@@ -1645,7 +1840,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Jefe de Proyectos MYMA</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Jefe de Proyectos MYMA <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
                   <input
@@ -1661,6 +1858,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     onFocus={() => setShowDropdownJefeProyecto(true)}
                     placeholder="Buscar por nombre o RUT..."
                     autoComplete="off"
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   />
                   {searchQueryJefeProyecto && (
@@ -1708,7 +1906,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                 </div>
               </label>
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Admin. de Contrato MYMA</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Admin. de Contrato MYMA <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
                   <input
@@ -1724,6 +1924,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     onFocus={() => setShowDropdownAdminContrato(true)}
                     placeholder="Buscar por nombre o RUT..."
                     autoComplete="off"
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   />
                   {searchQueryAdminContrato && (
@@ -1785,7 +1986,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100 w-full">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
-                  ¿Se requiere acreditar a Myma?
+                  ¿Se requiere acreditar a Myma? <span className="text-red-500">*</span>
                 </span>
                 <div className="flex gap-6 mt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1795,6 +1996,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                       value="yes"
                       checked={formData.companyAccreditationRequired === 'yes'}
                       onChange={handleInputChange}
+                      required
                       className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
                     />
                     <span className="text-sm">Sí</span>
@@ -1879,7 +2081,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100 w-full">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
-                  ¿Se requiere acreditar a trabajadores de Myma?
+                  ¿Se requiere acreditar a trabajadores de Myma? <span className="text-red-500">*</span>
                 </span>
                 <div className="flex gap-6 mt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1889,6 +2091,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                       value="yes"
                       checked={formData.requiereAcreditarTrabajadoresMyma === 'yes'}
                       onChange={handleInputChange}
+                      required
                       className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
                     />
                     <span className="text-sm">Sí</span>
@@ -2006,7 +2209,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
-                  ¿Se requiere acreditar a contratista?
+                  ¿Se requiere acreditar a contratista? <span className="text-red-500">*</span>
                 </span>
                 <div className="flex gap-6 mt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -2016,6 +2219,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                       value="yes"
                       checked={formData.requiereAcreditarContratista === 'yes'}
                       onChange={handleInputChange}
+                      required
                       className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
                     />
                     <span className="text-sm">Sí</span>
@@ -2049,11 +2253,14 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Modalidad de contrato</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Modalidad de contrato <span className="text-red-500">*</span>
+                </span>
                 <select 
                   name="modalidadContrato"
                   value={formData.modalidadContrato}
                   onChange={handleInputChange}
+                  required
                   className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                 >
                   <option value="">Seleccione...</option>
@@ -2063,11 +2270,14 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Razón social de contratista</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Razón social de contratista <span className="text-red-500">*</span>
+                </span>
                 <select 
                   name="razonSocialContratista"
                   value={formData.razonSocialContratista}
                   onChange={handleInputChange}
+                  required
                   className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                 >
                   <option value="">Seleccione...</option>
@@ -2091,7 +2301,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Nombre de contacto</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Nombre de contacto <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">person</span>
                   <input 
@@ -2100,13 +2312,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     value={formData.nombreResponsableContratista}
                     onChange={handleInputChange}
                     placeholder="Nombre completo"
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                   />
                 </div>
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Teléfono</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Teléfono <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">phone</span>
                   <input 
@@ -2115,13 +2330,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     value={formData.telefonoResponsableContratista}
                     onChange={handleInputChange}
                     placeholder="+569 1234 5678"
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                   />
                 </div>
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Email</span>
+                <span className="text-[#111318] text-sm font-medium">
+                  Email <span className="text-red-500">*</span>
+                </span>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">mail</span>
                   <input 
@@ -2130,6 +2348,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                     value={formData.emailResponsableContratista}
                     onChange={handleInputChange}
                     placeholder="correo@ejemplo.com"
+                    required
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                   />
                 </div>
@@ -2156,7 +2375,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
-                  ¿Se requiere acreditar a trabajadores de contratista?
+                  ¿Se requiere acreditar a trabajadores de contratista? <span className="text-red-500">*</span>
                 </span>
                 <div className="flex gap-6 mt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -2166,6 +2385,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                       value="yes"
                       checked={formData.requiereAcreditarTrabajadoresContratista === 'yes'}
                       onChange={handleInputChange}
+                      required
                       className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
                     />
                     <span className="text-sm">Sí</span>
@@ -2303,7 +2523,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-orange-500 text-base">assignment</span>
-                  ¿Se registró actividad en la planilla SST terreno?
+                  ¿Se registró actividad en la planilla SST terreno? <span className="text-red-500">*</span>
                 </span>
                 <div className="flex gap-6 mt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -2313,6 +2533,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                       value="yes"
                       checked={formData.registroSstTerreo === 'yes'}
                       onChange={handleInputChange}
+                      required
                       className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
                     />
                     <span className="text-sm">Sí</span>
@@ -2350,7 +2571,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
               </button>
             ) : (
               <>
-                <div className="w-full sm:mr-auto sm:w-auto">
+                <div className="w-full sm:mr-auto sm:w-auto flex flex-col gap-2">
                   <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
                     <span className="text-xs font-medium text-gray-600">solicitud_prueba</span>
                     <button
@@ -2376,6 +2597,31 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                       false
                     </button>
                   </div>
+                  <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+                    <span className="text-xs font-medium text-gray-600">omitir_obligatorios</span>
+                    <button
+                      type="button"
+                      onClick={() => setOmitirCamposObligatorios(true)}
+                      className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                        omitirCamposObligatorios
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      true
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOmitirCamposObligatorios(false)}
+                      className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors ${
+                        !omitirCamposObligatorios
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      false
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -2384,23 +2630,25 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isSaving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-[20px]">save</span>
-                      Guardar Solicitud
-                    </>
-                  )}
-                </button>
+                <div className="w-full sm:w-auto flex flex-col items-stretch sm:items-end gap-1">
+                  <button
+                    type="submit"
+                    disabled={isSubmitDisabled}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-[20px]">save</span>
+                        Guardar Solicitud
+                      </>
+                    )}
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -2412,3 +2660,4 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({
 };
 
 export default FieldRequestForm;
+

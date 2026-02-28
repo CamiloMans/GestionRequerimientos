@@ -2192,7 +2192,7 @@ const createEmptyFieldRequestFormData = (): RequestFormData => ({
   requestDate: '',
   requesterName: '',
   kickoffDate: '',
-  projectCode: '',
+  projectCode: 'MY-',
   requirement: '',
   clientName: '',
   clientContactName: '',
