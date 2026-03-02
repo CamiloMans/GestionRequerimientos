@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import RequestList from './pages/RequestList';
 import RequestForm from './pages/RequestForm';
@@ -23,7 +23,7 @@ import {
 } from './services/acreditacionService';
 
 /**
- * Componente que maneja las rutas del área de Acreditaciones
+ * Componente que maneja las rutas del Ã¡rea de Acreditaciones
  */
 const AcreditacionRoutes: React.FC = () => {
   const navigate = useNavigate();
@@ -159,32 +159,43 @@ const AcreditacionRoutes: React.FC = () => {
       return;
     }
 
-    console.log('🔥 handleSave recibió:', data);
-    console.log('🔥 Estado en data:', data.estado);
+    console.log('ðŸ”¥ handleSave recibiÃ³:', data);
+    console.log('ðŸ”¥ Estado en data:', data.estado);
 
     try {
+      let savedRecordId: number | null = null;
+
       if (editingItem && editingItem.id) {
-        console.log('✏️ Editando registro ID:', editingItem.id);
-        await updatePersonaRequerimiento(
+        console.log('Editando registro ID:', editingItem.id);
+        const updated = await updatePersonaRequerimiento(
           parseInt(editingItem.id),
           data.fecha_vigencia,
           data.fecha_vencimiento,
           data.estado,
           data.link
         );
+        savedRecordId = updated?.id ?? parseInt(editingItem.id);
       } else {
-        await createPersonaRequerimiento(
+        const created = await createPersonaRequerimiento(
           data.persona_id,
           data.requerimiento_id,
           data.fecha_vigencia,
           data.fecha_vencimiento,
           data.link
         );
+        savedRecordId = created?.id ?? null;
       }
 
       if (data.documento_subida) {
         try {
-          await subirDocumentoAcreditacion(data.documento_subida);
+          if (!savedRecordId) {
+            throw new Error('No se pudo determinar id_registro_sst para la subida del documento.');
+          }
+
+          await subirDocumentoAcreditacion({
+            ...data.documento_subida,
+            id_registro_sst: savedRecordId,
+          });
         } catch (uploadError) {
           console.error('Error subiendo documento luego de guardar en Supabase:', uploadError);
           alert('El registro se guardó en Supabase, pero falló la subida del documento a la API.');
@@ -193,7 +204,7 @@ const AcreditacionRoutes: React.FC = () => {
 
       await loadRequests();
       setEditingItem(null);
-      // Navegar de vuelta a la lista después de guardar
+      // Navegar de vuelta a la lista despuÃ©s de guardar
       navigate(ACREDITACION_ROUTES.requests);
     } catch (error) {
       console.error('Error saving request:', error);
@@ -215,13 +226,13 @@ const AcreditacionRoutes: React.FC = () => {
       const isAdmin = await checkUserIsAdmin();
 
       if (!isAdmin) {
-        alert('No tienes permisos para eliminar registros. Solo los administradores pueden realizar esta acción.');
+        alert('No tienes permisos para eliminar registros. Solo los administradores pueden realizar esta acciÃ³n.');
         return;
       }
 
       await deletePersonaRequerimiento(parseInt(editingItem.id));
 
-      console.log('✅ Registro eliminado (usuario admin)');
+      console.log('âœ… Registro eliminado (usuario admin)');
 
       await loadRequests();
       setEditingItem(null);

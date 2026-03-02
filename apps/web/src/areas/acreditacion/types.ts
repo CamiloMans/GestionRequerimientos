@@ -184,6 +184,7 @@ export interface NewRequestPayload {
     nombre_documento: string;
     fecha_inicio: string;
     folder_id: string;
+    id_registro_sst?: number;
   };
 }
 

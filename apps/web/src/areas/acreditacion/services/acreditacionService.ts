@@ -2580,6 +2580,7 @@ export interface SubirDocumentoAcreditacionPayload {
   nombre_documento: string;
   fecha_inicio: string;
   folder_id: string;
+  id_registro_sst: number;
 }
 
 // Función para subir documento a la API de acreditación (proxy local)
