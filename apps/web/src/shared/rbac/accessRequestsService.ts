@@ -19,6 +19,21 @@ export interface AccessRequest {
   user_name?: string | null;
 }
 
+export interface MyAccessRequest {
+  id: number;
+  modulo_solicitado: string;
+  mensaje: string | null;
+  estado: string;
+  created_at: string;
+  updated_at: string | null;
+  resuelto_at: string | null;
+}
+
+export interface CreateAccessRequestsResult {
+  createdModuleCodes: string[];
+  skippedPendingModuleCodes: string[];
+}
+
 /**
  * Tipos de permisos que se pueden otorgar en solicitudes pendientes
  */
@@ -363,6 +378,170 @@ export const fetchPendingAccessRequests = async (): Promise<AccessRequest[]> => 
     console.error('Error in fetchPendingAccessRequests:', error);
     return [];
   }
+};
+
+/**
+ * Obtener historial de solicitudes del usuario autenticado
+ */
+export const fetchMyAccessRequests = async (
+  limit: number = 10
+): Promise<MyAccessRequest[]> => {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return [];
+    }
+
+    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 10;
+
+    const { data, error } = await supabase
+      .from('fct_rbac_solicitud_acceso')
+      .select(
+        'id, modulo_solicitado, mensaje, estado, created_at, updated_at, resuelto_at'
+      )
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
+
+    if (error) {
+      throw new Error(`Error al obtener tus solicitudes: ${error.message}`);
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      modulo_solicitado: normalizeModuleCode(row.modulo_solicitado || ''),
+      mensaje: row.mensaje || null,
+      estado: row.estado || 'pendiente',
+      created_at: row.created_at,
+      updated_at: row.updated_at || null,
+      resuelto_at: row.resuelto_at || null,
+    }));
+  } catch (error) {
+    console.error('Error in fetchMyAccessRequests:', error);
+    return [];
+  }
+};
+
+/**
+ * Obtener codigos de modulos que el usuario ya tiene pendientes
+ */
+export const fetchMyPendingRequestModuleCodes = async (): Promise<string[]> => {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('fct_rbac_solicitud_acceso')
+      .select('modulo_solicitado')
+      .eq('user_id', user.id)
+      .eq('estado', 'pendiente');
+
+    if (error) {
+      throw new Error(
+        `Error al obtener modulos con solicitud pendiente: ${error.message}`
+      );
+    }
+
+    return Array.from(
+      new Set(
+        (data || [])
+          .map((row: any) => normalizeModuleCode(row.modulo_solicitado || ''))
+          .filter(Boolean)
+      )
+    );
+  } catch (error) {
+    console.error('Error in fetchMyPendingRequestModuleCodes:', error);
+    return [];
+  }
+};
+
+/**
+ * Crear solicitudes de acceso para modulos del usuario autenticado
+ */
+export const createAccessRequests = async (params: {
+  moduleCodes: string[];
+  message?: string | null;
+}): Promise<CreateAccessRequestsResult> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const normalizedModuleCodes = Array.from(
+    new Set((params.moduleCodes || []).map((code) => normalizeModuleCode(code)).filter(Boolean))
+  );
+
+  if (normalizedModuleCodes.length === 0) {
+    return {
+      createdModuleCodes: [],
+      skippedPendingModuleCodes: [],
+    };
+  }
+
+  const { data: pendingData, error: pendingError } = await supabase
+    .from('fct_rbac_solicitud_acceso')
+    .select('modulo_solicitado')
+    .eq('user_id', user.id)
+    .eq('estado', 'pendiente')
+    .in('modulo_solicitado', normalizedModuleCodes);
+
+  if (pendingError) {
+    throw new Error(
+      `Error al validar solicitudes pendientes: ${pendingError.message}`
+    );
+  }
+
+  const skippedPendingModuleCodes = Array.from(
+    new Set(
+      (pendingData || [])
+        .map((row: any) => normalizeModuleCode(row.modulo_solicitado || ''))
+        .filter(Boolean)
+    )
+  );
+
+  const pendingSet = new Set(skippedPendingModuleCodes);
+  const moduleCodesToCreate = normalizedModuleCodes.filter(
+    (moduleCode) => !pendingSet.has(moduleCode)
+  );
+
+  if (moduleCodesToCreate.length === 0) {
+    return {
+      createdModuleCodes: [],
+      skippedPendingModuleCodes,
+    };
+  }
+
+  const message = params.message && params.message.trim() ? params.message.trim() : null;
+  const requests = moduleCodesToCreate.map((moduleCode) => ({
+    user_id: user.id,
+    modulo_solicitado: moduleCode,
+    mensaje: message,
+    estado: 'pendiente',
+  }));
+
+  const { error: insertError } = await supabase
+    .from('fct_rbac_solicitud_acceso')
+    .insert(requests);
+
+  if (insertError) {
+    throw new Error(`Error al crear solicitudes de acceso: ${insertError.message}`);
+  }
+
+  return {
+    createdModuleCodes: moduleCodesToCreate,
+    skippedPendingModuleCodes,
+  };
 };
 
 /**

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../api-client/supabase';
 import { useAuth } from '../auth/useAuth';
 import { fetchAvailableModules, formatModuleName, RBACModule } from '../rbac/modulesService';
+import {
+  CreateAccessRequestsResult,
+  createAccessRequests,
+} from '../rbac/accessRequestsService';
 
 /**
  * Vista de onboarding que se muestra cuando el usuario no tiene permisos
@@ -15,6 +18,9 @@ const OnboardingView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [submitResult, setSubmitResult] = useState<CreateAccessRequestsResult | null>(
+    null
+  );
 
   // Cargar módulos disponibles desde rbac_module
   useEffect(() => {
@@ -53,31 +59,16 @@ const OnboardingView: React.FC = () => {
     setIsSubmitting(true);
     setSubmitStatus('idle');
     setErrorMessage('');
+    setSubmitResult(null);
 
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
-      if (!currentUser) {
-        throw new Error('Usuario no autenticado');
-      }
-
-      // Crear un registro por cada módulo seleccionado en fct_rbac_solicitud_acceso
-      const requests = selectedModules.map((moduleCode) => ({
-        user_id: currentUser.id, // El mismo UUID que está en profiles
-        modulo_solicitado: moduleCode,
-        mensaje: message.trim() || null,
-        estado: 'pendiente',
-      }));
-
-      const { error } = await supabase
-        .from('fct_rbac_solicitud_acceso')
-        .insert(requests);
-
-      if (error) {
-        throw error;
-      }
+      const result = await createAccessRequests({
+        moduleCodes: selectedModules,
+        message: message.trim() || null,
+      });
 
       setSubmitStatus('success');
+      setSubmitResult(result);
       setSelectedModules([]);
       setMessage('');
     } catch (error: any) {
@@ -248,9 +239,18 @@ const OnboardingView: React.FC = () => {
                 ✓ Solicitud enviada correctamente
               </p>
               <p className="text-green-700 text-sm mt-1">
-                Tu solicitud ha sido enviada. Un administrador la revisará y te
-                notificará cuando se apruebe tu acceso.
+                {submitResult && submitResult.createdModuleCodes.length > 0
+                  ? `Se enviaron ${submitResult.createdModuleCodes.length} solicitud(es). Un administrador las revisara y te notificara cuando se apruebe tu acceso.`
+                  : 'No se crearon nuevas solicitudes.'}
               </p>
+              {submitResult && submitResult.skippedPendingModuleCodes.length > 0 && (
+                <p className="text-green-700 text-sm mt-2">
+                  Ya estaban pendientes:{' '}
+                  {submitResult.skippedPendingModuleCodes
+                    .map((moduleCode) => formatModuleName(moduleCode))
+                    .join(', ')}
+                </p>
+              )}
             </div>
           )}
 
@@ -311,4 +311,5 @@ const OnboardingView: React.FC = () => {
 };
 
 export default OnboardingView;
+
 

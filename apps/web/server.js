@@ -12,7 +12,7 @@ const ACREDITACION_LEGACY_API_BASE_URL =
   process.env.ACREDITACION_LEGACY_API_BASE_URL || 'http://34.74.6.124';
 const UPSTREAM_TIMEOUT_MS = 15000;
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 const proxyLegacyAcreditacionPost = async (req, res, upstreamPath) => {
   const controller = new AbortController();
@@ -58,6 +58,10 @@ app.post('/api/acreditacion/carpetas/crear', async (req, res) => {
 
 app.post('/api/acreditacion/asignar-folder', async (req, res) => {
   await proxyLegacyAcreditacionPost(req, res, '/asignar-folder');
+});
+
+app.post('/api/acreditacion/documentos/subir', async (req, res) => {
+  await proxyLegacyAcreditacionPost(req, res, '/documentos/subir');
 });
 
 // Serve static files from the dist folder

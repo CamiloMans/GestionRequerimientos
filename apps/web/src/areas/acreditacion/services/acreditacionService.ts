@@ -2575,4 +2575,61 @@ export const crearCarpetasProyecto = async (resumen: any): Promise<any> => {
   }
 };
 
+export interface SubirDocumentoAcreditacionPayload {
+  documento_base64: string;
+  nombre_documento: string;
+  fecha_inicio: string;
+  folder_id: string;
+}
+
+// Función para subir documento a la API de acreditación (proxy local)
+export const subirDocumentoAcreditacion = async (
+  payload: SubirDocumentoAcreditacionPayload
+): Promise<any> => {
+  const url = ACREDITACION_PROXY_ENDPOINTS.documentosSubir;
+
+  console.log('[documentos] Subiendo documento a API de acreditación...');
+  console.log('   URL:', url);
+  console.log('   Payload:', {
+    ...payload,
+    documento_base64: '[BASE64_DATA]',
+  });
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const contentType = response.headers.get('content-type');
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`Error HTTP ${response.status}: ${responseText}`);
+    }
+
+    if (contentType?.includes('application/json')) {
+      const data = JSON.parse(responseText);
+      console.log('[documentos] Documento subido correctamente:', data);
+      return data;
+    }
+
+    console.log('[documentos] Documento subido correctamente (texto):', responseText);
+    return responseText;
+  } catch (error: any) {
+    console.error('[documentos] Error subiendo documento:', error);
+    const wrappedError = new Error(error?.message || 'Error subiendo documento');
+    Object.assign(wrappedError, {
+      isExternalSyncError: true,
+      syncOperation: 'subir_documento',
+      endpoint: url,
+      cause: error,
+    });
+    throw wrappedError;
+  }
+};
+
 

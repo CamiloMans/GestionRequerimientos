@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NewRequestPayload, RequestItem, Persona, Requerimiento, RequestStatus } from '../types';
-import { fetchPersonas, fetchRequerimientos, calculateStatus, createRequerimiento, fetchCategoriasRequerimientos } from '../services/acreditacionService';
+import {
+  fetchPersonas,
+  fetchRequerimientos,
+  calculateStatus,
+  createRequerimiento,
+  fetchCategoriasRequerimientos,
+  subirDocumentoAcreditacion,
+} from '../services/acreditacionService';
 
 interface RequestFormProps {
   onBack: () => void;
-  onSave: (data: NewRequestPayload) => void;
+  onSave: (data: NewRequestPayload) => Promise<void>;
   onDelete?: () => void;
   initialData?: RequestItem | null;
 }
@@ -24,6 +31,10 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredPersonas, setFilteredPersonas] = useState<Persona[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Funciones helper para estilos de estado
   const getStatusBadge = (status: RequestStatus) => {
@@ -210,7 +221,47 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     }
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== 'string') {
+          reject(new Error('No se pudo leer el archivo'));
+          return;
+        }
+
+        const [, base64] = reader.result.split(',');
+        resolve(base64 || '');
+      };
+      reader.onerror = () => reject(new Error('Error leyendo el archivo'));
+      reader.readAsDataURL(file);
+    });
+
+  const formatFileSize = (sizeInBytes: number): string => {
+    if (sizeInBytes < 1024) return `${sizeInBytes} B`;
+    if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`;
+    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleSelectedFile = (file: File | null) => {
+    if (!file) return;
+    setSelectedFile(file);
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    handleSelectedFile(file);
+  };
+
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files?.[0] || null;
+    handleSelectedFile(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!isEditing && (!formData.persona_id || !formData.requerimiento_id)) {
@@ -226,7 +277,45 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     console.log('📤 Datos a guardar:', formData);
     console.log('📊 Estado seleccionado:', formData.estado);
     
-    onSave(formData as NewRequestPayload);
+    try {
+      setIsSubmitting(true);
+
+      if (!isEditing && selectedFile) {
+        const personaSeleccionada = personas.find((persona) => persona.id === formData.persona_id);
+        const requerimientoSeleccionado = requerimientos.find(
+          (requerimiento) => requerimiento.id === formData.requerimiento_id
+        );
+
+        if (!personaSeleccionada?.sst_drive_folder_id) {
+          alert('El colaborador seleccionado no tiene carpeta SST asignada (sst_drive_folder_id).');
+          return;
+        }
+
+        if (!requerimientoSeleccionado?.requerimiento) {
+          alert('No se pudo obtener el nombre del requerimiento seleccionado.');
+          return;
+        }
+
+        const documentoBase64 = await fileToBase64(selectedFile);
+        if (!documentoBase64) {
+          throw new Error('No se pudo convertir el archivo a base64.');
+        }
+
+        await subirDocumentoAcreditacion({
+          documento_base64: documentoBase64,
+          nombre_documento: requerimientoSeleccionado.requerimiento,
+          fecha_inicio: formData.fecha_vigencia,
+          folder_id: personaSeleccionada.sst_drive_folder_id,
+        });
+      }
+
+      await onSave(formData as NewRequestPayload);
+    } catch (error: any) {
+      console.error('Error guardando registro y/o documento:', error);
+      alert(error?.message || 'Error al guardar la solicitud. Intente nuevamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -394,6 +483,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                   </div>
                 </div>
 
+
                 <hr className="border-gray-100" />
               </>
             )}
@@ -536,6 +626,94 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
               )}
             </div>
 
+            {!isEditing && (
+                <div>
+                  <h3 className="text-sm font-semibold text-[#111318] mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-[20px]">upload_file</span>
+                    Documento para subir (opcional)
+                  </h3>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileInputChange}
+                  />
+
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(true);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(false);
+                    }}
+                    onDrop={handleFileDrop}
+                    className={`rounded-lg border-2 border-dashed p-5 transition-colors cursor-pointer ${
+                      isDraggingFile
+                        ? 'border-primary bg-primary/5'
+                        : 'border-gray-300 bg-gray-50 hover:border-primary/60 hover:bg-primary/5'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-primary text-[24px]">upload</span>
+                        <div>
+                          <p className="text-sm font-medium text-[#111318]">
+                            Arrastra un archivo aquí o haz clic para seleccionarlo
+                          </p>
+                          <p className="text-xs text-[#616f89] mt-1">
+                            Se enviará a `/api/acreditacion/documentos/subir` al presionar Guardar.
+                          </p>
+                        </div>
+                      </div>
+                      {selectedFile && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFile(null);
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = '';
+                            }
+                          }}
+                          className="text-xs px-3 py-1.5 rounded-md border border-gray-300 text-[#616f89] hover:bg-gray-100 transition-colors"
+                        >
+                          Quitar archivo
+                        </button>
+                      )}
+                    </div>
+
+                    {selectedFile && (
+                      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#111318] truncate">{selectedFile.name}</p>
+                          <p className="text-xs text-[#616f89]">{formatFileSize(selectedFile.size)}</p>
+                        </div>
+                        <span className="material-symbols-outlined text-green-600 text-[20px]">check_circle</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+            )}
+
             {/* Section 3 - Link de Google Drive */}
             <div>
               <h2 className="text-base lg:text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
@@ -583,16 +761,18 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                 <button 
                   type="button" 
                   onClick={onBack}
+                  disabled={isSubmitting}
                   className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-medium transition-colors text-sm"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm"
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center justify-center gap-2 text-sm"
                 >
                   <span className="material-symbols-outlined text-[20px]">save</span>
-                  {isEditing ? 'Actualizar' : 'Guardar'}
+                  {isSubmitting ? 'Guardando...' : isEditing ? 'Actualizar' : 'Guardar'}
                 </button>
               </div>
             </div>

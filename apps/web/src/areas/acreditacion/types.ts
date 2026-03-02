@@ -40,6 +40,7 @@ export interface Persona {
   especialidad_id: string;
   created_at: string;
   updated_at: string;
+  sst_drive_folder_id?: string | null;
   cargo_nombre?: string;
   area_nombre?: string;
 }
