@@ -261,6 +261,12 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     handleSelectedFile(file);
   };
 
+  const ensurePdfFileName = (value: string): string => {
+    const cleanValue = value.trim();
+    if (!cleanValue) return 'documento.pdf';
+    return /\.pdf$/i.test(cleanValue) ? cleanValue : `${cleanValue}.pdf`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -303,7 +309,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
 
         await subirDocumentoAcreditacion({
           documento_base64: documentoBase64,
-          nombre_documento: requerimientoSeleccionado.requerimiento,
+          nombre_documento: ensurePdfFileName(requerimientoSeleccionado.requerimiento),
           fecha_inicio: formData.fecha_vigencia,
           folder_id: personaSeleccionada.sst_drive_folder_id,
         });
