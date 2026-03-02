@@ -33,6 +33,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [replaceDocument, setReplaceDocument] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Funciones helper para estilos de estado
@@ -247,6 +248,13 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     setSelectedFile(file);
   };
 
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     handleSelectedFile(file);
@@ -266,6 +274,88 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     return /\.pdf$/i.test(cleanValue) ? cleanValue : `${cleanValue}.pdf`;
   };
 
+  const renderDocumentUploader = (title: string, subtitle: string) => (
+    <div>
+      <h3 className="text-sm font-semibold text-[#111318] mb-3 flex items-center gap-2">
+        <span className="material-symbols-outlined text-primary text-[20px]">upload_file</span>
+        {title}
+      </h3>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDraggingFile(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDraggingFile(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDraggingFile(false);
+        }}
+        onDrop={handleFileDrop}
+        className={`rounded-lg border-2 border-dashed p-5 transition-colors cursor-pointer ${
+          isDraggingFile
+            ? 'border-primary bg-primary/5'
+            : 'border-gray-300 bg-gray-50 hover:border-primary/60 hover:bg-primary/5'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined text-primary text-[24px]">upload</span>
+            <div>
+              <p className="text-sm font-medium text-[#111318]">
+                Arrastra un archivo aqui o haz clic para seleccionarlo
+              </p>
+              <p className="text-xs text-[#616f89] mt-1">{subtitle}</p>
+            </div>
+          </div>
+          {selectedFile && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearSelectedFile();
+              }}
+              className="text-xs px-3 py-1.5 rounded-md border border-gray-300 text-[#616f89] hover:bg-gray-100 transition-colors"
+            >
+              Quitar archivo
+            </button>
+          )}
+        </div>
+
+        {selectedFile && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-[#111318] truncate">{selectedFile.name}</p>
+              <p className="text-xs text-[#616f89]">{formatFileSize(selectedFile.size)}</p>
+            </div>
+            <span className="material-symbols-outlined text-green-600 text-[20px]">check_circle</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -278,6 +368,29 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
       alert("Por favor complete las fechas");
       return;
     }
+
+    if (isEditing && replaceDocument) {
+      if (!selectedFile) {
+        alert('Para reemplazar el documento, primero debe seleccionar un archivo.');
+        return;
+      }
+
+      const fechaVigenciaActualizada = formData.fecha_vigencia !== (initialData?.adjudicationDate || '');
+      const fechaVencimientoActualizada = formData.fecha_vencimiento !== (initialData?.expirationDate || '');
+
+      if (!fechaVigenciaActualizada || !fechaVencimientoActualizada) {
+        alert('Si reemplaza el documento, debe actualizar Fecha de Vigencia y Fecha de Vencimiento.');
+        return;
+      }
+
+      const confirmed = window.confirm(
+        'Se reemplazara el documento actual. Esta accion elimina el archivo anterior. Desea continuar?'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
     
     console.log('ðŸ“¤ Datos a guardar:', formData);
     console.log('ðŸ“Š Estado seleccionado:', formData.estado);
@@ -286,34 +399,40 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
       setIsSubmitting(true);
 
       const payload: NewRequestPayload = { ...formData };
+      const shouldUploadDocument = Boolean(selectedFile) && (!isEditing || replaceDocument);
 
-      if (!isEditing && selectedFile) {
+      if (shouldUploadDocument) {
         const personaSeleccionada = personas.find((persona) => persona.id === formData.persona_id);
         const requerimientoSeleccionado = requerimientos.find(
           (requerimiento) => requerimiento.id === formData.requerimiento_id
         );
-        if (!personaSeleccionada) {
-          alert('No se pudo obtener la persona seleccionada.');
+        const nombreRequerimiento = requerimientoSeleccionado?.requerimiento || initialData?.requirement || '';
+        const nombrePersona = personaSeleccionada?.nombre_completo || initialData?.name || '';
+        const rutPersona = personaSeleccionada?.rut || initialData?.rut || '';
+        const folderId = personaSeleccionada?.sst_drive_folder_id ?? initialData?.drive_folder_id ?? null;
+
+        if (!nombrePersona || !rutPersona) {
+          alert('No se pudo obtener los datos de la persona para subir el documento.');
           return;
         }
 
-        if (!requerimientoSeleccionado?.requerimiento) {
+        if (!nombreRequerimiento) {
           alert('No se pudo obtener el nombre del requerimiento seleccionado.');
           return;
         }
 
-        const documentoBase64 = await fileToBase64(selectedFile);
+        const documentoBase64 = await fileToBase64(selectedFile as File);
         if (!documentoBase64) {
           throw new Error('No se pudo convertir el archivo a base64.');
         }
 
         payload.documento_subida = {
           documento_base64: documentoBase64,
-          nombre_documento: ensurePdfFileName(requerimientoSeleccionado.requerimiento),
+          nombre_documento: ensurePdfFileName(nombreRequerimiento),
           fecha_inicio: formData.fecha_vigencia,
-          folder_id: personaSeleccionada.sst_drive_folder_id ?? null,
-          nombre_persona: personaSeleccionada.nombre_completo,
-          rut_persona: personaSeleccionada.rut,
+          folder_id: folderId,
+          nombre_persona: nombrePersona,
+          rut_persona: rutPersona,
         };
       }
 
@@ -383,8 +502,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
 
         {/* Form Container */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 lg:p-8">
-          <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-            {/* Section 1 - SelecciÃ³n de Persona y Requerimiento */}
+          <form className="flex flex-col gap-6" onSubmit={handleSubmit}>            {/* Section 1 - Seleccion de Persona y Requerimiento */}
             {!isEditing && (
               <>
                 <div>
@@ -414,7 +532,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                             type="button"
                             onClick={() => {
                               setSearchTerm('');
-                              setFormData({...formData, persona_id: 0});
+                              setFormData({ ...formData, persona_id: 0 });
                               setShowDropdown(true);
                             }}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -423,12 +541,12 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                           </button>
                         )}
                       </div>
-                      
+
                       {/* Dropdown de resultados */}
                       {showDropdown && (
                         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {filteredPersonas.length > 0 ? (
-                            filteredPersonas.map(persona => (
+                            filteredPersonas.map((persona) => (
                               <button
                                 key={persona.id}
                                 type="button"
@@ -448,14 +566,8 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                           )}
                         </div>
                       )}
-                      
-                      {/* Campo oculto para validaciÃ³n requerida */}
-                      <input 
-                        type="hidden" 
-                        name="persona_id" 
-                        value={formData.persona_id || ''} 
-                        required 
-                      />
+
+                      <input type="hidden" name="persona_id" value={formData.persona_id || ''} required />
                     </div>
 
                     <div className="space-y-2">
@@ -472,16 +584,16 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                           Crear Requerimiento
                         </button>
                       </div>
-                      <select 
-                        id="requerimiento_id" 
-                        name="requerimiento_id" 
+                      <select
+                        id="requerimiento_id"
+                        name="requerimiento_id"
                         className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5"
                         value={formData.requerimiento_id}
                         onChange={handleChange}
                         required
                       >
                         <option value="">Seleccione un requerimiento...</option>
-                        {requerimientos.map(req => (
+                        {requerimientos.map((req) => (
                           <option key={req.id} value={req.id}>
                             {req.requerimiento} - {req.categoria_requerimiento}
                           </option>
@@ -491,12 +603,11 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                   </div>
                 </div>
 
-
                 <hr className="border-gray-100" />
               </>
             )}
 
-            {/* Mostrar informaciÃ³n de la persona al editar */}
+            {/* Mostrar informacion de la persona al editar */}
             {isEditing && initialData && (
               <>
                 <div>
@@ -633,93 +744,64 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                 </div>
               )}
             </div>
+            {!isEditing &&
+              renderDocumentUploader(
+                'Documento para subir (opcional)',
+                'Se enviara a /api/acreditacion/documentos/subir al presionar Guardar.'
+              )}
 
-            {!isEditing && (
-                <div>
-                  <h3 className="text-sm font-semibold text-[#111318] mb-3 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[20px]">upload_file</span>
-                    Documento para subir (opcional)
-                  </h3>
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileInputChange}
-                  />
-
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => fileInputRef.current?.click()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        fileInputRef.current?.click();
+            {isEditing && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#111318]">Documento en Drive</h3>
+                    <p className="text-xs text-[#616f89] mt-1">
+                      Puede mantener el actual o usar Reemplazar para subir un documento nuevo.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (replaceDocument) {
+                        clearSelectedFile();
+                        setIsDraggingFile(false);
                       }
+                      setReplaceDocument((prev) => !prev);
                     }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDraggingFile(true);
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDraggingFile(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDraggingFile(false);
-                    }}
-                    onDrop={handleFileDrop}
-                    className={`rounded-lg border-2 border-dashed p-5 transition-colors cursor-pointer ${
-                      isDraggingFile
-                        ? 'border-primary bg-primary/5'
-                        : 'border-gray-300 bg-gray-50 hover:border-primary/60 hover:bg-primary/5'
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
+                      replaceDocument
+                        ? 'border-gray-300 text-[#616f89] bg-white hover:bg-gray-100'
+                        : 'border-primary text-primary bg-primary/10 hover:bg-primary/20'
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <span className="material-symbols-outlined text-primary text-[24px]">upload</span>
-                        <div>
-                          <p className="text-sm font-medium text-[#111318]">
-                            Arrastra un archivo aquÃ­ o haz clic para seleccionarlo
-                          </p>
-                          <p className="text-xs text-[#616f89] mt-1">
-                            Se enviarÃ¡ a `/api/acreditacion/documentos/subir` al presionar Guardar.
-                          </p>
-                        </div>
-                      </div>
-                      {selectedFile && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedFile(null);
-                            if (fileInputRef.current) {
-                              fileInputRef.current.value = '';
-                            }
-                          }}
-                          className="text-xs px-3 py-1.5 rounded-md border border-gray-300 text-[#616f89] hover:bg-gray-100 transition-colors"
-                        >
-                          Quitar archivo
-                        </button>
-                      )}
-                    </div>
-
-                    {selectedFile && (
-                      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-[#111318] truncate">{selectedFile.name}</p>
-                          <p className="text-xs text-[#616f89]">{formatFileSize(selectedFile.size)}</p>
-                        </div>
-                        <span className="material-symbols-outlined text-green-600 text-[20px]">check_circle</span>
-                      </div>
-                    )}
-                  </div>
+                    {replaceDocument ? 'Cancelar reemplazo' : 'Reemplazar'}
+                  </button>
                 </div>
+
+                {initialData?.link && !replaceDocument && (
+                  <a
+                    href={initialData.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary-hover"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                    Ver documento actual
+                  </a>
+                )}
+
+                {replaceDocument && (
+                  <div className="space-y-3">
+                    {renderDocumentUploader(
+                      'Reemplazar documento',
+                      'Se enviara por la misma API y reemplazara el documento actual al guardar.'
+                    )}
+                    <p className="text-xs text-amber-700">
+                      Importante: para reemplazar, debe actualizar Fecha de Vigencia y Fecha de Vencimiento.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Section 3 - Link de Google Drive */}
@@ -931,6 +1013,88 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
     }));
   };
 
+  const renderDocumentUploader = (title: string, subtitle: string) => (
+    <div>
+      <h3 className="text-sm font-semibold text-[#111318] mb-3 flex items-center gap-2">
+        <span className="material-symbols-outlined text-primary text-[20px]">upload_file</span>
+        {title}
+      </h3>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDraggingFile(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDraggingFile(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDraggingFile(false);
+        }}
+        onDrop={handleFileDrop}
+        className={`rounded-lg border-2 border-dashed p-5 transition-colors cursor-pointer ${
+          isDraggingFile
+            ? 'border-primary bg-primary/5'
+            : 'border-gray-300 bg-gray-50 hover:border-primary/60 hover:bg-primary/5'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="material-symbols-outlined text-primary text-[24px]">upload</span>
+            <div>
+              <p className="text-sm font-medium text-[#111318]">
+                Arrastra un archivo aqui o haz clic para seleccionarlo
+              </p>
+              <p className="text-xs text-[#616f89] mt-1">{subtitle}</p>
+            </div>
+          </div>
+          {selectedFile && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearSelectedFile();
+              }}
+              className="text-xs px-3 py-1.5 rounded-md border border-gray-300 text-[#616f89] hover:bg-gray-100 transition-colors"
+            >
+              Quitar archivo
+            </button>
+          )}
+        </div>
+
+        {selectedFile && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-[#111318] truncate">{selectedFile.name}</p>
+              <p className="text-xs text-[#616f89]">{formatFileSize(selectedFile.size)}</p>
+            </div>
+            <span className="material-symbols-outlined text-green-600 text-[20px]">check_circle</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
