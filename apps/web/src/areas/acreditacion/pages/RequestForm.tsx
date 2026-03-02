@@ -6,7 +6,6 @@ import {
   calculateStatus,
   createRequerimiento,
   fetchCategoriasRequerimientos,
-  subirDocumentoAcreditacion,
 } from '../services/acreditacionService';
 
 interface RequestFormProps {
@@ -286,6 +285,8 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     try {
       setIsSubmitting(true);
 
+      const payload: NewRequestPayload = { ...formData };
+
       if (!isEditing && selectedFile) {
         const personaSeleccionada = personas.find((persona) => persona.id === formData.persona_id);
         const requerimientoSeleccionado = requerimientos.find(
@@ -307,15 +308,15 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
           throw new Error('No se pudo convertir el archivo a base64.');
         }
 
-        await subirDocumentoAcreditacion({
+        payload.documento_subida = {
           documento_base64: documentoBase64,
           nombre_documento: ensurePdfFileName(requerimientoSeleccionado.requerimiento),
           fecha_inicio: formData.fecha_vigencia,
           folder_id: personaSeleccionada.sst_drive_folder_id,
-        });
+        };
       }
 
-      await onSave(formData as NewRequestPayload);
+      await onSave(payload);
     } catch (error: any) {
       console.error('Error guardando registro y/o documento:', error);
       alert(error?.message || 'Error al guardar la solicitud. Intente nuevamente.');

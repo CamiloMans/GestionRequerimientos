@@ -179,6 +179,12 @@ export interface NewRequestPayload {
   fecha_vencimiento: string;
   estado?: RequestStatus;
   link?: string;
+  documento_subida?: {
+    documento_base64: string;
+    nombre_documento: string;
+    fecha_inicio: string;
+    folder_id: string;
+  };
 }
 
 // === Tipos para Solicitud de Terreno ===

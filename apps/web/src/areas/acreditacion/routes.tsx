@@ -19,6 +19,7 @@ import {
   deletePersonaRequerimiento,
   checkUserIsAdmin,
   fetchProjectGalleryItems,
+  subirDocumentoAcreditacion,
 } from './services/acreditacionService';
 
 /**
@@ -179,6 +180,15 @@ const AcreditacionRoutes: React.FC = () => {
           data.fecha_vencimiento,
           data.link
         );
+      }
+
+      if (data.documento_subida) {
+        try {
+          await subirDocumentoAcreditacion(data.documento_subida);
+        } catch (uploadError) {
+          console.error('Error subiendo documento luego de guardar en Supabase:', uploadError);
+          alert('El registro se guardó en Supabase, pero falló la subida del documento a la API.');
+        }
       }
 
       await loadRequests();
