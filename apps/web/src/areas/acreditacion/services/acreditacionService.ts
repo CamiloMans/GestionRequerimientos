@@ -2579,7 +2579,7 @@ export interface SubirDocumentoAcreditacionPayload {
   documento_base64: string;
   nombre_documento: string;
   fecha_inicio: string;
-  folder_id: string;
+  folder_id: string | null;
   nombre_persona: string;
   rut_persona: string;
   id_registro_sst: number;

@@ -292,9 +292,8 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
         const requerimientoSeleccionado = requerimientos.find(
           (requerimiento) => requerimiento.id === formData.requerimiento_id
         );
-
-        if (!personaSeleccionada?.sst_drive_folder_id) {
-          alert('El colaborador seleccionado no tiene carpeta SST asignada (sst_drive_folder_id).');
+        if (!personaSeleccionada) {
+          alert('No se pudo obtener la persona seleccionada.');
           return;
         }
 
@@ -312,7 +311,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
           documento_base64: documentoBase64,
           nombre_documento: ensurePdfFileName(requerimientoSeleccionado.requerimiento),
           fecha_inicio: formData.fecha_vigencia,
-          folder_id: personaSeleccionada.sst_drive_folder_id,
+          folder_id: personaSeleccionada.sst_drive_folder_id ?? null,
           nombre_persona: personaSeleccionada.nombre_completo,
           rut_persona: personaSeleccionada.rut,
         };
