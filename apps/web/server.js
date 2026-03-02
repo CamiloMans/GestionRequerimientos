@@ -61,7 +61,7 @@ app.post('/api/acreditacion/asignar-folder', async (req, res) => {
 });
 
 app.post('/api/acreditacion/documentos/subir', async (req, res) => {
-  await proxyLegacyAcreditacionPost(req, res, '/documentos/subir');
+  await proxyLegacyAcreditacionPost(req, res, '/api/acreditacion/documentos/subir');
 });
 
 // Serve static files from the dist folder
