@@ -762,8 +762,8 @@ export const approveAccessRequest = async (
       resolveRoleForPermission(moduleCode, permission, rolesByCode)
     );
 
-    // Limpiar roles previos del mismo mÃ³dulo para evitar conservar permisos
-    // mÃ¡s altos (por ejemplo, admin) cuando se aprueba como editor/viewer.
+    // Limpiar roles previos del mismo módulo para evitar conservar permisos
+    // más altos (por ejemplo, admin) cuando se aprueba como editor/viewer.
     const moduleRoles = await getModuleRoleRows(moduleCode);
     const moduleRoleIds = Array.from(new Set(moduleRoles.map((role) => role.id)));
 

@@ -1,15 +1,15 @@
-﻿import { supabase } from '@shared/api-client/supabase';
+import { supabase } from '@shared/api-client/supabase';
 import { Persona, Requerimiento, PersonaRequerimientoSST, RequestItem, RequestStatus, SolicitudAcreditacion, ProjectGalleryItem, Cliente, EmpresaRequerimiento, ProyectoRequerimientoAcreditacion, ResponsableRequerimiento, ProyectoTrabajador, FieldRequestFormSnapshot, RequestFormData, Worker, WorkerType } from '../types';
 import { generateProjectTasks, calculateCompletedTasks } from '../utils/projectTasks';
 import { ACREDITACION_PROXY_ENDPOINTS } from './acreditacionProxyEndpoints';
 
-// FunciÃ³n para enviar webhook a travÃ©s de la funciÃ³n edge de Supabase (evita CORS)
+// Función para enviar webhook a través de la función edge de Supabase (evita CORS)
 export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pugasfsnckeyitjemvju.supabase.co';
   const functionUrl = `${supabaseUrl}/functions/v1/send-webhook`;
   
-  console.log('ðŸ”— Invocando funciÃ³n edge:', functionUrl);
-  console.log('ðŸ“¦ Payload:', payload);
+  console.log('🔗 Invocando función edge:', functionUrl);
+  console.log('📦 Payload:', payload);
   
   try {
     const { data, error } = await supabase.functions.invoke('send-webhook', {
@@ -17,8 +17,8 @@ export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => 
     });
 
     if (error) {
-      console.error('âŒ Error al invocar funciÃ³n edge:', error);
-      console.error('âŒ Detalles del error:', {
+      console.error('❌ Error al invocar función edge:', error);
+      console.error('❌ Detalles del error:', {
         message: error.message,
         name: error.name,
         context: (error as any).context,
@@ -26,7 +26,7 @@ export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => 
       
       // Si es un 404, intentar hacer fetch directo como fallback
       if (error.message?.includes('404') || error.message?.includes('not found') || (error as any).status === 404) {
-        console.warn('âš ï¸ FunciÃ³n edge no encontrada (404). Intentando mÃ©todo alternativo...');
+        console.warn('⚠️ Función edge no encontrada (404). Intentando método alternativo...');
         
         // Fallback: intentar hacer fetch directo con headers CORS
         try {
@@ -40,24 +40,24 @@ export const sendWebhookViaEdgeFunction = async (payload: any): Promise<any> => 
           });
 
           if (!directResponse.ok) {
-            throw new Error(`Error ${directResponse.status}: La funciÃ³n edge "send-webhook" no estÃ¡ desplegada o no es accesible. Por favor, verifica en el Dashboard de Supabase que la funciÃ³n estÃ© desplegada correctamente.`);
+            throw new Error(`Error ${directResponse.status}: La función edge "send-webhook" no está desplegada o no es accesible. Por favor, verifica en el Dashboard de Supabase que la función esté desplegada correctamente.`);
           }
 
           const directData = await directResponse.json();
-          console.log('âœ… Respuesta usando mÃ©todo alternativo:', directData);
+          console.log('✅ Respuesta usando método alternativo:', directData);
           return directData;
         } catch (fallbackError: any) {
-          throw new Error(`La funciÃ³n edge "send-webhook" no estÃ¡ desplegada. Ve al Dashboard de Supabase > Edge Functions y verifica que la funciÃ³n "send-webhook" estÃ© desplegada. Error: ${fallbackError.message}`);
+          throw new Error(`La función edge "send-webhook" no está desplegada. Ve al Dashboard de Supabase > Edge Functions y verifica que la función "send-webhook" esté desplegada. Error: ${fallbackError.message}`);
         }
       }
       
       throw error;
     }
 
-    console.log('âœ… Respuesta de funciÃ³n edge:', data);
+    console.log('✅ Respuesta de función edge:', data);
     return data;
   } catch (err: any) {
-    console.error('âŒ Error completo:', err);
+    console.error('❌ Error completo:', err);
     throw err;
   }
 };
@@ -67,43 +67,43 @@ interface EnviarIdProyectoN8nOptions {
   solicitudPrueba?: boolean;
 }
 
-// FunciÃ³n para enviar el ID del proyecto a la edge function de n8n
+// Función para enviar el ID del proyecto a la edge function de n8n
 export const enviarIdProyectoN8n = async (
   idProyecto: number,
   options?: EnviarIdProyectoN8nOptions
 ): Promise<any> => {
-  console.log('ðŸ”— Invocando funciÃ³n edge: Enviar_id_proyecto_n8n');
-  console.log('ðŸ“¦ ID Proyecto:', idProyecto);
+  console.log('🔗 Invocando función edge: Enviar_id_proyecto_n8n');
+  console.log('📦 ID Proyecto:', idProyecto);
   
   // Obtener el correo del usuario autenticado
   let userEmail: string | null = options?.emailUsuario ?? null;
   const solicitudPrueba = options?.solicitudPrueba ?? false;
   
   if (!userEmail) {
-    // Intentar primero con getSession (mÃ¡s confiable)
+    // Intentar primero con getSession (más confiable)
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (session?.user?.email && !sessionError) {
         userEmail = session.user.email;
-        console.log('ðŸ‘¤ Correo obtenido desde session:', userEmail);
+        console.log('👤 Correo obtenido desde session:', userEmail);
       } else {
         // Si no funciona con getSession, intentar con getUser
-        console.log('âš ï¸ No se obtuvo correo desde session, intentando getUser...');
+        console.log('⚠️ No se obtuvo correo desde session, intentando getUser...');
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (user?.email && !userError) {
           userEmail = user.email;
-          console.log('ðŸ‘¤ Correo obtenido desde getUser:', userEmail);
+          console.log('👤 Correo obtenido desde getUser:', userEmail);
         } else {
-          console.warn('âš ï¸ No se pudo obtener el correo del usuario:', userError || sessionError);
+          console.warn('⚠️ No se pudo obtener el correo del usuario:', userError || sessionError);
         }
       }
     } catch (error) {
-      console.error('âŒ Error al obtener usuario:', error);
+      console.error('❌ Error al obtener usuario:', error);
     }
   }
   
   if (!userEmail) {
-    console.error('âŒ No se pudo obtener el correo del usuario autenticado');
+    console.error('❌ No se pudo obtener el correo del usuario autenticado');
   }
 
   // Preparar el payload
@@ -113,36 +113,36 @@ export const enviarIdProyectoN8n = async (
     solicitud_prueba: solicitudPrueba,
   };
   
-  console.log('ðŸ“¤ Payload completo a enviar a edge function:', payload);
+  console.log('📤 Payload completo a enviar a edge function:', payload);
   
   try {
-    // Usar el mÃ©todo invoke de Supabase que maneja CORS automÃ¡ticamente
+    // Usar el método invoke de Supabase que maneja CORS automáticamente
     const { data, error } = await supabase.functions.invoke('Enviar_id_proyecto_n8n', {
       body: payload,
     });
 
     if (error) {
-      console.error('âŒ Error al invocar funciÃ³n edge:', error);
-      console.error('âŒ Detalles del error:', {
+      console.error('❌ Error al invocar función edge:', error);
+      console.error('❌ Detalles del error:', {
         message: error.message,
         name: error.name,
         context: (error as any).context,
       });
       
-      // Si el error indica que la funciÃ³n no existe, dar un mensaje mÃ¡s claro
+      // Si el error indica que la función no existe, dar un mensaje más claro
       if (error.message?.includes('not found') || error.message?.includes('404') || (error as any).status === 404) {
-        throw new Error('La funciÃ³n edge "Enviar_id_proyecto_n8n" no estÃ¡ desplegada. Por favor, despliega la funciÃ³n en Supabase usando: supabase functions deploy Enviar_id_proyecto_n8n');
+        throw new Error('La función edge "Enviar_id_proyecto_n8n" no está desplegada. Por favor, despliega la función en Supabase usando: supabase functions deploy Enviar_id_proyecto_n8n');
       }
       
       throw error;
     }
 
-    console.log('âœ… Respuesta de funciÃ³n edge:', data);
+    console.log('✅ Respuesta de función edge:', data);
     return data;
   } catch (err: any) {
-    console.error('âŒ Error completo al enviar ID del proyecto:', err);
+    console.error('❌ Error completo al enviar ID del proyecto:', err);
     
-    // Proporcionar un mensaje mÃ¡s amigable
+    // Proporcionar un mensaje más amigable
     let errorMessage = 'Error al enviar ID del proyecto';
     if (err.message) {
       errorMessage += `: ${err.message}`;
@@ -154,7 +154,7 @@ export const enviarIdProyectoN8n = async (
   }
 };
 
-// FunciÃ³n para calcular el estado basado en la fecha de vencimiento
+// Función para calcular el estado basado en la fecha de vencimiento
 export const calculateStatus = (fechaVencimiento: string | null | undefined): RequestStatus => {
   if (!fechaVencimiento) return RequestStatus.Current;
   
@@ -176,7 +176,7 @@ export const calculateStatus = (fechaVencimiento: string | null | undefined): Re
   }
 };
 
-// FunciÃ³n para obtener todas las personas
+// Función para obtener todas las personas
 export const fetchPersonas = async (): Promise<Persona[]> => {
   const { data, error } = await supabase
     .from('dim_core_persona')
@@ -193,7 +193,7 @@ export const fetchPersonas = async (): Promise<Persona[]> => {
     return [];
   }
   
-  // Obtener IDs Ãºnicos de cargos y gerencias
+  // Obtener IDs únicos de cargos y gerencias
   const cargoIds = [...new Set(data.map((p: any) => p.cargo_myma_id).filter(Boolean))];
   const gerenciaIds = [...new Set(data.map((p: any) => p.gerencia_id).filter(Boolean))];
   
@@ -237,7 +237,7 @@ export const fetchPersonas = async (): Promise<Persona[]> => {
     }
   }
   
-  // Mapear los datos para incluir cargo y Ã¡rea
+  // Mapear los datos para incluir cargo y área
   const personas = data.map((persona: any) => ({
     ...persona,
     cargo_nombre: persona.cargo_myma_id ? (cargosMap[persona.cargo_myma_id] || '') : '',
@@ -247,7 +247,7 @@ export const fetchPersonas = async (): Promise<Persona[]> => {
   return personas;
 };
 
-// FunciÃ³n para obtener todos los clientes
+// Función para obtener todos los clientes
 export const fetchClientes = async (): Promise<Cliente[]> => {
   const { data, error } = await supabase
     .from('dim_acreditacion_cliente')
@@ -262,7 +262,7 @@ export const fetchClientes = async (): Promise<Cliente[]> => {
   return data || [];
 };
 
-// FunciÃ³n para obtener todos los responsables de requerimiento
+// Función para obtener todos los responsables de requerimiento
 export const fetchResponsablesRequerimiento = async (): Promise<ResponsableRequerimiento[]> => {
   const { data, error } = await supabase
     .from('responsable_requerimiento')
@@ -277,7 +277,7 @@ export const fetchResponsablesRequerimiento = async (): Promise<ResponsableReque
   return data || [];
 };
 
-// FunciÃ³n para obtener todos los requerimientos
+// Función para obtener todos los requerimientos
 export const fetchRequerimientos = async (): Promise<Requerimiento[]> => {
   const { data, error } = await supabase
     .from('dim_acreditacion_requerimiento_sst')
@@ -292,7 +292,7 @@ export const fetchRequerimientos = async (): Promise<Requerimiento[]> => {
   return data || [];
 };
 
-// FunciÃ³n para obtener todas las categorÃ­as Ãºnicas de requerimientos
+// Función para obtener todas las categorías únicas de requerimientos
 export const fetchCategoriasRequerimientos = async (): Promise<string[]> => {
   const { data, error } = await supabase
     .from('dim_acreditacion_requerimiento_sst')
@@ -304,7 +304,7 @@ export const fetchCategoriasRequerimientos = async (): Promise<string[]> => {
     throw error;
   }
   
-  // Obtener valores Ãºnicos y ordenarlos
+  // Obtener valores únicos y ordenarlos
   const categoriasUnicas = Array.from(
     new Set(data?.map(item => item.categoria_requerimiento).filter(Boolean))
   ).sort() as string[];
@@ -312,7 +312,7 @@ export const fetchCategoriasRequerimientos = async (): Promise<string[]> => {
   return categoriasUnicas;
 };
 
-// FunciÃ³n para crear un nuevo requerimiento
+// Función para crear un nuevo requerimiento
 export const createRequerimiento = async (
   requerimiento: string,
   categoria_requerimiento: string,
@@ -341,7 +341,7 @@ export const createRequerimiento = async (
   return data;
 };
 
-// FunciÃ³n para obtener requerimientos del catÃ¡logo
+// Función para obtener requerimientos del catálogo
 export const fetchCatalogoRequerimientos = async (): Promise<any[]> => {
   const { data, error } = await supabase
     .from('dim_acreditacion_requerimiento')
@@ -356,7 +356,7 @@ export const fetchCatalogoRequerimientos = async (): Promise<any[]> => {
   return data || [];
 };
 
-// FunciÃ³n para obtener todos los proveedores
+// Función para obtener todos los proveedores
 export const fetchProveedores = async (): Promise<{ id: number; nombre_proveedor: string }[]> => {
   const { data, error } = await supabase
     .from('dim_core_proveedor')
@@ -371,7 +371,7 @@ export const fetchProveedores = async (): Promise<{ id: number; nombre_proveedor
   return data || [];
 };
 
-// FunciÃ³n para obtener brg_acreditacion_persona_requerimiento_sst con cÃ¡lculo de estado
+// Función para obtener brg_acreditacion_persona_requerimiento_sst con cálculo de estado
 export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
   const { data, error } = await supabase
     .from('brg_acreditacion_persona_requerimiento_sst')
@@ -392,7 +392,7 @@ export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
     rut: item.rut || '',
     requirement: item.requerimiento || '',
     category: item.categoria_requerimiento || '',
-    // Usar estado si existe, sino calcular automÃ¡ticamente
+    // Usar estado si existe, sino calcular automáticamente
     status: item.estado ? (item.estado as RequestStatus) : calculateStatus(item.fecha_vencimiento),
     adjudicationDate: item.fecha_vigencia || '-',
     expirationDate: item.fecha_vencimiento || '-',
@@ -404,7 +404,7 @@ export const fetchPersonaRequerimientos = async (): Promise<RequestItem[]> => {
   }));
 };
 
-// FunciÃ³n para obtener requerimientos de una persona especÃ­fica por nombre
+// Función para obtener requerimientos de una persona específica por nombre
 export const fetchPersonaRequerimientosByNombre = async (nombreCompleto: string): Promise<RequestItem[]> => {
   const { data, error } = await supabase
     .from('brg_acreditacion_persona_requerimiento_sst')
@@ -426,7 +426,7 @@ export const fetchPersonaRequerimientosByNombre = async (nombreCompleto: string)
     rut: item.rut || '',
     requirement: item.requerimiento || '',
     category: item.categoria_requerimiento || '',
-    // Usar estado si existe, sino calcular automÃ¡ticamente
+    // Usar estado si existe, sino calcular automáticamente
     status: item.estado ? (item.estado as RequestStatus) : calculateStatus(item.fecha_vencimiento),
     adjudicationDate: item.fecha_vigencia || '-',
     expirationDate: item.fecha_vencimiento || '-',
@@ -438,7 +438,7 @@ export const fetchPersonaRequerimientosByNombre = async (nombreCompleto: string)
   }));
 };
 
-// FunciÃ³n para crear un nuevo registro en brg_acreditacion_persona_requerimiento_sst
+// Función para crear un nuevo registro en brg_acreditacion_persona_requerimiento_sst
 export const createPersonaRequerimiento = async (
   personaId: number,
   requerimientoId: number,
@@ -462,7 +462,7 @@ export const createPersonaRequerimiento = async (
     (duplicateError as Error & { code?: string }).code = 'DUPLICATE_PERSONA_REQUERIMIENTO';
     throw duplicateError;
   }
-  // Obtener informaciÃ³n de persona y requerimiento (incluyendo dias_anticipacion_notificacion)
+  // Obtener información de persona y requerimiento (incluyendo dias_anticipacion_notificacion)
   const [personaResult, requerimientoResult] = await Promise.all([
     supabase.from('dim_core_persona').select('*').eq('id', personaId).single(),
     supabase.from('dim_acreditacion_requerimiento_sst').select('*').eq('id', requerimientoId).single()
@@ -479,11 +479,11 @@ export const createPersonaRequerimiento = async (
   let diasAnticipacion: number;
   if (requerimiento.dias_anticipacion_notificacion !== undefined && requerimiento.dias_anticipacion_notificacion !== null) {
     diasAnticipacion = requerimiento.dias_anticipacion_notificacion;
-    console.log('âœ… Usando dias_anticipacion_notificacion del requerimiento:', diasAnticipacion);
+    console.log('✅ Usando dias_anticipacion_notificacion del requerimiento:', diasAnticipacion);
   } else {
     // Fallback: usar 60 como valor por defecto
     diasAnticipacion = 60;
-    console.log('âš ï¸ dias_anticipacion_notificacion no disponible, usando valor por defecto: 60');
+    console.log('⚠️ dias_anticipacion_notificacion no disponible, usando valor por defecto: 60');
   }
   
   // Insertar nuevo registro
@@ -517,7 +517,7 @@ export const createPersonaRequerimiento = async (
   return data;
 };
 
-// FunciÃ³n para actualizar un registro existente
+// Función para actualizar un registro existente
 export const updatePersonaRequerimiento = async (
   id: number,
   fechaVigencia: string,
@@ -525,7 +525,7 @@ export const updatePersonaRequerimiento = async (
   estado?: RequestStatus,
   linkDrive?: string
 ): Promise<PersonaRequerimientoSST> => {
-  console.log('ðŸ”§ updatePersonaRequerimiento recibido:');
+  console.log('🔧 updatePersonaRequerimiento recibido:');
   console.log('  - ID:', id);
   console.log('  - Estado recibido:', estado);
   console.log('  - Tipo de estado:', typeof estado);
@@ -550,16 +550,16 @@ export const updatePersonaRequerimiento = async (
     
     if (!reqError && requerimiento?.dias_anticipacion_notificacion !== undefined && requerimiento.dias_anticipacion_notificacion !== null) {
       diasAnticipacion = requerimiento.dias_anticipacion_notificacion;
-      console.log('âœ… Usando dias_anticipacion_notificacion del requerimiento:', diasAnticipacion);
+      console.log('✅ Usando dias_anticipacion_notificacion del requerimiento:', diasAnticipacion);
     } else {
       // Fallback: usar 60 como valor por defecto
       diasAnticipacion = 60;
-      console.log('âš ï¸ dias_anticipacion_notificacion no disponible, usando valor por defecto: 60');
+      console.log('⚠️ dias_anticipacion_notificacion no disponible, usando valor por defecto: 60');
     }
   } else {
     // Fallback: usar 60 como valor por defecto si no se puede obtener el requerimiento
     diasAnticipacion = 60;
-    console.log('âš ï¸ No se pudo obtener requerimiento_id, usando valor por defecto: 60');
+    console.log('⚠️ No se pudo obtener requerimiento_id, usando valor por defecto: 60');
   }
   
   const updateData: any = {
@@ -573,7 +573,7 @@ export const updatePersonaRequerimiento = async (
     updateData.link = linkDrive || null;
   }
   
-  console.log('ðŸ’¾ Datos a enviar a Supabase:', updateData);
+  console.log('💾 Datos a enviar a Supabase:', updateData);
   
   const { data, error } = await supabase
     .from('brg_acreditacion_persona_requerimiento_sst')
@@ -583,16 +583,16 @@ export const updatePersonaRequerimiento = async (
     .single();
   
   if (error) {
-    console.error('âŒ Error updating persona_requerimiento:', error);
+    console.error('❌ Error updating persona_requerimiento:', error);
     throw error;
   }
   
-  console.log('âœ… Registro actualizado exitosamente:', data);
+  console.log('✅ Registro actualizado exitosamente:', data);
   
   return data;
 };
 
-// FunciÃ³n para verificar si el usuario actual es admin
+// Función para verificar si el usuario actual es admin
 export const checkUserIsAdmin = async (): Promise<boolean> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -616,7 +616,7 @@ export const checkUserIsAdmin = async (): Promise<boolean> => {
   }
 };
 
-// FunciÃ³n para eliminar un registro (solo admin puede eliminar)
+// Función para eliminar un registro (solo admin puede eliminar)
 export const deletePersonaRequerimiento = async (id: number): Promise<void> => {
   const { error } = await supabase
     .from('brg_acreditacion_persona_requerimiento_sst')
@@ -631,7 +631,7 @@ export const deletePersonaRequerimiento = async (id: number): Promise<void> => {
 
 // ===== FUNCIONES PARA SOLICITUD_ACREDITACION =====
 
-// FunciÃ³n para obtener todas las solicitudes de acreditaciÃ³n
+// Función para obtener todas las solicitudes de acreditación
 export const fetchSolicitudesAcreditacion = async (): Promise<SolicitudAcreditacion[]> => {
   const { data, error } = await supabase
     .from('fct_acreditacion_solicitud')
@@ -646,7 +646,7 @@ export const fetchSolicitudesAcreditacion = async (): Promise<SolicitudAcreditac
   return data || [];
 };
 
-// FunciÃ³n para transformar solicitudes a formato de galerÃ­a de proyectos
+// Función para transformar solicitudes a formato de galería de proyectos
 export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> => {
   const solicitudes = await fetchSolicitudesAcreditacion();
   
@@ -656,7 +656,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
     const trabajadoresContratista = solicitud.trabajadores_contratista || [];
     const allWorkers = [...trabajadoresMyma, ...trabajadoresContratista];
     
-    // Calcular total de vehÃ­culos
+    // Calcular total de vehículos
     const totalVehicles = (solicitud.vehiculos_cantidad || 0) + (solicitud.vehiculos_contratista_cantidad || 0);
     
     // Obtener tareas reales del proyecto desde la base de datos
@@ -723,7 +723,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
     
     return {
       id: solicitud.id,
-      projectCode: solicitud.codigo_proyecto || 'Sin cÃ³digo',
+      projectCode: solicitud.codigo_proyecto || 'Sin código',
       projectName: solicitud.requisito || 'Proyecto sin nombre',
       clientName: solicitud.nombre_cliente || 'Sin cliente',
       razonSocialContratista: solicitud.razon_social_contratista || undefined,
@@ -754,7 +754,7 @@ export const fetchProjectGalleryItems = async (): Promise<ProjectGalleryItem[]> 
   }));
 };
 
-// FunciÃ³n para crear una nueva solicitud de acreditaciÃ³n
+// Función para crear una nueva solicitud de acreditación
 export const createSolicitudAcreditacion = async (data: Partial<SolicitudAcreditacion>): Promise<SolicitudAcreditacion> => {
   const { data: result, error } = await supabase
     .from('fct_acreditacion_solicitud')
@@ -770,7 +770,7 @@ export const createSolicitudAcreditacion = async (data: Partial<SolicitudAcredit
   return result;
 };
 
-// FunciÃ³n para actualizar una solicitud de acreditaciÃ³n
+// Función para actualizar una solicitud de acreditación
 export const updateSolicitudAcreditacion = async (
   id: number,
   data: Partial<SolicitudAcreditacion>
@@ -790,7 +790,7 @@ export const updateSolicitudAcreditacion = async (
   return result;
 };
 
-// FunciÃ³n para eliminar una solicitud de acreditaciÃ³n
+// Función para eliminar una solicitud de acreditación
 export const deleteSolicitudAcreditacion = async (id: number): Promise<void> => {
   const { error } = await supabase
     .from('fct_acreditacion_solicitud')
@@ -803,7 +803,7 @@ export const deleteSolicitudAcreditacion = async (id: number): Promise<void> => 
   }
 };
 
-// FunciÃ³n para actualizar responsables de una solicitud
+// Función para actualizar responsables de una solicitud
 export const updateResponsablesSolicitud = async (
   id: number,
   responsables: {
@@ -821,8 +821,8 @@ export const updateResponsablesSolicitud = async (
     acreditacion_nombre?: string;
   }
 ): Promise<SolicitudAcreditacion> => {
-  console.log('ðŸ”„ Actualizando responsables para solicitud ID:', id);
-  console.log('ðŸ“ Responsables recibidos:', responsables);
+  console.log('🔄 Actualizando responsables para solicitud ID:', id);
+  console.log('📝 Responsables recibidos:', responsables);
 
   const updateData = { 
     empresa_id: responsables.empresa_id || null,
@@ -841,38 +841,38 @@ export const updateResponsablesSolicitud = async (
     updated_at: new Date().toISOString() 
   };
 
-  console.log('ðŸ“¦ Datos a guardar:', updateData);
-  console.log('ðŸ” Ejecutando actualizaciÃ³n en Supabase...');
+  console.log('📦 Datos a guardar:', updateData);
+  console.log('🔍 Ejecutando actualización en Supabase...');
   console.log('   ID del registro a actualizar:', id);
 
   try {
-    // Primero, ejecutar la actualizaciÃ³n sin select para verificar que se ejecute
+    // Primero, ejecutar la actualización sin select para verificar que se ejecute
     const { error: updateError, count } = await supabase
       .from('fct_acreditacion_solicitud')
       .update(updateData)
       .eq('id', id);
     
-    console.log('ðŸ“¡ Respuesta de actualizaciÃ³n recibida');
+    console.log('📡 Respuesta de actualización recibida');
     console.log('   Error:', updateError);
     console.log('   Count (filas afectadas):', count);
     
     if (updateError) {
-      console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-      console.error('âŒ ERROR AL ACTUALIZAR RESPONSABLES EN SUPABASE');
-      console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+      console.error('═══════════════════════════════════════════════════');
+      console.error('❌ ERROR AL ACTUALIZAR RESPONSABLES EN SUPABASE');
+      console.error('═══════════════════════════════════════════════════');
       console.error('Error completo:', updateError);
-      console.error('ðŸ“Š Detalles del error:', {
+      console.error('📊 Detalles del error:', {
         message: updateError.message,
         details: updateError.details,
         hint: updateError.hint,
         code: updateError.code
       });
-      console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+      console.error('═══════════════════════════════════════════════════');
       throw updateError;
     }
     
     if (count === 0) {
-      console.error('âš ï¸ No se actualizÃ³ ninguna fila. Verificando si el registro existe...');
+      console.error('⚠️ No se actualizó ninguna fila. Verificando si el registro existe...');
       // Verificar si el registro existe
       const { data: existingData, error: checkError } = await supabase
         .from('fct_acreditacion_solicitud')
@@ -881,7 +881,7 @@ export const updateResponsablesSolicitud = async (
         .single();
       
       if (checkError) {
-        console.error('âŒ Error al verificar existencia del registro:', checkError);
+        console.error('❌ Error al verificar existencia del registro:', checkError);
         throw new Error(`No se pudo verificar si el registro existe: ${checkError.message}`);
       }
       
@@ -889,12 +889,12 @@ export const updateResponsablesSolicitud = async (
         throw new Error(`El registro con ID ${id} no existe en la base de datos.`);
       }
       
-      console.warn('âš ï¸ El registro existe pero no se actualizÃ³. Posibles causas:');
-      console.warn('   - Los datos son idÃ©nticos a los ya guardados');
+      console.warn('⚠️ El registro existe pero no se actualizó. Posibles causas:');
+      console.warn('   - Los datos son idénticos a los ya guardados');
       console.warn('   - Problemas con RLS (Row Level Security)');
       console.warn('   - Problemas con permisos de escritura');
     } else {
-      console.log(`âœ… Se actualizaron ${count} fila(s)`);
+      console.log(`✅ Se actualizaron ${count} fila(s)`);
     }
     
     // Ahora obtener los datos actualizados para verificar
@@ -905,17 +905,17 @@ export const updateResponsablesSolicitud = async (
       .single();
     
     if (selectError) {
-      console.error('âŒ Error al obtener datos actualizados:', selectError);
-      throw new Error(`La actualizaciÃ³n se ejecutÃ³ pero no se pudieron obtener los datos actualizados: ${selectError.message}`);
+      console.error('❌ Error al obtener datos actualizados:', selectError);
+      throw new Error(`La actualización se ejecutó pero no se pudieron obtener los datos actualizados: ${selectError.message}`);
     }
     
     if (!data) {
-      console.error('âš ï¸ No se obtuvieron datos despuÃ©s de la actualizaciÃ³n');
-      throw new Error('La actualizaciÃ³n se ejecutÃ³ pero no se pudieron obtener los datos actualizados.');
+      console.error('⚠️ No se obtuvieron datos después de la actualización');
+      throw new Error('La actualización se ejecutó pero no se pudieron obtener los datos actualizados.');
     }
     
-    console.log('âœ… Responsables actualizados exitosamente');
-    console.log('ðŸ“Š Datos actualizados en BD:', JSON.stringify({
+    console.log('✅ Responsables actualizados exitosamente');
+    console.log('📊 Datos actualizados en BD:', JSON.stringify({
       id: data.id,
       codigo_proyecto: data.codigo_proyecto,
       empresa_id: data.empresa_id,
@@ -934,29 +934,29 @@ export const updateResponsablesSolicitud = async (
     
     return data;
   } catch (err: any) {
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-    console.error('âŒ EXCEPCIÃ“N AL ACTUALIZAR RESPONSABLES');
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+    console.error('═══════════════════════════════════════════════════');
+    console.error('❌ EXCEPCIÓN AL ACTUALIZAR RESPONSABLES');
+    console.error('═══════════════════════════════════════════════════');
     console.error('Error:', err);
     console.error('Tipo:', typeof err);
     if (err instanceof Error) {
       console.error('Mensaje:', err.message);
       console.error('Stack:', err.stack);
     }
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+    console.error('═══════════════════════════════════════════════════');
     throw err;
   }
 };
 
-// FunciÃ³n para obtener requerimientos estÃ¡ndar de una empresa
+// Función para obtener requerimientos estándar de una empresa
 export const fetchEmpresaRequerimientos = async (empresa: string): Promise<EmpresaRequerimiento[]> => {
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log('ðŸ” fetchEmpresaRequerimientos');
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🔍 fetchEmpresaRequerimientos');
+  console.log('═══════════════════════════════════════════════════');
   console.log('Empresa buscada:', empresa);
   console.log('Longitud:', empresa.length);
   console.log('Con marcadores:', `|${empresa}|`);
-  console.log('Primer carÃ¡cter (cÃ³digo):', empresa.charCodeAt(0));
+  console.log('Primer carácter (código):', empresa.charCodeAt(0));
   
   const { data, error } = await supabase
     .from('brg_acreditacion_cliente_requerimiento')
@@ -965,24 +965,24 @@ export const fetchEmpresaRequerimientos = async (empresa: string): Promise<Empre
     .order('created_at', { ascending: true });
   
   if (error) {
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-    console.error('âŒ ERROR EN LA CONSULTA');
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+    console.error('═══════════════════════════════════════════════════');
+    console.error('❌ ERROR EN LA CONSULTA');
+    console.error('═══════════════════════════════════════════════════');
     console.error('Error completo:', error);
     console.error('Mensaje:', error.message);
     console.error('Detalles:', error.details);
-    console.error('CÃ³digo:', error.code);
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+    console.error('Código:', error.code);
+    console.error('═══════════════════════════════════════════════════');
     throw error;
   }
   
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log('âœ… CONSULTA EXITOSA');
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('═══════════════════════════════════════════════════');
+  console.log('✅ CONSULTA EXITOSA');
+  console.log('═══════════════════════════════════════════════════');
   console.log(`Total registros: ${data?.length || 0}`);
   
   if (data && data.length > 0) {
-    console.log('\nðŸ“‹ Primeros registros:');
+    console.log('\n📋 Primeros registros:');
     data.slice(0, 3).forEach((req, i) => {
       console.log(`\n  ${i + 1}. ID: ${req.id}`);
       console.log(`     Empresa: "${req.empresa}"`);
@@ -990,11 +990,11 @@ export const fetchEmpresaRequerimientos = async (empresa: string): Promise<Empre
       console.log(`     Responsable: ${req.responsable}`);
     });
     if (data.length > 3) {
-      console.log(`\n  ... y ${data.length - 3} mÃ¡s`);
+      console.log(`\n  ... y ${data.length - 3} más`);
     }
   } else {
-    console.log('\nâš ï¸ NO SE ENCONTRARON REGISTROS');
-    console.log('\nðŸ’¡ Sugerencias:');
+    console.log('\n⚠️ NO SE ENCONTRARON REGISTROS');
+    console.log('\n💡 Sugerencias:');
     console.log('   1. Verifica que existan datos en Supabase con este SQL:');
     console.log(`      SELECT * FROM brg_acreditacion_cliente_requerimiento WHERE empresa = '${empresa}';`);
     console.log('   2. Verifica todas las empresas disponibles:');
@@ -1002,12 +1002,12 @@ export const fetchEmpresaRequerimientos = async (empresa: string): Promise<Empre
     console.log('   3. Busca con coincidencia parcial:');
     console.log(`      SELECT * FROM brg_acreditacion_cliente_requerimiento WHERE empresa ILIKE '%${empresa}%';`);
   }
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
+  console.log('═══════════════════════════════════════════════════\n');
   
   return data || [];
 };
 
-// FunciÃ³n para obtener las observaciones de un requerimiento especÃ­fico de una empresa
+// Función para obtener las observaciones de un requerimiento específico de una empresa
 export const fetchEmpresaRequerimientoObservaciones = async (
   empresa: string,
   requerimiento: string
@@ -1020,7 +1020,7 @@ export const fetchEmpresaRequerimientoObservaciones = async (
     .single();
   
   if (error) {
-    // Si no se encuentra el registro, no es un error crÃ­tico
+    // Si no se encuentra el registro, no es un error crítico
     if (error.code === 'PGRST116') {
       return null;
     }
@@ -1028,7 +1028,7 @@ export const fetchEmpresaRequerimientoObservaciones = async (
     return null;
   }
   
-  // Retornar observaciones solo si no estÃ¡n vacÃ­as
+  // Retornar observaciones solo si no están vacías
   if (data && data.observaciones && data.observaciones.trim() !== '') {
     return data.observaciones;
   }
@@ -1036,7 +1036,7 @@ export const fetchEmpresaRequerimientoObservaciones = async (
   return null;
 };
 
-// FunciÃ³n para obtener las observaciones de un requerimiento especÃ­fico de un proyecto
+// Función para obtener las observaciones de un requerimiento específico de un proyecto
 export const fetchProyectoRequerimientoObservaciones = async (
   codigoProyecto: string,
   requerimiento: string
@@ -1050,7 +1050,7 @@ export const fetchProyectoRequerimientoObservaciones = async (
     .single();
   
   if (error) {
-    // Si no se encuentra el registro, no es un error crÃ­tico
+    // Si no se encuentra el registro, no es un error crítico
     if (error.code === 'PGRST116') {
       return null;
     }
@@ -1058,7 +1058,7 @@ export const fetchProyectoRequerimientoObservaciones = async (
     return null;
   }
   
-  // Retornar observaciones solo si no estÃ¡n vacÃ­as
+  // Retornar observaciones solo si no están vacías
   if (data && data.observaciones && data.observaciones.trim() !== '') {
     return data.observaciones;
   }
@@ -1066,7 +1066,7 @@ export const fetchProyectoRequerimientoObservaciones = async (
   return null;
 };
 
-// FunciÃ³n para crear requerimientos de acreditaciÃ³n de un proyecto
+// Función para crear requerimientos de acreditación de un proyecto
 export const createProyectoRequerimientos = async (
   codigoProyecto: string,
   cliente: string,
@@ -1079,35 +1079,35 @@ export const createProyectoRequerimientos = async (
   },
   idProyecto?: number
 ): Promise<any[]> => {
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log('ðŸš€ INICIO: createProyectoRequerimientos');
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log('ðŸ“ CÃ³digo Proyecto:', codigoProyecto);
-  console.log('ðŸ¢ Cliente:', cliente);
-  console.log('ðŸ“‹ Empresa Requerimientos recibidos:', empresaRequerimientos?.length || 0);
-  console.log('ðŸ‘¥ Responsables:', JSON.stringify(responsables, null, 2));
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🚀 INICIO: createProyectoRequerimientos');
+  console.log('═══════════════════════════════════════════════════');
+  console.log('📝 Código Proyecto:', codigoProyecto);
+  console.log('🏢 Cliente:', cliente);
+  console.log('📋 Empresa Requerimientos recibidos:', empresaRequerimientos?.length || 0);
+  console.log('👥 Responsables:', JSON.stringify(responsables, null, 2));
   
   if (!empresaRequerimientos || empresaRequerimientos.length === 0) {
-    console.error('âŒ NO HAY REQUERIMIENTOS PARA GUARDAR');
-    console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
+    console.error('❌ NO HAY REQUERIMIENTOS PARA GUARDAR');
+    console.log('═══════════════════════════════════════════════════\n');
     return [];
   }
   
   // Primero, verificar si ya existen requerimientos para este proyecto
-  console.log('\nðŸ” Verificando requerimientos existentes...');
+  console.log('\n🔍 Verificando requerimientos existentes...');
   const { data: existingReqs, error: checkError } = await supabase
     .from('brg_acreditacion_solicitud_requerimiento')
     .select('id, requerimiento, categoria_requerimiento, responsable')
     .eq('codigo_proyecto', codigoProyecto);
   
   if (checkError) {
-    console.error('âŒ Error al verificar requerimientos existentes:', checkError);
+    console.error('❌ Error al verificar requerimientos existentes:', checkError);
   }
   
-  console.log(`ðŸ“Š Requerimientos existentes: ${existingReqs?.length || 0}`);
+  console.log(`📊 Requerimientos existentes: ${existingReqs?.length || 0}`);
   
   if (existingReqs && existingReqs.length > 0) {
-    console.log('âš ï¸ Ya existen requerimientos para este proyecto:');
+    console.log('⚠️ Ya existen requerimientos para este proyecto:');
     existingReqs.forEach((req: any, i) => {
       console.log(`  ${i + 1}. ${req.requerimiento} (${req.categoria_requerimiento})`);
     });
@@ -1116,7 +1116,7 @@ export const createProyectoRequerimientos = async (
     const tieneResponsables = responsables.jpro_nombre || responsables.epr_nombre || responsables.rrhh_nombre || responsables.legal_nombre;
     
     if (tieneResponsables) {
-      console.log('ðŸ”„ Actualizando requerimientos existentes con responsables asignados...');
+      console.log('🔄 Actualizando requerimientos existentes con responsables asignados...');
       
       // Actualizar cada requerimiento existente con el nombre del responsable correspondiente
       for (const req of existingReqs) {
@@ -1143,15 +1143,15 @@ export const createProyectoRequerimientos = async (
             .eq('id', req.id);
           
           if (updateError) {
-            console.error(`âŒ Error actualizando requerimiento ${req.id}:`, updateError);
+            console.error(`❌ Error actualizando requerimiento ${req.id}:`, updateError);
           } else {
-            console.log(`âœ… Requerimiento ${req.id} actualizado con responsable: ${nombreResponsable}`);
+            console.log(`✅ Requerimiento ${req.id} actualizado con responsable: ${nombreResponsable}`);
           }
         }
       }
       
-      console.log('âœ… Requerimientos actualizados exitosamente');
-      console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
+      console.log('✅ Requerimientos actualizados exitosamente');
+      console.log('═══════════════════════════════════════════════════\n');
       // Retornar los requerimientos existentes actualizados
       const { data: updatedReqs } = await supabase
         .from('brg_acreditacion_solicitud_requerimiento')
@@ -1160,13 +1160,13 @@ export const createProyectoRequerimientos = async (
       return updatedReqs || [];
     } else {
       // Si no hay responsables pero hay requerimientos existentes, continuar para crear nuevos
-      // (puede ser que se estÃ©n agregando nuevos requerimientos)
-      console.log('âš ï¸ Ya existen requerimientos pero no hay responsables asignados');
-      console.log('ðŸ“ Continuando para verificar si hay nuevos requerimientos que crear...');
-      // NO retornar aquÃ­, continuar con la lÃ³gica de creaciÃ³n
+      // (puede ser que se estén agregando nuevos requerimientos)
+      console.log('⚠️ Ya existen requerimientos pero no hay responsables asignados');
+      console.log('📝 Continuando para verificar si hay nuevos requerimientos que crear...');
+      // NO retornar aquí, continuar con la lógica de creación
     }
   } else {
-    console.log('âœ… No hay requerimientos existentes, procediendo a crear...');
+    console.log('✅ No hay requerimientos existentes, procediendo a crear...');
   }
 
   // Obtener el id_proyecto (id de fct_acreditacion_solicitud) y datos de la solicitud
@@ -1176,8 +1176,8 @@ export const createProyectoRequerimientos = async (
   let razonSocialContratista: string | null = null;
   
   if (!proyectoId) {
-    // Si no se pasÃ³ como parÃ¡metro, buscarlo en la base de datos
-    console.log('\nðŸ” Buscando fct_acreditacion_solicitud...');
+    // Si no se pasó como parámetro, buscarlo en la base de datos
+    console.log('\n🔍 Buscando fct_acreditacion_solicitud...');
     const { data: solicitud, error: solicitudError } = await supabase
       .from('fct_acreditacion_solicitud')
       .select('id, requiere_acreditar_empresa, requiere_acreditar_contratista, razon_social_contratista')
@@ -1185,9 +1185,9 @@ export const createProyectoRequerimientos = async (
       .single();
 
     if (solicitudError) {
-      console.error('âŒ Error obteniendo solicitud:', solicitudError);
-      console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
-      throw new Error(`No se encontrÃ³ el proyecto ${codigoProyecto}`);
+      console.error('❌ Error obteniendo solicitud:', solicitudError);
+      console.log('═══════════════════════════════════════════════════\n');
+      throw new Error(`No se encontró el proyecto ${codigoProyecto}`);
     }
 
     proyectoId = solicitud?.id;
@@ -1196,7 +1196,7 @@ export const createProyectoRequerimientos = async (
     razonSocialContratista = solicitud?.razon_social_contratista || null;
   } else {
     // Si tenemos el ID, obtener los datos de la solicitud
-    console.log('\nðŸ” Obteniendo datos de la solicitud...');
+    console.log('\n🔍 Obteniendo datos de la solicitud...');
     const { data: solicitud, error: solicitudError } = await supabase
       .from('fct_acreditacion_solicitud')
       .select('requiere_acreditar_empresa, requiere_acreditar_contratista, razon_social_contratista')
@@ -1210,15 +1210,15 @@ export const createProyectoRequerimientos = async (
     }
   }
   
-  console.log(`âœ… ID Proyecto encontrado: ${proyectoId}`);
-  console.log(`ðŸ“‹ Requiere acreditar empresa: ${requiereAcreditarEmpresa}`);
-  console.log(`ðŸ“‹ Requiere acreditar contratista: ${requiereAcreditarContratista}`);
+  console.log(`✅ ID Proyecto encontrado: ${proyectoId}`);
+  console.log(`📋 Requiere acreditar empresa: ${requiereAcreditarEmpresa}`);
+  console.log(`📋 Requiere acreditar contratista: ${requiereAcreditarContratista}`);
   if (razonSocialContratista) {
-    console.log(`ðŸ“‹ RazÃ³n social contratista: ${razonSocialContratista}`);
+    console.log(`📋 Razón social contratista: ${razonSocialContratista}`);
   }
 
   // Obtener los trabajadores de fct_acreditacion_solicitud_trabajador_manual
-  console.log('\nðŸ” Buscando trabajadores en fct_acreditacion_solicitud_trabajador_manual...');
+  console.log('\n🔍 Buscando trabajadores en fct_acreditacion_solicitud_trabajador_manual...');
   let trabajadoresProyecto: ProyectoTrabajador[] = [];
   
   if (proyectoId) {
@@ -1228,10 +1228,10 @@ export const createProyectoRequerimientos = async (
       .eq('id_proyecto', proyectoId);
 
     if (trabajadoresError) {
-      console.error('âŒ Error obteniendo trabajadores:', trabajadoresError);
+      console.error('❌ Error obteniendo trabajadores:', trabajadoresError);
     } else {
       trabajadoresProyecto = trabajadores || [];
-      console.log(`âœ… Trabajadores encontrados: ${trabajadoresProyecto.length}`);
+      console.log(`✅ Trabajadores encontrados: ${trabajadoresProyecto.length}`);
       if (trabajadoresProyecto.length > 0) {
         trabajadoresProyecto.forEach((t, i) => {
           console.log(`  ${i + 1}. ${t.nombre_trabajador} (${t.categoria_empresa}) - ID: ${t.id}`);
@@ -1239,11 +1239,11 @@ export const createProyectoRequerimientos = async (
       }
     }
   } else {
-    console.warn('âš ï¸ No se pudo obtener el ID del proyecto');
+    console.warn('⚠️ No se pudo obtener el ID del proyecto');
   }
 
   // Obtener los conductores de fct_acreditacion_solicitud_conductor_manual
-  console.log('\nðŸ” Buscando conductores en fct_acreditacion_solicitud_conductor_manual...');
+  console.log('\n🔍 Buscando conductores en fct_acreditacion_solicitud_conductor_manual...');
   let conductoresProyecto: any[] = [];
   
   if (proyectoId) {
@@ -1253,10 +1253,10 @@ export const createProyectoRequerimientos = async (
       .eq('id_proyecto', proyectoId);
 
     if (conductoresError) {
-      console.error('âŒ Error obteniendo conductores:', conductoresError);
+      console.error('❌ Error obteniendo conductores:', conductoresError);
     } else {
       conductoresProyecto = conductores || [];
-      console.log(`âœ… Conductores encontrados: ${conductoresProyecto.length}`);
+      console.log(`✅ Conductores encontrados: ${conductoresProyecto.length}`);
       if (conductoresProyecto.length > 0) {
         conductoresProyecto.forEach((c, i) => {
           console.log(`  ${i + 1}. ${c.nombre_conductor} (${c.categoria_empresa}) - Patente: ${c.patente}`);
@@ -1264,11 +1264,11 @@ export const createProyectoRequerimientos = async (
       }
     }
   } else {
-    console.warn('âš ï¸ No se pudo obtener el ID del proyecto');
+    console.warn('⚠️ No se pudo obtener el ID del proyecto');
   }
   
   // Obtener los vehiculos de fct_acreditacion_solicitud_vehiculos
-  console.log('\nðŸ” Buscando vehiculos en fct_acreditacion_solicitud_vehiculos...');
+  console.log('\n🔍 Buscando vehiculos en fct_acreditacion_solicitud_vehiculos...');
   let vehiculosProyecto: any[] = [];
   
   if (proyectoId) {
@@ -1278,10 +1278,10 @@ export const createProyectoRequerimientos = async (
       .eq('id_proyecto', proyectoId);
 
     if (vehiculosError) {
-      console.error('âŒ Error obteniendo vehiculos:', vehiculosError);
+      console.error('❌ Error obteniendo vehiculos:', vehiculosError);
     } else {
       vehiculosProyecto = vehiculos || [];
-      console.log(`âœ… Vehiculos encontrados: ${vehiculosProyecto.length}`);
+      console.log(`✅ Vehiculos encontrados: ${vehiculosProyecto.length}`);
       if (vehiculosProyecto.length > 0) {
         vehiculosProyecto.forEach((v, i) => {
           console.log(`  ${i + 1}. ${v.patente} (${v.categoria_empresa}) - ID: ${v.id}`);
@@ -1289,20 +1289,20 @@ export const createProyectoRequerimientos = async (
       }
     }
   } else {
-    console.warn('âš ï¸ No se pudo obtener el ID del proyecto');
+    console.warn('⚠️ No se pudo obtener el ID del proyecto');
   }
 
-  // Mapear cada requerimiento de empresa a uno o mÃ¡s requerimientos de proyecto
-  console.log('\nðŸ”§ Construyendo requerimientos...');
+  // Mapear cada requerimiento de empresa a uno o más requerimientos de proyecto
+  console.log('\n🔧 Construyendo requerimientos...');
   const proyectoRequerimientos: any[] = [];
 
   empresaRequerimientos.forEach((req, index) => {
     console.log(`\n  Procesando requerimiento ${index + 1}/${empresaRequerimientos.length}:`);
     console.log(`    Requerimiento: ${req.requerimiento}`);
-    console.log(`    CategorÃ­a: ${req.categoria_requerimiento}`);
+    console.log(`    Categoría: ${req.categoria_requerimiento}`);
     console.log(`    Responsable: ${req.responsable}`);
     
-    // Asignar el nombre del responsable segÃºn el rol
+    // Asignar el nombre del responsable según el rol
     let nombreResponsable = '';
     switch (req.responsable) {
       case 'JPRO':
@@ -1328,25 +1328,25 @@ export const createProyectoRequerimientos = async (
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
 
-    // Verificar si es categorÃ­a "Empresa" para duplicar si ambos flags son TRUE
+    // Verificar si es categoría "Empresa" para duplicar si ambos flags son TRUE
     const esCategoriaEmpresa = categoriaNormalizada === 'empresa' || 
                                categoriaNormalizada === 'empresa myma' ||
                                categoriaNormalizada === 'empresa subcontrato';
     
-    // Si la categorÃ­a es "Trabajadores", crear un registro por cada trabajador de fct_acreditacion_solicitud_trabajador_manual
+    // Si la categoría es "Trabajadores", crear un registro por cada trabajador de fct_acreditacion_solicitud_trabajador_manual
     const esTrabajadores = categoriaNormalizada === 'trabajadores';
-    // Si la categorÃ­a es "Conductores", crear un registro por cada conductor de fct_acreditacion_solicitud_conductor_manual
+    // Si la categoría es "Conductores", crear un registro por cada conductor de fct_acreditacion_solicitud_conductor_manual
     const esConductores = categoriaNormalizada === 'conductores';
     const esVehiculos = categoriaNormalizada === 'vehiculos';
     console.log(`    Es categoria Vehiculos?: ${esVehiculos}`);
-    console.log(`    Â¿Es categorÃ­a Trabajadores?: ${esTrabajadores}`);
-    console.log(`    Â¿Es categorÃ­a Conductores?: ${esConductores}`);
-    console.log(`    Â¿Es categorÃ­a Empresa?: ${esCategoriaEmpresa}`);
+    console.log(`    ¿Es categoría Trabajadores?: ${esTrabajadores}`);
+    console.log(`    ¿Es categoría Conductores?: ${esConductores}`);
+    console.log(`    ¿Es categoría Empresa?: ${esCategoriaEmpresa}`);
     console.log(`    Trabajadores disponibles: ${trabajadoresProyecto.length}`);
     console.log(`    Conductores disponibles: ${conductoresProyecto.length}`);
     console.log(`    Vehiculos disponibles: ${vehiculosProyecto.length}`);
     
-    // FunciÃ³n auxiliar para crear un registro base
+    // Función auxiliar para crear un registro base
     const crearRegistroBase = (empresaAcreditacionValue: string | null = null): any => {
       return {
         codigo_proyecto: codigoProyecto,
@@ -1366,18 +1366,18 @@ export const createProyectoRequerimientos = async (
     };
     
     if (esTrabajadores && trabajadoresProyecto.length > 0) {
-      console.log(`    ðŸ‘· Creando ${trabajadoresProyecto.length} registros (uno por trabajador)`);
+      console.log(`    👷 Creando ${trabajadoresProyecto.length} registros (uno por trabajador)`);
       
       trabajadoresProyecto.forEach((trabajador, tIndex) => {
-        // Determinar empresa_acreditacion segÃºn la categorÃ­a del trabajador
+        // Determinar empresa_acreditacion según la categoría del trabajador
         let empresaAcreditacion: string | null = null;
         if (trabajador.categoria_empresa?.toUpperCase() === 'MYMA') {
           empresaAcreditacion = 'MyMA';
-          console.log(`      Trabajador ${tIndex + 1} (${trabajador.nombre_trabajador}): categoria_empresa = MyMA â†’ empresa_acreditacion = "MyMA"`);
+          console.log(`      Trabajador ${tIndex + 1} (${trabajador.nombre_trabajador}): categoria_empresa = MyMA → empresa_acreditacion = "MyMA"`);
         } else {
           // Si es Contratista o distinto de MyMA, usar razon_social_contratista
           empresaAcreditacion = razonSocialContratista || null;
-          console.log(`      Trabajador ${tIndex + 1} (${trabajador.nombre_trabajador}): categoria_empresa = ${trabajador.categoria_empresa} â†’ empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
+          console.log(`      Trabajador ${tIndex + 1} (${trabajador.nombre_trabajador}): categoria_empresa = ${trabajador.categoria_empresa} → empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
         }
         
         const registro: any = {
@@ -1399,18 +1399,18 @@ export const createProyectoRequerimientos = async (
         proyectoRequerimientos.push(registro);
       });
     } else if (esConductores && conductoresProyecto.length > 0) {
-      console.log(`    ðŸš— Creando ${conductoresProyecto.length} registros (uno por conductor)`);
+      console.log(`    🚗 Creando ${conductoresProyecto.length} registros (uno por conductor)`);
       
       conductoresProyecto.forEach((conductor, cIndex) => {
-        // Determinar empresa_acreditacion segÃºn la categorÃ­a del conductor
+        // Determinar empresa_acreditacion según la categoría del conductor
         let empresaAcreditacion: string | null = null;
         if (conductor.categoria_empresa?.toUpperCase() === 'MYMA') {
           empresaAcreditacion = 'MyMA';
-          console.log(`      Conductor ${cIndex + 1} (${conductor.nombre_conductor}): categoria_empresa = MyMA â†’ empresa_acreditacion = "MyMA"`);
+          console.log(`      Conductor ${cIndex + 1} (${conductor.nombre_conductor}): categoria_empresa = MyMA → empresa_acreditacion = "MyMA"`);
         } else {
           // Si es Contratista o distinto de MyMA, usar razon_social_contratista
           empresaAcreditacion = razonSocialContratista || null;
-          console.log(`      Conductor ${cIndex + 1} (${conductor.nombre_conductor}): categoria_empresa = ${conductor.categoria_empresa} â†’ empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
+          console.log(`      Conductor ${cIndex + 1} (${conductor.nombre_conductor}): categoria_empresa = ${conductor.categoria_empresa} → empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
         }
         
         const registro: any = {
@@ -1432,18 +1432,18 @@ export const createProyectoRequerimientos = async (
         proyectoRequerimientos.push(registro);
       });
     } else if (esVehiculos && vehiculosProyecto.length > 0) {
-      console.log(`    ðŸš™ Creando ${vehiculosProyecto.length} registros (uno por vehiculo)`);
+      console.log(`    🚙 Creando ${vehiculosProyecto.length} registros (uno por vehiculo)`);
       
       vehiculosProyecto.forEach((vehiculo, vIndex) => {
         // Determinar empresa_acreditacion segun la categoria del vehiculo
         let empresaAcreditacion: string | null = null;
         if (vehiculo.categoria_empresa?.toUpperCase() === 'MYMA') {
           empresaAcreditacion = 'MyMA';
-          console.log(`      Vehiculo ${vIndex + 1} (${vehiculo.patente}): categoria_empresa = MyMA â†’ empresa_acreditacion = "MyMA"`);
+          console.log(`      Vehiculo ${vIndex + 1} (${vehiculo.patente}): categoria_empresa = MyMA → empresa_acreditacion = "MyMA"`);
         } else {
           // Si es Contratista o distinto de MyMA, usar razon_social_contratista
           empresaAcreditacion = razonSocialContratista || null;
-          console.log(`      Vehiculo ${vIndex + 1} (${vehiculo.patente}): categoria_empresa = ${vehiculo.categoria_empresa} â†’ empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
+          console.log(`      Vehiculo ${vIndex + 1} (${vehiculo.patente}): categoria_empresa = ${vehiculo.categoria_empresa} → empresa_acreditacion = "${razonSocialContratista || 'NULL'}"`);
         }
         
         const registro: any = {
@@ -1466,67 +1466,67 @@ export const createProyectoRequerimientos = async (
         proyectoRequerimientos.push(registro);
       });
     } else if (esCategoriaEmpresa) {
-      // Para categorÃ­a "Empresa", duplicar segÃºn los flags
-      console.log(`    ðŸ¢ CategorÃ­a Empresa detectada - Verificando duplicaciÃ³n...`);
+      // Para categoría "Empresa", duplicar según los flags
+      console.log(`    🏢 Categoría Empresa detectada - Verificando duplicación...`);
       
       // Si requiere_acreditar_empresa es TRUE, crear registro con MyMA
       if (requiereAcreditarEmpresa) {
         const registroMyMA = crearRegistroBase('MyMA');
         proyectoRequerimientos.push(registroMyMA);
-        console.log(`    âœ… Registro creado con empresa_acreditacion = "MyMA"`);
+        console.log(`    ✅ Registro creado con empresa_acreditacion = "MyMA"`);
       }
       
-      // Si requiere_acreditar_contratista es TRUE y hay razÃ³n social, crear registro con contratista
+      // Si requiere_acreditar_contratista es TRUE y hay razón social, crear registro con contratista
       if (requiereAcreditarContratista && razonSocialContratista) {
         const registroContratista = crearRegistroBase(razonSocialContratista);
         proyectoRequerimientos.push(registroContratista);
-        console.log(`    âœ… Registro creado con empresa_acreditacion = "${razonSocialContratista}"`);
+        console.log(`    ✅ Registro creado con empresa_acreditacion = "${razonSocialContratista}"`);
       }
       
       // Si ninguno de los dos es TRUE, crear un registro sin empresa_acreditacion
       if (!requiereAcreditarEmpresa && !requiereAcreditarContratista) {
         const registro = crearRegistroBase();
         proyectoRequerimientos.push(registro);
-        console.log(`    ðŸ“„ Registro creado sin empresa_acreditacion (ningÃºn flag activo)`);
+        console.log(`    📄 Registro creado sin empresa_acreditacion (ningún flag activo)`);
       }
     } else {
-      // Para otras categorÃ­as, crear solo un registro
-      console.log(`    ðŸ“„ Creando 1 registro (categorÃ­a normal)`);
+      // Para otras categorías, crear solo un registro
+      console.log(`    📄 Creando 1 registro (categoría normal)`);
       const registro = crearRegistroBase();
       proyectoRequerimientos.push(registro);
     }
   });
 
-  console.log(`\nðŸ“¦ TOTAL DE REGISTROS A INSERTAR: ${proyectoRequerimientos.length}`);
+  console.log(`\n📦 TOTAL DE REGISTROS A INSERTAR: ${proyectoRequerimientos.length}`);
   
   if (proyectoRequerimientos.length === 0) {
-    console.error('âŒ NO SE CONSTRUYERON REQUERIMIENTOS');
-    console.error('ðŸ” Posibles causas:');
+    console.error('❌ NO SE CONSTRUYERON REQUERIMIENTOS');
+    console.error('🔍 Posibles causas:');
     console.error('   1. No hay requerimientos en empresaRequerimientos');
-    console.error('   2. La categorÃ­a no coincide con ninguna condiciÃ³n');
-    console.error('   3. Los flags requiere_acreditar_empresa y requiere_acreditar_contratista estÃ¡n en FALSE para categorÃ­a Empresa');
-    console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
+    console.error('   2. La categoría no coincide con ninguna condición');
+    console.error('   3. Los flags requiere_acreditar_empresa y requiere_acreditar_contratista están en FALSE para categoría Empresa');
+    console.log('═══════════════════════════════════════════════════\n');
     throw new Error('No se pudieron construir requerimientos para guardar. Verifica los logs anteriores.');
   }
   
   // Logs detallados de TODOS los registros antes de insertar
-  console.log('\nðŸ“‹ DETALLE COMPLETO DE TODOS LOS REGISTROS A INSERTAR:');
+  console.log('\n📋 DETALLE COMPLETO DE TODOS LOS REGISTROS A INSERTAR:');
   proyectoRequerimientos.forEach((r, i) => {
-    console.log(`\n  ðŸ“ Registro ${i + 1}/${proyectoRequerimientos.length}:`);
+    console.log(`\n  📝 Registro ${i + 1}/${proyectoRequerimientos.length}:`);
     console.log(`    codigo_proyecto: "${r.codigo_proyecto}"`);
     console.log(`    requerimiento: "${r.requerimiento}"`);
-    console.log(`    id_proyecto_trabajador: ${r.id_proyecto_trabajador ?? 'NULL'} (COALESCE â†’ ${r.id_proyecto_trabajador ?? -1})`);
-    console.log(`    empresa_acreditacion: "${r.empresa_acreditacion ?? 'NULL'}" (COALESCE â†’ "${r.empresa_acreditacion ?? ''}")`);
+    console.log(`    id_proyecto_trabajador: ${r.id_proyecto_trabajador ?? 'NULL'} (COALESCE → ${r.id_proyecto_trabajador ?? -1})`);
+    console.log(`    empresa_acreditacion: "${r.empresa_acreditacion ?? 'NULL'}" (COALESCE → "${r.empresa_acreditacion ?? ''}")`);
     console.log(`    categoria_requerimiento: "${r.categoria_requerimiento}"`);
     console.log(`    responsable: "${r.responsable}"`);
     console.log(`    nombre_trabajador: "${r.nombre_trabajador || 'NULL'}"`);
-    console.log(`    â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€`);
-    console.log(`    ðŸ”‘ CLAVE ÃšNICA (constraint):`);
+    console.log(`    ────────────────────────────────────────────────`);
+    console.log(`    🔑 CLAVE ÚNICA (constraint):`);
     console.log(`       (codigo_proyecto="${r.codigo_proyecto}", requerimiento="${r.requerimiento}", id_trabajador=${r.id_proyecto_trabajador ?? -1}, empresa="${r.empresa_acreditacion ?? ''}")`);
   });
 
   // Verificar si hay registros duplicados en la base de datos ANTES de insertar
-  console.log('\nðŸ” VERIFICANDO REGISTROS EXISTENTES EN BD...');
+  console.log('\n🔍 VERIFICANDO REGISTROS EXISTENTES EN BD...');
   const valoresUnicos = proyectoRequerimientos.map(r => ({
     codigo_proyecto: r.codigo_proyecto,
     requerimiento: r.requerimiento,
@@ -1534,9 +1534,9 @@ export const createProyectoRequerimientos = async (
     empresa_acreditacion: r.empresa_acreditacion ?? ''
   }));
   
-  console.log(`   Buscando ${valoresUnicos.length} combinaciones Ãºnicas...`);
+  console.log(`   Buscando ${valoresUnicos.length} combinaciones únicas...`);
   
-  // Verificar cada combinaciÃ³n Ãºnica
+  // Verificar cada combinación única
   for (const valorUnico of valoresUnicos) {
     const { data: existentes, error: checkError } = await supabase
       .from('brg_acreditacion_solicitud_requerimiento')
@@ -1547,9 +1547,9 @@ export const createProyectoRequerimientos = async (
       .eq('empresa_acreditacion', valorUnico.empresa_acreditacion || null);
     
     if (checkError) {
-      console.error(`   âš ï¸ Error verificando:`, checkError);
+      console.error(`   ⚠️ Error verificando:`, checkError);
     } else if (existentes && existentes.length > 0) {
-      console.error(`   âŒ CONFLICTO DETECTADO:`);
+      console.error(`   ❌ CONFLICTO DETECTADO:`);
       console.error(`      codigo_proyecto: "${valorUnico.codigo_proyecto}"`);
       console.error(`      requerimiento: "${valorUnico.requerimiento}"`);
       console.error(`      id_proyecto_trabajador: ${valorUnico.id_proyecto_trabajador}`);
@@ -1559,10 +1559,10 @@ export const createProyectoRequerimientos = async (
   }
 
   // Insertar todos los requerimientos
-  console.log('\nðŸ’¾ INSERTANDO EN BASE DE DATOS...');
+  console.log('\n💾 INSERTANDO EN BASE DE DATOS...');
   console.log(`Tabla: brg_acreditacion_solicitud_requerimiento`);
   console.log(`Registros a insertar: ${proyectoRequerimientos.length}`);
-  console.log(`\nðŸ“¦ Datos completos a insertar (JSON):`);
+  console.log(`\n📦 Datos completos a insertar (JSON):`);
   console.log(JSON.stringify(proyectoRequerimientos, null, 2));
   
   const { data, error } = await supabase
@@ -1571,44 +1571,44 @@ export const createProyectoRequerimientos = async (
     .select();
   
   if (error) {
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-    console.error('âŒ ERROR EN INSERT');
-    console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+    console.error('═══════════════════════════════════════════════════');
+    console.error('❌ ERROR EN INSERT');
+    console.error('═══════════════════════════════════════════════════');
     console.error('Mensaje:', error.message);
-    console.error('CÃ³digo:', error.code);
+    console.error('Código:', error.code);
     console.error('Detalles:', error.details);
     console.error('Hint:', error.hint);
     console.error('Error completo:', JSON.stringify(error, null, 2));
     
-    // Si es error de duplicado, mostrar informaciÃ³n detallada
+    // Si es error de duplicado, mostrar información detallada
     if (error.message.includes('duplicate') || error.message.includes('unique') || error.code === '23505') {
-      console.error('\nâš ï¸ ERROR DE UNIQUE CONSTRAINT DETECTADO');
-      console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-      console.error('El constraint estÃ¡ bloqueando la inserciÃ³n porque:');
-      console.error('  1. Ya existe un registro con la misma combinaciÃ³n de:');
+      console.error('\n⚠️ ERROR DE UNIQUE CONSTRAINT DETECTADO');
+      console.error('═══════════════════════════════════════════════════');
+      console.error('El constraint está bloqueando la inserción porque:');
+      console.error('  1. Ya existe un registro con la misma combinación de:');
       console.error('     - codigo_proyecto');
       console.error('     - requerimiento');
       console.error('     - id_proyecto_trabajador (o -1 si es NULL)');
       console.error('     - empresa_acreditacion (o "" si es NULL)');
       console.error('\n  2. Posibles causas:');
       console.error('     a) El constraint NO incluye empresa_acreditacion (ejecuta el script SQL)');
-      console.error('     b) EstÃ¡s intentando insertar un registro que ya existe');
-      console.error('     c) Hay un constraint antiguo que no se eliminÃ³');
+      console.error('     b) Estás intentando insertar un registro que ya existe');
+      console.error('     c) Hay un constraint antiguo que no se eliminó');
       console.error('\n  3. Registros que se intentaron insertar:');
       proyectoRequerimientos.forEach((r, i) => {
         console.error(`     ${i + 1}. (${r.codigo_proyecto}, "${r.requerimiento}", ${r.id_proyecto_trabajador ?? -1}, "${r.empresa_acreditacion ?? ''}")`);
       });
-      console.error('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
-      throw new Error('Error de constraint UNIQUE. Revisa la consola para ver los detalles. Ejecuta el script sql/actualizar_constraint_con_empresa_acreditacion.sql en Supabase SQL Editor si aÃºn no lo has hecho.');
+      console.error('═══════════════════════════════════════════════════\n');
+      throw new Error('Error de constraint UNIQUE. Revisa la consola para ver los detalles. Ejecuta el script sql/actualizar_constraint_con_empresa_acreditacion.sql en Supabase SQL Editor si aún no lo has hecho.');
     }
     
-    console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
+    console.log('═══════════════════════════════════════════════════\n');
     throw error;
   }
   
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log('âœ… INSERT EXITOSO');
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('═══════════════════════════════════════════════════');
+  console.log('✅ INSERT EXITOSO');
+  console.log('═══════════════════════════════════════════════════');
   console.log(`Registros insertados: ${data?.length || 0}`);
   
   if (data && data.length > 0) {
@@ -1618,13 +1618,13 @@ export const createProyectoRequerimientos = async (
     });
   }
   
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
+  console.log('═══════════════════════════════════════════════════\n');
   return data || [];
 };
 
-// FunciÃ³n para obtener requerimientos de un proyecto
+// Función para obtener requerimientos de un proyecto
 export const fetchProyectoRequerimientos = async (idProyecto: number): Promise<ProyectoRequerimientoAcreditacion[]> => {
-  console.log('ðŸ” Buscando requerimientos del proyecto por id_proyecto:', idProyecto);
+  console.log('🔍 Buscando requerimientos del proyecto por id_proyecto:', idProyecto);
   
   const { data, error } = await supabase
     .from('brg_acreditacion_solicitud_requerimiento')
@@ -1633,17 +1633,17 @@ export const fetchProyectoRequerimientos = async (idProyecto: number): Promise<P
     .order('created_at', { ascending: true });
   
   if (error) {
-    console.error('âŒ Error fetching proyecto requerimientos:', error);
+    console.error('❌ Error fetching proyecto requerimientos:', error);
     throw error;
   }
   
-  console.log(`âœ… Encontrados ${data?.length || 0} requerimientos para id_proyecto ${idProyecto}`);
+  console.log(`✅ Encontrados ${data?.length || 0} requerimientos para id_proyecto ${idProyecto}`);
   return data || [];
 };
 
-// FunciÃ³n para obtener fct_acreditacion_solicitud por cÃ³digo de proyecto (para obtener drive_folder_id y drive_folder_url)
+// Función para obtener fct_acreditacion_solicitud por código de proyecto (para obtener drive_folder_id y drive_folder_url)
 export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string): Promise<Partial<SolicitudAcreditacion> | null> => {
-  console.log('ðŸ” Buscando fct_acreditacion_solicitud para proyecto:', codigoProyecto);
+  console.log('🔍 Buscando fct_acreditacion_solicitud para proyecto:', codigoProyecto);
   
   const { data, error } = await supabase
     .from('fct_acreditacion_solicitud')
@@ -1652,12 +1652,12 @@ export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string)
     .single();
   
   if (error) {
-    console.error('âŒ Error fetching fct_acreditacion_solicitud:', error);
-    console.error('âŒ CÃ³digo de proyecto buscado:', codigoProyecto);
+    console.error('❌ Error fetching fct_acreditacion_solicitud:', error);
+    console.error('❌ Código de proyecto buscado:', codigoProyecto);
     return null;
   }
   
-  console.log('âœ… Solicitud encontrada:', {
+  console.log('✅ Solicitud encontrada:', {
     codigo_proyecto: data?.codigo_proyecto,
     drive_folder_id: data?.drive_folder_id,
     drive_folder_url: data?.drive_folder_url,
@@ -1666,7 +1666,7 @@ export const fetchSolicitudAcreditacionByCodigo = async (codigoProyecto: string)
   return data;
 };
 
-// FunciÃ³n para actualizar el estado de un requerimiento
+// Función para actualizar el estado de un requerimiento
 export const updateRequerimientoEstado = async (
   id: number,
   estado: string
@@ -1676,7 +1676,7 @@ export const updateRequerimientoEstado = async (
     updated_at: new Date().toISOString()
   };
   
-  // Si el estado es "Completado", guardar la fecha de finalizaciÃ³n
+  // Si el estado es "Completado", guardar la fecha de finalización
   // Si no es "Completado", establecer fecha_finalizacion como NULL
   if (estado === 'Completado') {
     updateData.fecha_finalizacion = new Date().toISOString();
@@ -1684,7 +1684,7 @@ export const updateRequerimientoEstado = async (
     updateData.fecha_finalizacion = null;
   }
 
-  // Primero, obtener el requerimiento para saber el cÃ³digo del proyecto
+  // Primero, obtener el requerimiento para saber el código del proyecto
   const { data: requerimiento, error: fetchError } = await supabase
     .from('brg_acreditacion_solicitud_requerimiento')
     .select('codigo_proyecto, id_proyecto')
@@ -1692,7 +1692,7 @@ export const updateRequerimientoEstado = async (
     .single();
 
   if (fetchError) {
-    console.error('âŒ Error obteniendo requerimiento:', fetchError);
+    console.error('❌ Error obteniendo requerimiento:', fetchError);
     throw fetchError;
   }
 
@@ -1703,13 +1703,13 @@ export const updateRequerimientoEstado = async (
     .eq('id', id);
   
   if (error) {
-    console.error('âŒ Error actualizando estado del requerimiento:', error);
+    console.error('❌ Error actualizando estado del requerimiento:', error);
     throw error;
   }
   
-  console.log(`âœ… Requerimiento ${id} actualizado a ${estado}`);
+  console.log(`✅ Requerimiento ${id} actualizado a ${estado}`);
 
-  // Verificar y actualizar el estado del proyecto segÃºn los requerimientos
+  // Verificar y actualizar el estado del proyecto según los requerimientos
   let allCompleted = false;
   let nuevoEstadoProyecto: string | undefined = undefined;
   
@@ -1723,7 +1723,7 @@ export const updateRequerimientoEstado = async (
         .single();
 
       if (proyectoError) {
-        console.error('âŒ Error obteniendo estado del proyecto:', proyectoError);
+        console.error('❌ Error obteniendo estado del proyecto:', proyectoError);
       }
 
       // Obtener todos los requerimientos del proyecto
@@ -1733,17 +1733,17 @@ export const updateRequerimientoEstado = async (
         .eq('codigo_proyecto', requerimiento.codigo_proyecto);
 
       if (reqError) {
-        console.error('âŒ Error obteniendo requerimientos del proyecto:', reqError);
+        console.error('❌ Error obteniendo requerimientos del proyecto:', reqError);
         return { allCompleted: false, codigoProyecto: requerimiento?.codigo_proyecto };
       }
 
-      // Verificar si todos estÃ¡n completados
+      // Verificar si todos están completados
       allCompleted = todosRequerimientos && todosRequerimientos.length > 0 &&
         todosRequerimientos.every(req => req.estado === 'Completado');
 
       const estadoProyectoActual = proyectoActual?.estado_solicitud_acreditacion?.toLowerCase() || '';
 
-      // Si todos estÃ¡n completados y el proyecto no estÃ¡ en "Finalizado", actualizar a "Finalizado"
+      // Si todos están completados y el proyecto no está en "Finalizado", actualizar a "Finalizado"
       if (allCompleted && !estadoProyectoActual.includes('finalizado')) {
         nuevoEstadoProyecto = 'Finalizado';
         const { error: updateProyectoError } = await supabase
@@ -1756,12 +1756,12 @@ export const updateRequerimientoEstado = async (
           .eq('id', requerimiento.id_proyecto);
 
         if (updateProyectoError) {
-          console.error('âŒ Error actualizando estado del proyecto:', updateProyectoError);
+          console.error('❌ Error actualizando estado del proyecto:', updateProyectoError);
         } else {
-          console.log(`âœ… Proyecto ${requerimiento.codigo_proyecto} actualizado a "Finalizado" - Todos los requerimientos estÃ¡n completados`);
+          console.log(`✅ Proyecto ${requerimiento.codigo_proyecto} actualizado a "Finalizado" - Todos los requerimientos están completados`);
         }
       }
-      // Si NO todos estÃ¡n completados y el proyecto estÃ¡ en "Finalizado", cambiar a "En proceso"
+      // Si NO todos están completados y el proyecto está en "Finalizado", cambiar a "En proceso"
       else if (!allCompleted && estadoProyectoActual.includes('finalizado')) {
         nuevoEstadoProyecto = 'En proceso';
         const { error: updateProyectoError } = await supabase
@@ -1774,14 +1774,14 @@ export const updateRequerimientoEstado = async (
           .eq('id', requerimiento.id_proyecto);
 
         if (updateProyectoError) {
-          console.error('âŒ Error actualizando estado del proyecto:', updateProyectoError);
+          console.error('❌ Error actualizando estado del proyecto:', updateProyectoError);
         } else {
-          console.log(`âœ… Proyecto ${requerimiento.codigo_proyecto} actualizado a "En proceso" - Ya no todos los requerimientos estÃ¡n completados`);
+          console.log(`✅ Proyecto ${requerimiento.codigo_proyecto} actualizado a "En proceso" - Ya no todos los requerimientos están completados`);
         }
       }
     } catch (checkError) {
-      console.error('âŒ Error verificando estado del proyecto:', checkError);
-      // No fallar la actualizaciÃ³n del requerimiento si falla la verificaciÃ³n del proyecto
+      console.error('❌ Error verificando estado del proyecto:', checkError);
+      // No fallar la actualización del requerimiento si falla la verificación del proyecto
     }
   }
 
@@ -1792,7 +1792,7 @@ export const updateRequerimientoEstado = async (
   };
 };
 
-// FunciÃ³n para actualizar los nombres de responsables en los requerimientos del proyecto
+// Función para actualizar los nombres de responsables en los requerimientos del proyecto
 export const updateProyectoRequerimientosResponsables = async (
   codigoProyecto: string,
   responsables: {
@@ -1958,14 +1958,14 @@ export const updateProyectoRequerimientosResponsables = async (
   console.log('Updated:', actualizados, 'Errors:', errores);
 };
 
-// FunciÃ³n para guardar trabajadores del proyecto
+// Función para guardar trabajadores del proyecto
 export const createProyectoTrabajadores = async (
   idProyecto: number,
   codigoProyecto: string,
   trabajadoresMyma: { name: string; rut?: string; phone?: string; personaId?: number }[],
   trabajadoresContratista: { name: string; rut?: string; phone?: string }[]
 ): Promise<void> => {
-  console.log('ðŸ‘· Guardando trabajadores del proyecto:', codigoProyecto);
+  console.log('👷 Guardando trabajadores del proyecto:', codigoProyecto);
   console.log(`  - MyMA: ${trabajadoresMyma.length} trabajadores`);
   console.log(`  - Contratista: ${trabajadoresContratista.length} trabajadores`);
 
@@ -2000,11 +2000,11 @@ export const createProyectoTrabajadores = async (
   });
 
   if (trabajadores.length === 0) {
-    console.log('âš ï¸ No hay trabajadores para guardar');
+    console.log('⚠️ No hay trabajadores para guardar');
     return;
   }
 
-  console.log(`ðŸ“¦ Insertando ${trabajadores.length} trabajadores en total`);
+  console.log(`📦 Insertando ${trabajadores.length} trabajadores en total`);
 
   const { data, error } = await supabase
     .from('fct_acreditacion_solicitud_trabajador_manual')
@@ -2012,19 +2012,19 @@ export const createProyectoTrabajadores = async (
     .select();
 
   if (error) {
-    console.error('âŒ Error guardando trabajadores del proyecto:', error);
+    console.error('❌ Error guardando trabajadores del proyecto:', error);
     throw error;
   }
 
-  console.log(`âœ… ${data?.length || 0} trabajadores guardados exitosamente`);
+  console.log(`✅ ${data?.length || 0} trabajadores guardados exitosamente`);
 };
 
-// FunciÃ³n para obtener trabajadores del proyecto desde fct_acreditacion_solicitud_trabajador_manual
+// Función para obtener trabajadores del proyecto desde fct_acreditacion_solicitud_trabajador_manual
 export const fetchProyectoTrabajadoresByProyecto = async (
   idProyecto: number,
   codigoProyecto: string
 ): Promise<any[]> => {
-  console.log('ðŸ” Leyendo trabajadores del proyecto para resumen JSON:', {
+  console.log('🔍 Leyendo trabajadores del proyecto para resumen JSON:', {
     idProyecto,
     codigoProyecto,
   });
@@ -2036,26 +2036,26 @@ export const fetchProyectoTrabajadoresByProyecto = async (
     .eq('codigo_proyecto', codigoProyecto);
 
   if (error) {
-    console.error('âŒ Error leyendo trabajadores del proyecto para resumen:', error);
+    console.error('❌ Error leyendo trabajadores del proyecto para resumen:', error);
     throw error;
   }
 
   return data || [];
 };
 
-// FunciÃ³n para guardar horarios del proyecto
+// Función para guardar horarios del proyecto
 export const createProyectoHorarios = async (
   idProyecto: number,
   codigoProyecto: string,
   horarios: Array<{ dias: string; horario: string }>,
   categoriaEmpresa: string = 'MyMA'
 ): Promise<void> => {
-  console.log('â° Guardando horarios del proyecto:', codigoProyecto);
+  console.log('⏰ Guardando horarios del proyecto:', codigoProyecto);
   console.log(`  - Total: ${horarios.length} horarios`);
-  console.log(`  - CategorÃ­a: ${categoriaEmpresa}`);
+  console.log(`  - Categoría: ${categoriaEmpresa}`);
 
   if (!horarios || horarios.length === 0) {
-    console.log('âš ï¸ No hay horarios para guardar');
+    console.log('⚠️ No hay horarios para guardar');
     return;
   }
 
@@ -2068,7 +2068,7 @@ export const createProyectoHorarios = async (
     categoria_empresa: categoriaEmpresa
   }));
 
-  console.log(`ðŸ“¦ Insertando ${horariosData.length} horarios`);
+  console.log(`📦 Insertando ${horariosData.length} horarios`);
 
   const { data, error } = await supabase
     .from('fct_acreditacion_solicitud_horario_manual')
@@ -2076,30 +2076,30 @@ export const createProyectoHorarios = async (
     .select();
 
   if (error) {
-    console.error('âŒ Error guardando horarios del proyecto:', error);
+    console.error('❌ Error guardando horarios del proyecto:', error);
     throw error;
   }
 
-  console.log(`âœ… ${horariosData.length} horarios guardados exitosamente`);
+  console.log(`✅ ${horariosData.length} horarios guardados exitosamente`);
 };
 
-// FunciÃ³n para guardar conductores del proyecto
+// Función para guardar conductores del proyecto
 export const createProyectoConductores = async (
   idProyecto: number,
   codigoProyecto: string,
   vehiculos: Array<{ placa: string; conductor: string }>,
   categoriaEmpresa: 'MyMA' | 'Contratista'
 ): Promise<void> => {
-  console.log('ðŸš— Guardando conductores del proyecto:', codigoProyecto);
-  console.log(`  - Total: ${vehiculos.length} vehÃ­culos`);
-  console.log(`  - CategorÃ­a: ${categoriaEmpresa}`);
+  console.log('🚗 Guardando conductores del proyecto:', codigoProyecto);
+  console.log(`  - Total: ${vehiculos.length} vehículos`);
+  console.log(`  - Categoría: ${categoriaEmpresa}`);
 
   if (!vehiculos || vehiculos.length === 0) {
-    console.log('âš ï¸ No hay vehÃ­culos para guardar');
+    console.log('⚠️ No hay vehículos para guardar');
     return;
   }
 
-  // Guardar todos los vehÃ­culos sin restricciones
+  // Guardar todos los vehículos sin restricciones
   const conductoresData = vehiculos.map(vehiculo => ({
     id_proyecto: idProyecto,
     codigo_proyecto: codigoProyecto,
@@ -2108,7 +2108,7 @@ export const createProyectoConductores = async (
     categoria_empresa: categoriaEmpresa
   }));
 
-  console.log(`ðŸ“¦ Insertando ${conductoresData.length} conductores`);
+  console.log(`📦 Insertando ${conductoresData.length} conductores`);
 
   const { data, error } = await supabase
     .from('fct_acreditacion_solicitud_conductor_manual')
@@ -2116,44 +2116,44 @@ export const createProyectoConductores = async (
     .select();
 
   if (error) {
-    console.error('âŒ Error guardando conductores del proyecto:', error);
+    console.error('❌ Error guardando conductores del proyecto:', error);
     throw error;
   }
 
-  console.log(`âœ… ${conductoresData.length} conductores guardados exitosamente`);
+  console.log(`✅ ${conductoresData.length} conductores guardados exitosamente`);
 };
 
-// FunciÃ³n para guardar patentes del proyecto
+// Función para guardar patentes del proyecto
 export const createProyectoVehiculos = async (
   idProyecto: number,
   codigoProyecto: string,
   vehiculos: Array<{ placa: string; conductor?: string }>,
   categoriaEmpresa: 'MyMA' | 'Contratista'
 ): Promise<void> => {
-  console.log('ðŸš— Guardando patentes del proyecto:', codigoProyecto);
-  console.log(`  - Total recibido: ${vehiculos.length} vehÃ­culos`);
-  console.log(`  - CategorÃ­a: ${categoriaEmpresa}`);
+  console.log('🚗 Guardando patentes del proyecto:', codigoProyecto);
+  console.log(`  - Total recibido: ${vehiculos.length} vehículos`);
+  console.log(`  - Categoría: ${categoriaEmpresa}`);
 
   if (!vehiculos || vehiculos.length === 0) {
-    console.log('âš ï¸ No hay vehÃ­culos para guardar');
+    console.log('⚠️ No hay vehículos para guardar');
     return;
   }
 
-  // Normalizar y filtrar patentes vacÃ­as
+  // Normalizar y filtrar patentes vacías
   const vehiculosConPatente = vehiculos
     .map((vehiculo) => ({
       patente: (vehiculo.placa || '').trim().toUpperCase(),
     }))
     .filter((vehiculo) => vehiculo.patente !== '');
 
-  console.log(`  - Con patente vÃ¡lida: ${vehiculosConPatente.length}`);
+  console.log(`  - Con patente válida: ${vehiculosConPatente.length}`);
 
   if (vehiculosConPatente.length === 0) {
-    console.log('âš ï¸ No hay patentes vÃ¡lidas para guardar');
+    console.log('⚠️ No hay patentes válidas para guardar');
     return;
   }
 
-  // Deduplicar por patente dentro de la categorÃ­a
+  // Deduplicar por patente dentro de la categoría
   const patentesVistas = new Set<string>();
   const vehiculosDeduplicados = vehiculosConPatente.filter((vehiculo) => {
     if (patentesVistas.has(vehiculo.patente)) return false;
@@ -2161,7 +2161,7 @@ export const createProyectoVehiculos = async (
     return true;
   });
 
-  console.log(`  - Patentes Ãºnicas a insertar: ${vehiculosDeduplicados.length}`);
+  console.log(`  - Patentes únicas a insertar: ${vehiculosDeduplicados.length}`);
 
   const vehiculosData = vehiculosDeduplicados.map((vehiculo) => ({
     id_proyecto: idProyecto,
@@ -2170,26 +2170,26 @@ export const createProyectoVehiculos = async (
     categoria_empresa: categoriaEmpresa,
   }));
 
-  console.log(`ðŸ“¦ Insertando ${vehiculosData.length} patentes`);
+  console.log(`📦 Insertando ${vehiculosData.length} patentes`);
 
   const { error } = await supabase
     .from('fct_acreditacion_solicitud_vehiculos')
     .insert(vehiculosData);
 
   if (error) {
-    console.error('âŒ Error guardando patentes del proyecto:', error);
+    console.error('❌ Error guardando patentes del proyecto:', error);
     throw error;
   }
 
-  console.log(`âœ… ${vehiculosData.length} patentes guardadas exitosamente`);
+  console.log(`✅ ${vehiculosData.length} patentes guardadas exitosamente`);
 };
 
-// FunciÃ³n para obtener conductores del proyecto desde fct_acreditacion_solicitud_conductor_manual
+// Función para obtener conductores del proyecto desde fct_acreditacion_solicitud_conductor_manual
 export const fetchProyectoConductoresByProyecto = async (
   idProyecto: number,
   codigoProyecto: string
 ): Promise<any[]> => {
-  console.log('ðŸ” Leyendo conductores del proyecto para resumen JSON:', {
+  console.log('🔍 Leyendo conductores del proyecto para resumen JSON:', {
     idProyecto,
     codigoProyecto,
   });
@@ -2201,19 +2201,19 @@ export const fetchProyectoConductoresByProyecto = async (
     .eq('codigo_proyecto', codigoProyecto);
 
   if (error) {
-    console.error('âŒ Error leyendo conductores del proyecto para resumen:', error);
+    console.error('❌ Error leyendo conductores del proyecto para resumen:', error);
     throw error;
   }
 
   return data || [];
 };
 
-// FunciÃ³n para obtener patentes del proyecto desde fct_acreditacion_solicitud_vehiculos
+// Función para obtener patentes del proyecto desde fct_acreditacion_solicitud_vehiculos
 export const fetchProyectoVehiculosByProyecto = async (
   idProyecto: number,
   codigoProyecto: string
 ): Promise<any[]> => {
-  console.log('ðŸ” Leyendo patentes del proyecto para resumen JSON:', {
+  console.log('🔍 Leyendo patentes del proyecto para resumen JSON:', {
     idProyecto,
     codigoProyecto,
   });
@@ -2225,7 +2225,7 @@ export const fetchProyectoVehiculosByProyecto = async (
     .eq('codigo_proyecto', codigoProyecto);
 
   if (error) {
-    console.error('âŒ Error leyendo patentes del proyecto para resumen:', error);
+    console.error('❌ Error leyendo patentes del proyecto para resumen:', error);
     throw error;
   }
 
@@ -2287,7 +2287,7 @@ export const fetchFieldRequestFormSnapshotByProjectId = async (
   idProyecto: number
 ): Promise<FieldRequestFormSnapshot> => {
   if (!idProyecto || typeof idProyecto !== 'number') {
-    throw new Error('ID de proyecto invÃ¡lido para reconstruir formulario');
+    throw new Error('ID de proyecto inválido para reconstruir formulario');
   }
 
   const missingFields = [
@@ -2327,7 +2327,7 @@ export const fetchFieldRequestFormSnapshotByProjectId = async (
 
   if (solicitudResult.error || !solicitudResult.data) {
     console.error('Error reconstruyendo formulario: solicitud no encontrada', solicitudResult.error);
-    throw solicitudResult.error || new Error(`No se encontrÃ³ la solicitud ${idProyecto}`);
+    throw solicitudResult.error || new Error(`No se encontró la solicitud ${idProyecto}`);
   }
 
   if (trabajadoresResult.error) {
@@ -2486,7 +2486,7 @@ const normalizeDbBoolean = (value: any): boolean => {
   if (typeof value === 'number') return value === 1;
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
-    return ['true', 't', '1', 'yes', 'y', 'si', 'sÃ­'].includes(normalized);
+    return ['true', 't', '1', 'yes', 'y', 'si', 'sí'].includes(normalized);
   }
   return false;
 };
@@ -2520,7 +2520,7 @@ export const fetchSolicitudRequerimientoCategoryAvailability = async (
   ]);
 
   if (solicitudResult.error) {
-    console.error('Error obteniendo flags de solicitud para categorÃ­as:', solicitudResult.error);
+    console.error('Error obteniendo flags de solicitud para categorías:', solicitudResult.error);
     throw solicitudResult.error;
   }
 
@@ -2535,7 +2535,7 @@ export const fetchSolicitudRequerimientoCategoryAvailability = async (
   }
 
   if (vehiculosCountResult.error) {
-    console.error('Error contando vehÃ­culos del proyecto:', vehiculosCountResult.error);
+    console.error('Error contando vehículos del proyecto:', vehiculosCountResult.error);
     throw vehiculosCountResult.error;
   }
 
@@ -2567,21 +2567,21 @@ export const fetchSolicitudRequerimientoCategoryAvailability = async (
   };
 };
 
-// FunciÃ³n para enviar el resumen de solicitud a logs de backend (edge function)
+// Función para enviar el resumen de solicitud a logs de backend (edge function)
 export const logResumenSolicitudAcreditacion = async (resumen: any): Promise<void> => {
   try {
-    console.log('ðŸ“¦ Enviando resumen de acreditaciÃ³n a funciÃ³n edge...', resumen);
+    console.log('📦 Enviando resumen de acreditación a función edge...', resumen);
     await sendWebhookViaEdgeFunction({
       tipo: 'resumen_solicitud_acreditacion',
       payload: resumen,
     });
-    console.log('âœ… Resumen de acreditaciÃ³n enviado a funciÃ³n edge correctamente');
+    console.log('✅ Resumen de acreditación enviado a función edge correctamente');
   } catch (error) {
-    console.error('âŒ Error enviando resumen de acreditaciÃ³n a funciÃ³n edge:', error);
+    console.error('❌ Error enviando resumen de acreditación a función edge:', error);
   }
 };
 
-// FunciÃ³n para crear carpetas del proyecto llamando a la API local
+// Función para crear carpetas del proyecto llamando a la API local
 export const crearCarpetasProyecto = async (resumen: any): Promise<any> => {
   const url = ACREDITACION_PROXY_ENDPOINTS.carpetasCrear;
   
@@ -2629,13 +2629,13 @@ export interface SubirDocumentoAcreditacionPayload {
   id_registro_sst: number;
 }
 
-// FunciÃ³n para subir documento a la API de acreditaciÃ³n (proxy local)
+// Función para subir documento a la API de acreditación (proxy local)
 export const subirDocumentoAcreditacion = async (
   payload: SubirDocumentoAcreditacionPayload
 ): Promise<any> => {
   const url = ACREDITACION_PROXY_ENDPOINTS.documentosSubir;
 
-  console.log('[documentos] Subiendo documento a API de acreditaciÃ³n...');
+  console.log('[documentos] Subiendo documento a API de acreditación...');
   console.log('   URL:', url);
   console.log('   Payload:', {
     ...payload,

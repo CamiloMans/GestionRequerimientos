@@ -283,7 +283,7 @@ export const hasModuleAdminPermission = (
 };
 
 /**
- * Obtener cÃ³digos de mÃ³dulos donde el usuario tiene permiso admin
+ * Obtener códigos de módulos donde el usuario tiene permiso admin
  */
 export const getAdminModuleCodes = (
   permissions: PermissionsByModule
@@ -294,7 +294,7 @@ export const getAdminModuleCodes = (
 };
 
 /**
- * Verificar si el usuario tiene al menos un permiso admin en cualquier mÃ³dulo
+ * Verificar si el usuario tiene al menos un permiso admin en cualquier módulo
  */
 export const hasAnyAdminPermission = (
   permissions: PermissionsByModule

@@ -241,7 +241,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         }));
 
         // Actualizar estado solo cuando hay cambios reales.
-        // Esto reduce re-render y evita "parpadeo" visual en la tabla/estadÃ­sticas.
+        // Esto reduce re-render y evita "parpadeo" visual en la tabla/estadísticas.
         setRequirements(prev => {
           const prevById = new Map(prev.map(req => [req.id, req]));
 
@@ -262,7 +262,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               };
             }
 
-            // Preservar archivos locales si todavÃ­a no hay drive_doc_url
+            // Preservar archivos locales si todavía no hay drive_doc_url
             if (!reqActualizado.drive_doc_url && reqAnterior.localFileUrl) {
               return {
                 ...reqActualizado,
