@@ -429,7 +429,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
         payload.documento_subida = {
           documento_base64: documentoBase64,
           nombre_documento: ensurePdfFileName(nombreRequerimiento),
-          fecha_inicio: formData.fecha_vigencia,
+          fecha_inicio: formData.fecha_vencimiento,
           folder_id: folderId,
           nombre_persona: nombrePersona,
           rut_persona: rutPersona,

@@ -206,9 +206,12 @@ const AcreditacionRoutes: React.FC = () => {
       setEditingItem(null);
       // Navegar de vuelta a la lista después de guardar
       navigate(ACREDITACION_ROUTES.requests);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving request:', error);
-      alert('Error al guardar la solicitud. Por favor, intente nuevamente.');
+      const message = typeof error?.message === 'string' && error.message.trim().length > 0
+        ? error.message
+        : 'Error al guardar la solicitud. Por favor, intente nuevamente.';
+      alert(message);
     }
   };
 

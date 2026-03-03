@@ -446,6 +446,22 @@ export const createPersonaRequerimiento = async (
   fechaVencimiento: string,
   linkDrive?: string
 ): Promise<PersonaRequerimientoSST> => {
+  const { data: existingRecords, error: existingError } = await supabase
+    .from('brg_acreditacion_persona_requerimiento_sst')
+    .select('id')
+    .eq('persona_id', personaId)
+    .eq('requerimiento_id', requerimientoId)
+    .limit(1);
+
+  if (existingError) throw existingError;
+
+  if (existingRecords && existingRecords.length > 0) {
+    const duplicateError = new Error(
+      'Este requerimiento ya esta creado para este colaborador. Debes editar el registro existente, no crear uno nuevo.'
+    );
+    (duplicateError as Error & { code?: string }).code = 'DUPLICATE_PERSONA_REQUERIMIENTO';
+    throw duplicateError;
+  }
   // Obtener informaciÃ³n de persona y requerimiento (incluyendo dias_anticipacion_notificacion)
   const [personaResult, requerimientoResult] = await Promise.all([
     supabase.from('dim_core_persona').select('*').eq('id', personaId).single(),
