@@ -190,6 +190,21 @@ const ProveedoresActuales: React.FC = () => {
     }
   }, [searchParams, proveedores, setSearchParams]);
 
+  // Leer parametro de RUT de la URL y aplicarlo al buscador
+  useEffect(() => {
+    const rutParam = searchParams.get('rut');
+    if (!rutParam) {
+      return;
+    }
+
+    setSearchTerm(rutParam);
+    setCurrentPage(1);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('rut');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   // Leer parámetro de clasificación de la URL
   useEffect(() => {
     const clasificacionParam = searchParams.get('clasificacion');

@@ -1,11 +1,16 @@
 import { supabase } from '@shared/api-client/supabase';
 
+type ProveedorJsonb = Record<string, unknown> | unknown[] | string | number | boolean | null;
+
 export interface ProveedorData {
   nombre_proveedor: string;
   rut?: string | null;
   razon_social?: string | null;
   correo_contacto?: string | null;
   tipo_proveedor?: string | null;
+  pagina_web?: string | null;
+  direccion?: ProveedorJsonb;
+  informacion_contacto?: ProveedorJsonb;
   evaluacion?: number | null;
   clasificacion?: string | null;
 }
@@ -17,6 +22,9 @@ export interface ProveedorResponse {
   razon_social?: string | null;
   correo_contacto?: string | null;
   tipo_proveedor?: string | null;
+  pagina_web?: string | null;
+  direccion?: ProveedorJsonb;
+  informacion_contacto?: ProveedorJsonb;
   evaluacion?: number | null;
   clasificacion?: string | null;
   categoria_proveedor?: string | null;

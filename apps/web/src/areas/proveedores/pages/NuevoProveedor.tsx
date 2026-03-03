@@ -12,6 +12,138 @@ import {
   saveProveedorEspecialidades,
 } from '../services/proveedoresService';
 
+interface DireccionDetalleFormData {
+  pais: string;
+  ciudad: string;
+  region: string;
+  direccion: string;
+}
+
+interface ContactoDetalleFormData {
+  nombre: string;
+  correo: string;
+  telefono: string;
+  cargo: string;
+}
+
+interface DireccionFormData {
+  direccion_sucursal: DireccionDetalleFormData;
+  direccion_casa_matriz: DireccionDetalleFormData;
+}
+
+interface InformacionContactoFormData {
+  contacto_comercial: ContactoDetalleFormData;
+  contacto_adicional_1: ContactoDetalleFormData;
+  contacto_adicional_2: ContactoDetalleFormData;
+}
+
+
+type DireccionSectionKey = keyof DireccionFormData;
+type InformacionContactoSectionKey = keyof InformacionContactoFormData;
+
+type PopupEditorState =
+  | { kind: 'direccion'; section: DireccionSectionKey }
+  | { kind: 'contacto'; section: InformacionContactoSectionKey }
+  | null;
+
+const direccionSectionLabels: Record<DireccionSectionKey, string> = {
+  direccion_casa_matriz: 'Direccion Casa Matriz',
+  direccion_sucursal: 'Direccion Sucursal',
+};
+
+const informacionContactoSectionLabels: Record<InformacionContactoSectionKey, string> = {
+  contacto_comercial: 'Contacto Comercial',
+  contacto_adicional_1: 'Contacto Adicional 1',
+  contacto_adicional_2: 'Contacto Adicional 2',
+};
+
+const direccionFieldConfig: Array<{
+  key: keyof DireccionDetalleFormData;
+  label: string;
+  placeholder: string;
+}> = [
+  { key: 'pais', label: 'Pais', placeholder: 'Ej: Chile' },
+  { key: 'ciudad', label: 'Ciudad', placeholder: 'Ej: Santiago' },
+  { key: 'region', label: 'Region', placeholder: 'Ej: Metropolitana' },
+  { key: 'direccion', label: 'Direccion', placeholder: 'Ej: Av. Apoquindo 1234' },
+];
+
+const contactoFieldConfig: Array<{
+  key: keyof ContactoDetalleFormData;
+  label: string;
+  type: string;
+  placeholder: string;
+}> = [
+  { key: 'nombre', label: 'Nombre', type: 'text', placeholder: 'Ej: Camila Rojas' },
+  { key: 'correo', label: 'Correo', type: 'email', placeholder: 'Ej: contacto@proveedor.cl' },
+  { key: 'telefono', label: 'Telefono', type: 'text', placeholder: 'Ej: +56 9 9876 5432' },
+  { key: 'cargo', label: 'Cargo', type: 'text', placeholder: 'Ej: Jefa Comercial' },
+];
+
+const emptyDireccionDetalle = (): DireccionDetalleFormData => ({
+  pais: '',
+  ciudad: '',
+  region: '',
+  direccion: '',
+});
+
+const emptyContactoDetalle = (): ContactoDetalleFormData => ({
+  nombre: '',
+  correo: '',
+  telefono: '',
+  cargo: '',
+});
+
+const toPlainObject = (value: unknown): Record<string, unknown> => {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+};
+
+const toText = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+};
+
+const toDireccionDetalle = (value: unknown): DireccionDetalleFormData => {
+  const obj = toPlainObject(value);
+
+  return {
+    pais: toText(obj.pais),
+    ciudad: toText(obj.ciudad),
+    region: toText(obj.region),
+    direccion: toText(obj.direccion),
+  };
+};
+
+const toContactoDetalle = (value: unknown): ContactoDetalleFormData => {
+  const obj = toPlainObject(value);
+
+  return {
+    nombre: toText(obj.nombre),
+    correo: toText(obj.correo),
+    telefono: toText(obj.telefono),
+    cargo: toText(obj.cargo),
+  };
+};
+
+const toNullableText = (value: string): string | null => {
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const hasAnyValue = (value: Record<string, string | null>): boolean => {
+  return Object.values(value).some((item) => item !== null);
+};
+
+const displayOrPlaceholder = (value: string): string => {
+  const trimmed = value.trim();
+  return trimmed === '' ? 'Sin definir' : trimmed;
+};
+
 const NuevoProveedor: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -28,9 +160,23 @@ const NuevoProveedor: React.FC = () => {
     razon_social: '',
     correo_contacto: '',
     tipo_proveedor: 'Empresa',
+    pagina_web: '',
     evaluacion: null,
     clasificacion: null,
   });
+
+  const [direccionForm, setDireccionForm] = useState<DireccionFormData>({
+    direccion_sucursal: emptyDireccionDetalle(),
+    direccion_casa_matriz: emptyDireccionDetalle(),
+  });
+
+  const [informacionContactoForm, setInformacionContactoForm] = useState<InformacionContactoFormData>({
+    contacto_comercial: emptyContactoDetalle(),
+    contacto_adicional_1: emptyContactoDetalle(),
+    contacto_adicional_2: emptyContactoDetalle(),
+  });
+
+  const [popupEditor, setPopupEditor] = useState<PopupEditorState>(null);
 
   // Calcular clasificación automáticamente cuando cambia la evaluación
   // Si hay una clasificación guardada y no hay evaluación, usar la clasificación guardada
@@ -42,6 +188,11 @@ const NuevoProveedor: React.FC = () => {
     // Si no hay evaluación pero hay clasificación guardada, usar esa
     return formData.clasificacion || null;
   }, [formData.evaluacion, formData.clasificacion]);
+
+  const especialidadesSeleccionadasDetalle = useMemo(() => {
+    const selectedIds = new Set(especialidadesSeleccionadas);
+    return especialidades.filter((esp) => selectedIds.has(esp.id));
+  }, [especialidades, especialidadesSeleccionadas]);
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
@@ -96,8 +247,33 @@ const NuevoProveedor: React.FC = () => {
           razon_social: proveedor.razon_social || '',
           correo_contacto: proveedor.correo_contacto || '',
           tipo_proveedor: proveedor.tipo_proveedor || 'Empresa',
+          pagina_web: proveedor.pagina_web || '',
           evaluacion: evaluacionValue,
           clasificacion: clasificacionValue,
+        });
+
+        const direccion = toPlainObject(proveedor.direccion);
+        const informacionContacto = toPlainObject(proveedor.informacion_contacto);
+
+        const direccionSucursal = toDireccionDetalle(direccion.direccion_sucursal);
+        const direccionCasaMatrizData = toDireccionDetalle(direccion.direccion_casa_matriz);
+        const legacyDireccionData = toDireccionDetalle(direccion);
+
+        const hasDireccionCasaMatriz = Object.values(direccionCasaMatrizData).some(
+          (value) => value !== ''
+        );
+
+        setDireccionForm({
+          direccion_sucursal: direccionSucursal,
+          direccion_casa_matriz: hasDireccionCasaMatriz
+            ? direccionCasaMatrizData
+            : legacyDireccionData,
+        });
+
+        setInformacionContactoForm({
+          contacto_comercial: toContactoDetalle(informacionContacto.contacto_comercial),
+          contacto_adicional_1: toContactoDetalle(informacionContacto.contacto_adicional_1),
+          contacto_adicional_2: toContactoDetalle(informacionContacto.contacto_adicional_2),
         });
 
         // Cargar especialidades del proveedor desde brg_core_proveedor_especialidad
@@ -128,6 +304,28 @@ const NuevoProveedor: React.FC = () => {
     loadProveedor();
   }, [id, isEditMode, navigate, especialidades]);
 
+
+  useEffect(() => {
+    if (!popupEditor) {
+      return;
+    }
+
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPopupEditor(null);
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleEsc);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [popupEditor]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
@@ -150,6 +348,36 @@ const NuevoProveedor: React.FC = () => {
         [name]: value || null,
       }));
     }
+    setError(null);
+  };
+
+  const handleDireccionFieldChange = (
+    section: keyof DireccionFormData,
+    field: keyof DireccionDetalleFormData,
+    value: string
+  ) => {
+    setDireccionForm((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
+    setError(null);
+  };
+
+  const handleInformacionContactoFieldChange = (
+    section: keyof InformacionContactoFormData,
+    field: keyof ContactoDetalleFormData,
+    value: string
+  ) => {
+    setInformacionContactoForm((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value,
+      },
+    }));
     setError(null);
   };
 
@@ -176,13 +404,70 @@ const NuevoProveedor: React.FC = () => {
         return;
       }
 
-      // Preparar los datos para enviar (convertir strings vacíos a null)
+      // Preparar los datos para enviar (convertir strings vacios a null)
+      const direccionSucursal = {
+        pais: toNullableText(direccionForm.direccion_sucursal.pais),
+        ciudad: toNullableText(direccionForm.direccion_sucursal.ciudad),
+        region: toNullableText(direccionForm.direccion_sucursal.region),
+        direccion: toNullableText(direccionForm.direccion_sucursal.direccion),
+      };
+
+      const direccionCasaMatriz = {
+        pais: toNullableText(direccionForm.direccion_casa_matriz.pais),
+        ciudad: toNullableText(direccionForm.direccion_casa_matriz.ciudad),
+        region: toNullableText(direccionForm.direccion_casa_matriz.region),
+        direccion: toNullableText(direccionForm.direccion_casa_matriz.direccion),
+      };
+
+      const contactoComercial = {
+        nombre: toNullableText(informacionContactoForm.contacto_comercial.nombre),
+        correo: toNullableText(informacionContactoForm.contacto_comercial.correo),
+        telefono: toNullableText(informacionContactoForm.contacto_comercial.telefono),
+        cargo: toNullableText(informacionContactoForm.contacto_comercial.cargo),
+      };
+
+      const contactoAdicional1 = {
+        nombre: toNullableText(informacionContactoForm.contacto_adicional_1.nombre),
+        correo: toNullableText(informacionContactoForm.contacto_adicional_1.correo),
+        telefono: toNullableText(informacionContactoForm.contacto_adicional_1.telefono),
+        cargo: toNullableText(informacionContactoForm.contacto_adicional_1.cargo),
+      };
+
+      const contactoAdicional2 = {
+        nombre: toNullableText(informacionContactoForm.contacto_adicional_2.nombre),
+        correo: toNullableText(informacionContactoForm.contacto_adicional_2.correo),
+        telefono: toNullableText(informacionContactoForm.contacto_adicional_2.telefono),
+        cargo: toNullableText(informacionContactoForm.contacto_adicional_2.cargo),
+      };
+
+      const direccionPayload = {
+        direccion_sucursal: direccionSucursal,
+        direccion_casa_matriz: direccionCasaMatriz,
+      };
+
+      const informacionContactoPayload = {
+        contacto_comercial: contactoComercial,
+        contacto_adicional_1: contactoAdicional1,
+        contacto_adicional_2: contactoAdicional2,
+      };
+
       const dataToSend: ProveedorData = {
         nombre_proveedor: formData.nombre_proveedor.trim(),
         rut: formData.rut?.trim() || null,
         razon_social: formData.razon_social?.trim() || null,
         correo_contacto: formData.correo_contacto?.trim() || null,
         tipo_proveedor: formData.tipo_proveedor || null,
+        pagina_web: formData.pagina_web?.trim() || null,
+        direccion:
+          hasAnyValue(direccionSucursal) || hasAnyValue(direccionCasaMatriz)
+            ? direccionPayload
+            : null,
+        informacion_contacto:
+          hasAnyValue(contactoComercial) ||
+          hasAnyValue(contactoAdicional1) ||
+          hasAnyValue(contactoAdicional2)
+            ? informacionContactoPayload
+            : null,
         evaluacion: formData.evaluacion ?? null,
         clasificacion: clasificacionCalculada,
       };
@@ -341,17 +626,133 @@ const NuevoProveedor: React.FC = () => {
               />
             </div>
 
-            {/* Cuarta fila: Especialidades */}
+            {/* Cuarta fila: Pagina Web */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Especialidades
+              <label htmlFor="pagina_web" className="block text-sm font-medium text-gray-700 mb-2">
+                Pagina Web
               </label>
+              <input
+                type="url"
+                id="pagina_web"
+                name="pagina_web"
+                value={formData.pagina_web || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                placeholder="Ej: https://proveedor.cl"
+              />
+            </div>
+
+            {/* Quinta fila: Direccion (JSONB amigable) */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-[#111318]">Direccion</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(Object.keys(direccionSectionLabels) as DireccionSectionKey[]).map((section) => (
+                  <div key={section} className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {direccionSectionLabels[section]}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPopupEditor({ kind: 'direccion', section })}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-primary hover:text-primary transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-base">edit</span>
+                        Editar
+                      </button>
+                    </div>
+
+                    <dl className="space-y-2">
+                      {direccionFieldConfig.map((field) => (
+                        <div key={field.key} className="flex items-start justify-between gap-3 text-sm">
+                          <dt className="text-gray-500">{field.label}</dt>
+                          <dd className="text-right text-gray-800 max-w-[70%] break-words">
+                            {displayOrPlaceholder(direccionForm[section][field.key])}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sexta fila: Informacion de contacto (JSONB amigable) */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-[#111318]">Informacion de contacto</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {(Object.keys(informacionContactoSectionLabels) as InformacionContactoSectionKey[]).map((section) => (
+                  <div key={section} className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {informacionContactoSectionLabels[section]}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPopupEditor({ kind: 'contacto', section })}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-primary hover:text-primary transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-base">edit</span>
+                        Editar
+                      </button>
+                    </div>
+
+                    <dl className="space-y-2">
+                      {contactoFieldConfig.map((field) => (
+                        <div key={field.key} className="flex items-start justify-between gap-3 text-sm">
+                          <dt className="text-gray-500">{field.label}</dt>
+                          <dd className="text-right text-gray-800 max-w-[70%] break-words">
+                            {displayOrPlaceholder(informacionContactoForm[section][field.key])}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Septima fila: Especialidades */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Especialidades
+                </label>
+                {especialidadesSeleccionadasDetalle.length > 0 && (
+                  <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-md">
+                    {especialidadesSeleccionadasDetalle.length} seleccionada
+                    {especialidadesSeleccionadasDetalle.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
+              <div className="mb-3 min-h-8">
+                {especialidadesSeleccionadasDetalle.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {especialidadesSeleccionadasDetalle.map((esp) => (
+                      <span
+                        key={esp.id}
+                        className="inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700"
+                      >
+                        {esp.nombre}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Sin especialidades seleccionadas.</p>
+                )}
+              </div>
+
               {loadingEspecialidades ? (
                 <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
                   <span className="text-sm text-gray-500">Cargando especialidades...</span>
                 </div>
               ) : (
-                <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 max-h-48 overflow-y-auto">
+                <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 max-h-80 overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {especialidades.map((esp) => (
                       <label
@@ -413,9 +814,109 @@ const NuevoProveedor: React.FC = () => {
           )}
         </div>
 
+
+
+        {popupEditor && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4"
+            onClick={() => setPopupEditor(null)}
+          >
+            <div
+              className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#111318]">
+                    {popupEditor.kind === 'direccion'
+                      ? direccionSectionLabels[popupEditor.section]
+                      : informacionContactoSectionLabels[popupEditor.section]}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {popupEditor.kind === 'direccion'
+                      ? `Edita los campos de direccion.${popupEditor.section}`
+                      : `Edita los campos de informacion_contacto.${popupEditor.section}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPopupEditor(null)}
+                  className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-100 transition-colors"
+                  aria-label="Cerrar editor"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              <div className="p-6">
+                {popupEditor.kind === 'direccion' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {direccionFieldConfig.map((field) => (
+                      <div key={field.key}>
+                        <label
+                          htmlFor={`popup-${popupEditor.section}-${String(field.key)}`}
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
+                          {field.label}
+                        </label>
+                        <input
+                          type="text"
+                          id={`popup-${popupEditor.section}-${String(field.key)}`}
+                          value={direccionForm[popupEditor.section][field.key]}
+                          onChange={(e) =>
+                            handleDireccionFieldChange(popupEditor.section, field.key, e.target.value)
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                          placeholder={field.placeholder}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {contactoFieldConfig.map((field) => (
+                      <div key={field.key}>
+                        <label
+                          htmlFor={`popup-${popupEditor.section}-${String(field.key)}`}
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
+                          {field.label}
+                        </label>
+                        <input
+                          type={field.type}
+                          id={`popup-${popupEditor.section}-${String(field.key)}`}
+                          value={informacionContactoForm[popupEditor.section][field.key]}
+                          onChange={(e) =>
+                            handleInformacionContactoFieldChange(
+                              popupEditor.section,
+                              field.key,
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                          placeholder={field.placeholder}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={() => setPopupEditor(null)}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium"
+                >
+                  Listo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-500">
-          <p>© 2024 MyMALAB. Todos los derechos reservados.</p>
+          <p>� {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>
@@ -423,4 +924,15 @@ const NuevoProveedor: React.FC = () => {
 };
 
 export default NuevoProveedor;
+
+
+
+
+
+
+
+
+
+
+
 

@@ -390,13 +390,13 @@ const EvaluacionesTabla: React.FC = () => {
                       key={servicio.id}
                       className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => {
-                        // Buscar el proveedor por RUT o nombre y navegar a su detalle
                         if (servicio.rut) {
-                          // Intentar encontrar el proveedor por RUT
-                          navigate(getAreaPath('actuales'), { state: { buscarRut: servicio.rut } });
-                        } else {
-                          navigate(getAreaPath('actuales'), { state: { buscarNombre: servicio.nombreProveedor } });
+                          const rut = encodeURIComponent(servicio.rut.trim());
+                          navigate(`${getAreaPath('actuales')}?rut=${rut}`);
+                          return;
                         }
+
+                        navigate(getAreaPath('actuales'));
                       }}
                     >
                       <td className="py-4 px-6">
