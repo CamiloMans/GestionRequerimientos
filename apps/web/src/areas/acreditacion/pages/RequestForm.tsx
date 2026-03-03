@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NewRequestPayload, RequestItem, Persona, Requerimiento, RequestStatus } from '../types';
 import {
   fetchPersonas,
@@ -73,13 +73,13 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays < 0) {
-      return `Vencido hace ${Math.abs(diffDays)} dÃ­as`;
+      return `Vencido hace ${Math.abs(diffDays)} días`;
     } else if (diffDays === 0) {
       return 'Vence hoy';
     } else if (diffDays <= 30) {
-      return `Vence en ${diffDays} dÃ­as`;
+      return `Vence en ${diffDays} días`;
     } else {
-      return `Vence en ${diffDays} dÃ­as`;
+      return `Vence en ${diffDays} días`;
     }
   };
   
@@ -96,7 +96,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     loadData();
   }, []);
 
-  // Filtrar personas cuando cambia el tÃ©rmino de bÃºsqueda
+  // Filtrar personas cuando cambia el término de búsqueda
   useEffect(() => {
     if (searchTerm.trim() === '') {
       setFilteredPersonas(personas);
@@ -109,7 +109,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     }
   }, [searchTerm, personas]);
 
-  // Actualizar el texto de bÃºsqueda cuando se carga una persona en modo ediciÃ³n
+  // Actualizar el texto de búsqueda cuando se carga una persona en modo edición
   useEffect(() => {
     if (formData.persona_id && personas.length > 0) {
       const persona = personas.find(p => p.id === formData.persona_id);
@@ -154,11 +154,11 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     }
   };
 
-  // Manejar la bÃºsqueda de colaboradores
+  // Manejar la búsqueda de colaboradores
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
     setShowDropdown(true);
-    // Si se borra el texto, resetear la selecciÃ³n
+    // Si se borra el texto, resetear la selección
     if (e.target.value === '') {
       setFormData({...formData, persona_id: 0});
     }
@@ -179,7 +179,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
     if (name.includes('_id')) {
       fieldValue = parseInt(value);
     } else if (name === 'estado') {
-      // Si el estado estÃ¡ vacÃ­o, establecer como undefined para que se calcule automÃ¡ticamente
+      // Si el estado está vacío, establecer como undefined para que se calcule automáticamente
       fieldValue = value || undefined;
     } else {
       fieldValue = value;
@@ -213,7 +213,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
   // Calcular estado inicial si hay fecha de vencimiento
   useEffect(() => {
     if (isEditing && initialData) {
-      // En modo ediciÃ³n, usar el estado del registro
+      // En modo edición, usar el estado del registro
       setCurrentStatus(initialData.status);
     } else if (formData.fecha_vencimiento) {
       const status = calculateStatus(formData.fecha_vencimiento);
@@ -392,8 +392,8 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
       }
     }
     
-    console.log('ðŸ“¤ Datos a guardar:', formData);
-    console.log('ðŸ“Š Estado seleccionado:', formData.estado);
+    console.log('Datos a guardar:', formData);
+    console.log('Estado seleccionado:', formData.estado);
     
     try {
       setIsSubmitting(true);
@@ -613,7 +613,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                 <div>
                   <h2 className="text-base lg:text-lg font-semibold text-[#111318] mb-4 flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary">info</span>
-                    InformaciÃ³n del Registro
+                    Información del Registro
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
                     <div>
@@ -629,7 +629,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                       <p className="text-sm font-medium text-gray-900">{initialData.requirement}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">CategorÃ­a</p>
+                      <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Categoría</p>
                       <p className="text-sm font-medium text-gray-900">{initialData.category}</p>
                     </div>
                   </div>
@@ -656,15 +656,15 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                         value={formData.estado || ''}
                         onChange={handleChange}
                       >
-                        <option value="">Calcular automÃ¡ticamente</option>
-                        <option value={RequestStatus.InRenewal}>En RenovaciÃ³n</option>
+                        <option value="">Calcular automáticamente</option>
+                        <option value={RequestStatus.InRenewal}>En Renovación</option>
                         <option value={RequestStatus.Current}>Vigente</option>
                         <option value={RequestStatus.Expiring}>A vencer</option>
                         <option value={RequestStatus.Expired}>Vencida</option>
                       </select>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Puedes cambiar manualmente el estado del registro a "En RenovaciÃ³n" cuando estÃ© en proceso de actualizaciÃ³n.
+                      Puedes cambiar manualmente el estado del registro a "En Renovación" cuando esté en proceso de actualización.
                     </p>
                   </div>
                 </div>
@@ -827,13 +827,13 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Ingrese el link completo del documento en Google Drive. El documento se mostrarÃ¡ como un Ã­cono en la tabla de solicitudes.
+                  Ingrese el link completo del documento en Google Drive. El documento se mostrará como un ícono en la tabla de solicitudes.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-6 border-t border-gray-100 mt-2">
-              {/* BotÃ³n Eliminar a la izquierda */}
+              {/* Botón Eliminar a la izquierda */}
               <div className="flex items-center gap-3">
                 {onDelete && isEditing && (
                   <button 
@@ -846,7 +846,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                   </button>
                 )}
               </div>
-              {/* Botones de acciÃ³n a la derecha */}
+              {/* Botones de acción a la derecha */}
               <div className="flex flex-col-reverse sm:flex-row items-center gap-3 w-full sm:w-auto">
                 <button 
                   type="button" 
@@ -870,7 +870,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
         </div>
       </div>
 
-      {/* Modal de ConfirmaciÃ³n de EliminaciÃ³n */}
+      {/* Modal de Confirmación de Eliminación */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 sm:p-8">
@@ -879,11 +879,11 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
             </div>
             
             <h2 className="text-2xl font-bold text-[#111318] text-center mb-2">
-              Â¿Eliminar Registro?
+              ¿Eliminar Registro?
             </h2>
             
             <p className="text-[#616f89] text-center mb-6">
-              Esta acciÃ³n no se puede deshacer. Se eliminarÃ¡ permanentemente el registro de:
+              Esta acción no se puede deshacer. Se eliminará permanentemente el registro de:
             </p>
             
             {initialData && (
@@ -920,7 +920,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
                 className="w-full sm:flex-1 px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium shadow-sm transition-all flex items-center justify-center gap-2 text-sm"
               >
                 <span className="material-symbols-outlined text-[20px]">delete</span>
-                SÃ­, Eliminar
+                Sí, Eliminar
               </button>
             </div>
           </div>
@@ -943,7 +943,7 @@ const RequestForm: React.FC<RequestFormProps> = ({ onBack, onSave, onDelete, ini
               // Actualizar lista de requerimientos
               const updatedRequerimientos = await fetchRequerimientos();
               setRequerimientos(updatedRequerimientos);
-              // Recargar categorÃ­as para incluir la nueva si no existÃ­a
+              // Recargar categorías para incluir la nueva si no existía
               const updatedCategorias = await fetchCategoriasRequerimientos();
               // Seleccionar el nuevo requerimiento
               setFormData({...formData, requerimiento_id: created.id});
@@ -984,7 +984,7 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
   const [categorias, setCategorias] = useState<string[]>([]);
   const [loadingCategorias, setLoadingCategorias] = useState(true);
 
-  // Cargar categorÃ­as desde la base de datos cuando se abre el modal
+  // Cargar categorías desde la base de datos cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
       loadCategorias();
@@ -997,9 +997,9 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
       const categoriasData = await fetchCategoriasRequerimientos();
       setCategorias(categoriasData);
     } catch (error) {
-      console.error('Error cargando categorÃ­as:', error);
-      // Si hay error, usar categorÃ­as por defecto
-      setCategorias(['ExÃ¡menes', 'Cursos', 'ConducciÃ³n', 'Legal', 'Trabajadores']);
+      console.error('Error cargando categorías:', error);
+      // Si hay error, usar categorías por defecto
+      setCategorias(['Exámenes', 'Cursos', 'Conducción', 'Legal', 'Trabajadores']);
     } finally {
       setLoadingCategorias(false);
     }
@@ -1164,7 +1164,7 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label htmlFor="categoria_requerimiento" className="block text-sm font-medium text-[#111318]">
-                  CategorÃ­a <span className="text-red-500">*</span>
+                  Categoría <span className="text-red-500">*</span>
                 </label>
                 <button
                   type="button"
@@ -1172,7 +1172,7 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
                   className="flex items-center gap-1.5 text-primary hover:text-primary-hover text-sm font-medium transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  Crear CategorÃ­a
+                  Crear Categoría
                 </button>
               </div>
               <select
@@ -1185,20 +1185,20 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
                 disabled={loadingCategorias}
               >
                 <option value="">
-                  {loadingCategorias ? 'Cargando categorÃ­as...' : 'Seleccione una categorÃ­a...'}
+                  {loadingCategorias ? 'Cargando categorías...' : 'Seleccione una categoría...'}
                 </option>
                 {categorias.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
               {loadingCategorias && (
-                <p className="text-xs text-gray-500 mt-1">Cargando categorÃ­as desde la base de datos...</p>
+                <p className="text-xs text-gray-500 mt-1">Cargando categorías desde la base de datos...</p>
               )}
             </div>
 
             <div className="space-y-2">
               <label htmlFor="dias_anticipacion_notificacion" className="block text-sm font-medium text-[#111318]">
-                DÃ­as de AnticipaciÃ³n para NotificaciÃ³n
+                Días de Anticipación para Notificación
               </label>
               <input
                 type="number"
@@ -1211,7 +1211,7 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
                 onChange={handleChange}
               />
               <p className="text-xs text-gray-500 mt-1">
-                NÃºmero de dÃ­as antes del vencimiento para enviar notificaciones (por defecto: 60 dÃ­as)
+                Número de días antes del vencimiento para enviar notificaciones (por defecto: 60 días)
               </p>
             </div>
 
@@ -1246,7 +1246,7 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
         </div>
       </div>
 
-      {/* Modal de Crear CategorÃ­a */}
+      {/* Modal de Crear Categoría */}
       {showCreateCategoriaModal && (
         <CreateCategoriaModal
           isOpen={showCreateCategoriaModal}
@@ -1264,7 +1264,7 @@ const CreateRequerimientoModal: React.FC<CreateRequerimientoModalProps> = ({ isO
   );
 };
 
-// Componente Modal para Crear CategorÃ­a
+// Componente Modal para Crear Categoría
 interface CreateCategoriaModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -1280,7 +1280,7 @@ const CreateCategoriaModal: React.FC<CreateCategoriaModalProps> = ({ isOpen, onC
     setError(null);
 
     if (!categoria.trim()) {
-      setError('Por favor ingrese un nombre para la categorÃ­a');
+      setError('Por favor ingrese un nombre para la categoría');
       return;
     }
 
@@ -1297,7 +1297,7 @@ const CreateCategoriaModal: React.FC<CreateCategoriaModalProps> = ({ isOpen, onC
         <div className="bg-primary px-6 py-4 flex items-center justify-between flex-shrink-0 rounded-t-xl">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-white text-2xl">add_circle</span>
-            <h2 className="text-lg font-bold text-white">Crear Nueva CategorÃ­a</h2>
+            <h2 className="text-lg font-bold text-white">Crear Nueva Categoría</h2>
           </div>
           <button
             onClick={onClose}
@@ -1321,13 +1321,13 @@ const CreateCategoriaModal: React.FC<CreateCategoriaModalProps> = ({ isOpen, onC
 
             <div className="space-y-2">
               <label htmlFor="nueva_categoria" className="block text-sm font-medium text-[#111318]">
-                Nombre de la CategorÃ­a <span className="text-red-500">*</span>
+                Nombre de la Categoría <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 id="nueva_categoria"
                 className="w-full rounded-lg border-gray-200 text-sm focus:border-primary focus:ring-primary shadow-sm py-2.5 px-4"
-                placeholder="Ej: CapacitaciÃ³n, Seguridad, etc."
+                placeholder="Ej: Capacitación, Seguridad, etc."
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
                 required
@@ -1349,7 +1349,7 @@ const CreateCategoriaModal: React.FC<CreateCategoriaModalProps> = ({ isOpen, onC
                 className="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium shadow-sm shadow-primary/20 hover:shadow-primary/40 transition-all flex items-center gap-2 text-sm"
               >
                 <span className="material-symbols-outlined text-lg">save</span>
-                Guardar CategorÃ­a
+                Guardar Categoría
               </button>
             </div>
           </form>

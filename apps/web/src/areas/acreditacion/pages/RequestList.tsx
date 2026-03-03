@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RequestItem, RequestStatus, RequirementType, RequestCategory } from '../types';
+import { exportRequestsToExcel } from '../utils/requestListExport';
 
 interface RequestListProps {
   requests: RequestItem[];
   onCreateNew: () => void;
   onEdit: (item: RequestItem) => void;
   canManageActions: boolean;
+}
+
+interface PersonaFilterOption {
+  key: string;
+  name: string;
+  rut: string;
+  label: string;
 }
 
 const RequestList: React.FC<RequestListProps> = ({
@@ -24,7 +32,22 @@ const RequestList: React.FC<RequestListProps> = ({
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterRequirement, setFilterRequirement] = useState('');
+  const [selectedPersonaKeys, setSelectedPersonaKeys] = useState<string[]>([]);
+  const [isPersonSelectorOpen, setIsPersonSelectorOpen] = useState(false);
+  const [personSearchTerm, setPersonSearchTerm] = useState('');
 
+  const personSelectorRef = useRef<HTMLDivElement | null>(null);
+
+  const buildPersonaKey = (req: RequestItem): string => {
+    if (req.persona_id !== undefined && req.persona_id !== null) {
+      return `id:${req.persona_id}`;
+    }
+
+    const fallbackName = (req.name || '').trim().toLowerCase() || 'sin-nombre';
+    const fallbackRut = (req.rut || '').trim().toLowerCase() || 'sin-rut';
+
+    return `fallback:${fallbackName}|${fallbackRut}`;
+  };
   // Cerrar menú de drive al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -43,35 +66,163 @@ const RequestList: React.FC<RequestListProps> = ({
     };
   }, [openDriveMenuId]);
 
-  const filteredRequests = requests.filter(req => {
-    const term = searchTerm.toLowerCase();
-    
-    // Search Logic:
-    // 1. Name match (standard)
-    // 2. RUT match: allows searching with or without dots by stripping dots from both source and term
-    // 3. Requirement match (standard)
-    
-    const rutNoDots = req.rut.toLowerCase().replace(/\./g, '');
-    const termNoDots = term.replace(/\./g, '');
-    
-    const matchesSearch = 
-      req.name.toLowerCase().includes(term) || 
-      req.rut.toLowerCase().includes(term) ||
-      rutNoDots.includes(termNoDots) ||
-      req.requirement.toLowerCase().includes(term);
-      
-    const matchesStatus = filterStatus ? req.status === filterStatus : true;
-    const matchesCategory = filterCategory ? req.category === filterCategory : true;
-    const matchesRequirement = filterRequirement ? req.requirement === filterRequirement : true;
+  useEffect(() => {
+    if (!isPersonSelectorOpen) {
+      return;
+    }
 
-    return matchesSearch && matchesStatus && matchesCategory && matchesRequirement;
-  });
+    const handlePersonSelectorOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (personSelectorRef.current && !personSelectorRef.current.contains(target)) {
+        setIsPersonSelectorOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePersonSelectorOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePersonSelectorOutside);
+    };
+  }, [isPersonSelectorOpen]);
+
+  const personaOptions = useMemo<PersonaFilterOption[]>(() => {
+    const map = new Map<string, PersonaFilterOption>();
+
+    requests.forEach((req) => {
+      const key = buildPersonaKey(req);
+      if (map.has(key)) {
+        return;
+      }
+
+      const name = req.name || 'Sin nombre';
+      const rut = req.rut || '-';
+
+      map.set(key, {
+        key,
+        name,
+        rut,
+        label: `${name} - ${rut}`,
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+  }, [requests]);
+
+  const filteredPersonaOptions = useMemo(() => {
+    const term = personSearchTerm.trim().toLowerCase();
+    const termNoDots = term.replace(/\./g, '');
+
+    if (!term) {
+      return personaOptions;
+    }
+
+    return personaOptions.filter((option) => {
+      const optionRutNoDots = option.rut.toLowerCase().replace(/\./g, '');
+      return (
+        option.name.toLowerCase().includes(term) ||
+        option.rut.toLowerCase().includes(term) ||
+        optionRutNoDots.includes(termNoDots)
+      );
+    });
+  }, [personaOptions, personSearchTerm]);
+
+  useEffect(() => {
+    const validKeys = new Set(personaOptions.map((option) => option.key));
+    setSelectedPersonaKeys((prev) => prev.filter((key) => validKeys.has(key)));
+  }, [personaOptions]);
+
+  const selectedPersonaOptions = useMemo(() => {
+    const optionMap = new Map(personaOptions.map((option) => [option.key, option]));
+    return selectedPersonaKeys
+      .map((key) => optionMap.get(key))
+      .filter((option): option is PersonaFilterOption => Boolean(option));
+  }, [selectedPersonaKeys, personaOptions]);
+
+  const selectedPersonaSet = useMemo(() => new Set(selectedPersonaKeys), [selectedPersonaKeys]);
+
+  const filteredRequests = useMemo(
+    () =>
+      requests.filter((req) => {
+        const term = searchTerm.toLowerCase();
+
+        // Search Logic:
+        // 1. Name match (standard)
+        // 2. RUT match with/without dots
+        // 3. Requirement match (standard)
+        const rutNoDots = req.rut.toLowerCase().replace(/\./g, '');
+        const termNoDots = term.replace(/\./g, '');
+
+        const matchesSearch =
+          req.name.toLowerCase().includes(term) ||
+          req.rut.toLowerCase().includes(term) ||
+          rutNoDots.includes(termNoDots) ||
+          req.requirement.toLowerCase().includes(term);
+
+        const matchesStatus = filterStatus ? req.status === filterStatus : true;
+        const matchesCategory = filterCategory ? req.category === filterCategory : true;
+        const matchesRequirement = filterRequirement ? req.requirement === filterRequirement : true;
+        const matchesPersona = selectedPersonaKeys.length
+          ? selectedPersonaSet.has(buildPersonaKey(req))
+          : true;
+
+        return matchesSearch && matchesStatus && matchesCategory && matchesRequirement && matchesPersona;
+      }),
+    [
+      requests,
+      searchTerm,
+      filterStatus,
+      filterCategory,
+      filterRequirement,
+      selectedPersonaKeys.length,
+      selectedPersonaSet,
+    ]
+  );
 
   const clearFilters = () => {
     setSearchTerm('');
     setFilterStatus('');
     setFilterCategory('');
     setFilterRequirement('');
+    setSelectedPersonaKeys([]);
+    setPersonSearchTerm('');
+  };
+
+  const togglePersonaSelection = (personaKey: string) => {
+    setSelectedPersonaKeys((prev) => {
+      if (prev.includes(personaKey)) {
+        return prev.filter((key) => key !== personaKey);
+      }
+
+      return [...prev, personaKey];
+    });
+  };
+
+  const handleSelectAllVisiblePersonas = () => {
+    if (filteredPersonaOptions.length === 0) {
+      return;
+    }
+
+    setSelectedPersonaKeys((prev) => {
+      const combined = new Set([...prev, ...filteredPersonaOptions.map((option) => option.key)]);
+      return Array.from(combined);
+    });
+  };
+
+  const handleClearPersonaSelection = () => {
+    setSelectedPersonaKeys([]);
+  };
+
+  const handleExportExcel = async () => {
+    if (filteredRequests.length === 0) {
+      return;
+    }
+
+    try {
+      await exportRequestsToExcel(filteredRequests);
+    } catch (error) {
+      console.error('[request-list] Error exportando Excel:', error);
+      alert('No fue posible descargar el Excel. Intente nuevamente.');
+    }
   };
 
   const getStatusBadge = (status: RequestStatus) => {
@@ -245,30 +396,149 @@ const RequestList: React.FC<RequestListProps> = ({
 
         {/* Filters Toolbar */}
         <div className="mb-6 flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-            <div className="relative flex-1 sm:max-w-md">
+          <div className="flex flex-col lg:flex-row gap-3 sm:gap-4">
+            <div className="relative flex-1 lg:max-w-md">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-[20px]">search</span>
-              <input 
-                type="text" 
-                placeholder="Buscar por nombre, RUT..." 
+              <input
+                type="text"
+                placeholder="Buscar por nombre, RUT..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex gap-2">
-              <button 
+
+            <div className="flex flex-wrap gap-2">
+              <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex-1 sm:flex-none px-4 py-2.5 border rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+                className={`px-4 py-2.5 border rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                }`}
               >
-                <span className="material-symbols-outlined text-[18px]">filter_list</span> 
-                <span className="hidden sm:inline">Filtros</span>
+                <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                <span>Filtros</span>
                 {(filterStatus || filterCategory || filterRequirement) && (
                   <span className="flex h-2 w-2 rounded-full bg-primary ml-1"></span>
                 )}
               </button>
+
+              <div ref={personSelectorRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsPersonSelectorOpen((prev) => !prev)}
+                  className={`px-4 py-2.5 border rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                    isPersonSelectorOpen || selectedPersonaKeys.length > 0
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">groups</span>
+                  <span>Personas</span>
+                  {selectedPersonaKeys.length > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[11px] font-bold bg-primary text-white">
+                      {selectedPersonaKeys.length}
+                    </span>
+                  )}
+                </button>
+
+                {isPersonSelectorOpen && (
+                  <div className="absolute right-0 lg:left-0 lg:right-auto mt-2 z-30 w-[min(92vw,380px)] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+                    <div className="p-3 border-b border-gray-100">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-symbols-outlined text-[18px]">search</span>
+                        <input
+                          type="text"
+                          value={personSearchTerm}
+                          onChange={(e) => setPersonSearchTerm(e.target.value)}
+                          placeholder="Buscar persona por nombre o RUT"
+                          className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllVisiblePersonas}
+                        disabled={filteredPersonaOptions.length === 0}
+                        className="text-xs font-semibold text-primary disabled:text-gray-400 disabled:cursor-not-allowed"
+                      >
+                        Seleccionar visibles
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearPersonaSelection}
+                        disabled={selectedPersonaKeys.length === 0}
+                        className="text-xs font-semibold text-red-600 disabled:text-gray-400 disabled:cursor-not-allowed"
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto p-2">
+                      {filteredPersonaOptions.length === 0 ? (
+                        <p className="px-2 py-3 text-sm text-gray-500 text-center">No hay personas para mostrar.</p>
+                      ) : (
+                        filteredPersonaOptions.map((option) => {
+                          const isSelected = selectedPersonaSet.has(option.key);
+                          return (
+                            <button
+                              key={option.key}
+                              type="button"
+                              onClick={() => togglePersonaSelection(option.key)}
+                              className={`w-full text-left px-2.5 py-2 rounded-lg flex items-start gap-2 transition-colors ${
+                                isSelected ? 'bg-primary/10 border border-primary/20' : 'hover:bg-gray-50 border border-transparent'
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-[18px] mt-0.5 text-primary">
+                                {isSelected ? 'check_box' : 'check_box_outline_blank'}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium text-[#111318] truncate">{option.name}</span>
+                                <span className="block text-xs text-gray-500 font-mono truncate">{option.rut}</span>
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={filteredRequests.length === 0}
+                className={`px-4 py-2.5 border rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
+                  filteredRequests.length > 0
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+                title="Descargar filas visibles en Excel"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                <span>Descargar Excel</span>
+              </button>
             </div>
           </div>
+
+          {selectedPersonaOptions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personas seleccionadas</span>
+              {selectedPersonaOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => togglePersonaSelection(option.key)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                >
+                  <span className="max-w-[220px] truncate">{option.label}</span>
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Expanded Filters Panel */}
           {showFilters && (
@@ -432,7 +702,7 @@ const RequestList: React.FC<RequestListProps> = ({
               <div className="p-8 text-center text-gray-500 flex flex-col items-center gap-2">
                 <span className="material-symbols-outlined text-4xl text-gray-300">search_off</span>
                 <p>No se encontraron registros que coincidan con los filtros.</p>
-                {(filterStatus || filterCategory || filterRequirement || searchTerm) && (
+                {(filterStatus || filterCategory || filterRequirement || searchTerm || selectedPersonaKeys.length > 0) && (
                   <button onClick={clearFilters} className="text-primary font-medium hover:underline text-sm">
                     Limpiar todos los filtros
                   </button>
@@ -552,7 +822,7 @@ const RequestList: React.FC<RequestListProps> = ({
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500 flex flex-col items-center gap-2">
               <span className="material-symbols-outlined text-4xl text-gray-300">search_off</span>
               <p>No se encontraron registros que coincidan con los filtros.</p>
-              {(filterStatus || filterCategory || filterRequirement || searchTerm) && (
+              {(filterStatus || filterCategory || filterRequirement || searchTerm || selectedPersonaKeys.length > 0) && (
                 <button onClick={clearFilters} className="text-primary font-medium hover:underline text-sm">
                   Limpiar todos los filtros
                 </button>

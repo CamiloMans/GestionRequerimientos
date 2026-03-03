@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import RequestList from './pages/RequestList';
 import RequestForm from './pages/RequestForm';
@@ -23,7 +23,7 @@ import {
 } from './services/acreditacionService';
 
 /**
- * Componente que maneja las rutas del Ã¡rea de Acreditaciones
+ * Componente que maneja las rutas del área de Acreditaciones
  */
 const AcreditacionRoutes: React.FC = () => {
   const navigate = useNavigate();
@@ -159,8 +159,8 @@ const AcreditacionRoutes: React.FC = () => {
       return;
     }
 
-    console.log('ðŸ”¥ handleSave recibiÃ³:', data);
-    console.log('ðŸ”¥ Estado en data:', data.estado);
+    console.log('handleSave recibió:', data);
+    console.log('Estado en data:', data.estado);
 
     try {
       let savedRecordId: number | null = null;
@@ -204,7 +204,7 @@ const AcreditacionRoutes: React.FC = () => {
 
       await loadRequests();
       setEditingItem(null);
-      // Navegar de vuelta a la lista despuÃ©s de guardar
+      // Navegar de vuelta a la lista después de guardar
       navigate(ACREDITACION_ROUTES.requests);
     } catch (error) {
       console.error('Error saving request:', error);
@@ -226,13 +226,13 @@ const AcreditacionRoutes: React.FC = () => {
       const isAdmin = await checkUserIsAdmin();
 
       if (!isAdmin) {
-        alert('No tienes permisos para eliminar registros. Solo los administradores pueden realizar esta acciÃ³n.');
+        alert('No tienes permisos para eliminar registros. Solo los administradores pueden realizar esta acción.');
         return;
       }
 
       await deletePersonaRequerimiento(parseInt(editingItem.id));
 
-      console.log('âœ… Registro eliminado (usuario admin)');
+      console.log('Registro eliminado (usuario admin)');
 
       await loadRequests();
       setEditingItem(null);

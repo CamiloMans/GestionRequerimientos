@@ -1,14 +1,14 @@
-﻿export enum RequestStatus {
+export enum RequestStatus {
   Current = 'Vigente',
-  InRenewal = 'En RenovaciÃ³n',
+  InRenewal = 'En Renovación',
   Expiring = 'A vencer',
   Expired = 'Vencida',
 }
 
 export enum RequestCategory {
-  Exams = 'ExÃ¡menes',
+  Exams = 'Exámenes',
   Courses = 'Cursos',
-  Driving = 'ConducciÃ³n',
+  Driving = 'Conducción',
   Legal = 'Legal',
 }
 
@@ -104,12 +104,12 @@ export interface ProyectoRequerimientoAcreditacion {
   nombre_trabajador?: string; // Nombre de la persona asociada a este requerimiento (trabajador/conductor)
   categoria_empresa?: string; // MyMA o Contratista
   id_proyecto_trabajador?: number; // ID de la entidad asociada reutilizado para compatibilidad (trabajador/conductor/vehiculo)
-  patente_vehiculo?: string; // Patente asociada cuando el requerimiento es de categorÃ­a Vehiculos
-  empresa_acreditacion?: string; // Empresa de acreditaciÃ³n (MyMA, nombre del contratista, etc.)
+  patente_vehiculo?: string; // Patente asociada cuando el requerimiento es de categoría Vehiculos
+  empresa_acreditacion?: string; // Empresa de acreditación (MyMA, nombre del contratista, etc.)
   drive_doc_url?: string; // URL del documento en Google Drive
 }
 
-// Tipo para las tareas del proyecto en la galerÃ­a
+// Tipo para las tareas del proyecto en la galería
 export interface ProjectTask {
   id: number;
   responsable: string;
@@ -155,7 +155,7 @@ export interface PersonaRequerimientoSST {
   created_at: string;
 }
 
-// Tipo para el formulario de creaciÃ³n/ediciÃ³n
+// Tipo para el formulario de creación/edición
 export interface RequestItem {
   id: string;
   name: string;
@@ -224,26 +224,26 @@ export interface RequestFormData {
   companyAccreditationRequired: string;
   requiereAcreditarTrabajadoresMyma: string;
   contractAdmin: string;
-  // InformaciÃ³n del Contrato
+  // Información del Contrato
   nombreContrato: string;
   numeroContrato: string;
   administradorContrato: string;
   // Condiciones Laborales
   jornadaTrabajo: string;
   horarioTrabajo: string;
-  // InformaciÃ³n de VehÃ­culos
+  // Información de Vehículos
   cantidadVehiculos: string;
   placaPatente: string;
   // Pregunta sobre Contratista
   requiereAcreditarContratista: string;
   requiereAcreditarTrabajadoresContratista: string;
-  // InformaciÃ³n del Contrato (Contratista)
+  // Información del Contrato (Contratista)
   modalidadContrato: string;
   razonSocialContratista: string;
   nombreResponsableContratista: string;
   telefonoResponsableContratista: string;
   emailResponsableContratista: string;
-  // VehÃ­culos Contratista
+  // Vehículos Contratista
   cantidadVehiculosContratista: string;
   placasVehiculosContratista: string;
   // SST
@@ -313,14 +313,14 @@ export interface SolicitudAcreditacion {
   email_usuario?: string | null;
   solicitud_prueba?: boolean;
   estado?: string;
-  estado_solicitud_acreditacion?: string; // Estado especÃ­fico de la solicitud
+  estado_solicitud_acreditacion?: string; // Estado específico de la solicitud
   // Responsables del proyecto
   empresa_id?: string; // ID de la Empresa Contratista
   empresa_nombre?: string; // Nombre de la Empresa Contratista
   jpro_id?: number; // ID del Jefe de Proyecto
   jpro_nombre?: string; // Nombre del Jefe de Proyecto
-  epr_id?: number; // ID del Especialista en PrevenciÃ³n de Riesgo
-  epr_nombre?: string; // Nombre del Especialista en PrevenciÃ³n de Riesgo
+  epr_id?: number; // ID del Especialista en Prevención de Riesgo
+  epr_nombre?: string; // Nombre del Especialista en Prevención de Riesgo
   rrhh_id?: number; // ID del Responsable de RRHH
   rrhh_nombre?: string; // Nombre del Responsable de RRHH
   legal_id?: number; // ID del Responsable Legal
@@ -331,7 +331,7 @@ export interface SolicitudAcreditacion {
   updated_at?: string;
 }
 
-// Tipo para la vista de galerÃ­a de proyectos
+// Tipo para la vista de galería de proyectos
 export interface ProjectGalleryItem {
   id: number;
   projectCode: string;
@@ -365,16 +365,16 @@ export interface ProjectGalleryItem {
 
 export const REGIONS = [
   "Metropolitana",
-  "ValparaÃ­so",
-  "BiobÃ­o",
+  "Valparaíso",
+  "Biobío",
   "Antofagasta",
-  "AraucanÃ­a",
+  "Araucanía",
   "Los Lagos"
 ];
 
 export const PROJECT_MANAGERS = [
-  "Juan PÃ©rez",
-  "Maria GonzÃ¡lez",
+  "Juan Pérez",
+  "Maria González",
   "Carlos Ruiz",
   "Ana Silva"
 ];
@@ -382,19 +382,19 @@ export const PROJECT_MANAGERS = [
 export const MOCK_WORKERS_DB = [
   { name: "Ana Silva", phone: "+56 9 8765 4321" },
   { name: "Pedro Torres", phone: "+56 9 1234 5678" },
-  { name: "Luisa FernÃ¡ndez", phone: "+56 9 1111 2222" },
-  { name: "Roberto DÃ­az", phone: "+56 9 3333 4444" }
+  { name: "Luisa Fernández", phone: "+56 9 1111 2222" },
+  { name: "Roberto Díaz", phone: "+56 9 3333 4444" }
 ];
 
 export const MOCK_COMPANIES = [
   { id: 'tech_mining', name: 'Tech Mining SpA' },
-  { id: 'servicios_log', name: 'Servicios LogÃ­sticos del Norte' },
+  { id: 'servicios_log', name: 'Servicios Logísticos del Norte' },
   { id: 'geo_consult', name: 'GeoConsulting Ltda.' },
   { id: 'construcciones_sur', name: 'Construcciones del Sur Limitada' },
-  { id: 'ingenieria_total', name: 'IngenierÃ­a Total S.A.' },
-  { id: 'transportes_norte', name: 'Transportes y LogÃ­stica Norte Chile' },
+  { id: 'ingenieria_total', name: 'Ingeniería Total S.A.' },
+  { id: 'transportes_norte', name: 'Transportes y Logística Norte Chile' },
   { id: 'mantenciones_ind', name: 'Mantenciones Industriales ProService' },
-  { id: 'energia_renovable', name: 'EnergÃ­a Renovable del PacÃ­fico' },
+  { id: 'energia_renovable', name: 'Energía Renovable del Pacífico' },
   { id: 'seguridad_integral', name: 'Seguridad Integral Profesional' },
   { id: 'equipos_pesados', name: 'Equipos Pesados y Maquinaria Ltda.' }
 ];
