@@ -1804,93 +1804,122 @@ export const updateProyectoRequerimientosResponsables = async (
     acreditacion_nombre?: string;
   }
 ): Promise<void> => {
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log('ðŸ”„ ACTUALIZANDO RESPONSABLES EN REQUERIMIENTOS');
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log('CÃ³digo Proyecto:', codigoProyecto);
-  console.log('Responsables recibidos:', responsables);
-  console.log('AcreditaciÃ³n ID:', responsables.acreditacion_id);
-  console.log('AcreditaciÃ³n Nombre:', responsables.acreditacion_nombre);
+  console.log('=== Updating requirement responsibles ===');
+  console.log('Project code:', codigoProyecto);
+  console.log('Responsibles payload:', responsables);
+  console.log('Acreditacion ID:', responsables.acreditacion_id);
+  console.log('Acreditacion name:', responsables.acreditacion_nombre);
 
-  // Obtener todos los requerimientos del proyecto
+  // Determine if this solicitud has an external contractor.
+  const { data: solicitud, error: solicitudError } = await supabase
+    .from('fct_acreditacion_solicitud')
+    .select('razon_social_contratista')
+    .eq('codigo_proyecto', codigoProyecto)
+    .maybeSingle();
+
+  if (solicitudError) {
+    console.error('Error fetching razon_social_contratista for project:', solicitudError);
+    throw solicitudError;
+  }
+
+  const razonSocialContratista = (solicitud?.razon_social_contratista || '').trim();
+  const tieneContratistaExterno = Boolean(razonSocialContratista);
+  const jproSeleccionado = (responsables.jpro_nombre || '').trim();
+
+  console.log('Razon social contratista:', razonSocialContratista || 'N/A');
+  console.log('Has external contractor:', tieneContratistaExterno);
+  console.log('Selected JPRO:', jproSeleccionado || 'N/A');
+
+  // Get all project requirements.
   const { data: requerimientos, error: fetchError } = await supabase
     .from('brg_acreditacion_solicitud_requerimiento')
-    .select('id, requerimiento, responsable')
+    .select('id, requerimiento, responsable, categoria_empresa')
     .eq('codigo_proyecto', codigoProyecto);
 
   if (fetchError) {
-    console.error('âŒ Error obteniendo requerimientos:', fetchError);
+    console.error('Error fetching project requirements:', fetchError);
     throw fetchError;
   }
 
   if (!requerimientos || requerimientos.length === 0) {
-    console.log('âš ï¸ No se encontraron requerimientos para actualizar');
+    console.log('No requirements found for update');
     return;
   }
 
-  console.log(`ðŸ“‹ Encontrados ${requerimientos.length} requerimientos para actualizar`);
+  console.log('Requirements found:', requerimientos.length);
 
-  // Actualizar cada requerimiento segÃºn su responsable
   let actualizados = 0;
   let errores = 0;
 
   for (const req of requerimientos) {
     let nombreResponsable = '';
-    
-    switch (req.responsable) {
-      case 'JPRO':
-        nombreResponsable = responsables.jpro_nombre || '';
-        break;
-      case 'EPR':
-        nombreResponsable = responsables.epr_nombre || '';
-        break;
-      case 'RRHH':
-        nombreResponsable = responsables.rrhh_nombre || '';
-        break;
-      case 'Legal':
-        nombreResponsable = responsables.legal_nombre || '';
-        break;
-      default:
-        console.log(`âš ï¸ Responsable desconocido: ${req.responsable} para requerimiento ${req.id}`);
-        // No hacer continue, seguir para actualizar acreditaciÃ³n
-        break;
+
+    const categoriaEmpresaNormalizada = (req.categoria_empresa || '').trim().toLowerCase();
+    const esCategoriaContratista = categoriaEmpresaNormalizada === 'contratista';
+    const debeForzarNombreJpro =
+      tieneContratistaExterno &&
+      Boolean(jproSeleccionado) &&
+      esCategoriaContratista;
+
+    if (debeForzarNombreJpro) {
+      nombreResponsable = jproSeleccionado;
+      console.log('[Req ' + req.id + '] Contractor override applied: nombre_responsable -> selected JPRO');
+    } else {
+      switch (req.responsable) {
+        case 'JPRO':
+          nombreResponsable = responsables.jpro_nombre || '';
+          break;
+        case 'EPR':
+          nombreResponsable = responsables.epr_nombre || '';
+          break;
+        case 'RRHH':
+          nombreResponsable = responsables.rrhh_nombre || '';
+          break;
+        case 'Legal':
+          nombreResponsable = responsables.legal_nombre || '';
+          break;
+        default:
+          console.log('[Req ' + req.id + '] Unknown role:', req.responsable);
+          // Keep processing to still update acreditacion fields.
+          break;
+      }
     }
 
-    // Preparar datos de actualizaciÃ³n
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
 
-    // Agregar nombre_responsable si existe
     if (nombreResponsable) {
       updateData.nombre_responsable = nombreResponsable;
     }
 
-    // SIEMPRE agregar el ID y nombre de acreditaciÃ³n a TODOS los requerimientos
+    // Keep current behavior: always propagate acreditacion fields when provided.
     if (responsables.acreditacion_id) {
       updateData.enc_acreditacion_id = responsables.acreditacion_id;
-      console.log(`   ðŸ“ [Requerimiento ${req.id}] Agregando enc_acreditacion_id: ${responsables.acreditacion_id}`);
+      console.log('[Req ' + req.id + '] Setting enc_acreditacion_id:', responsables.acreditacion_id);
     } else {
-      console.log(`   âš ï¸ [Requerimiento ${req.id}] No hay acreditacion_id para agregar`);
-    }
-    if (responsables.acreditacion_nombre) {
-      updateData.nombre_enc_acreditacion = responsables.acreditacion_nombre;
-      console.log(`   ðŸ“ [Requerimiento ${req.id}] Agregando nombre_enc_acreditacion: ${responsables.acreditacion_nombre}`);
-    } else {
-      console.log(`   âš ï¸ [Requerimiento ${req.id}] No hay acreditacion_nombre para agregar`);
+      console.log('[Req ' + req.id + '] No acreditacion_id provided');
     }
 
-    // Solo actualizar si hay algo que actualizar (mÃ¡s que solo updated_at)
-    const tieneDatosParaActualizar = nombreResponsable || responsables.acreditacion_id || responsables.acreditacion_nombre;
-    
+    if (responsables.acreditacion_nombre) {
+      updateData.nombre_enc_acreditacion = responsables.acreditacion_nombre;
+      console.log('[Req ' + req.id + '] Setting nombre_enc_acreditacion:', responsables.acreditacion_nombre);
+    } else {
+      console.log('[Req ' + req.id + '] No acreditacion_nombre provided');
+    }
+
+    const tieneDatosParaActualizar =
+      Boolean(nombreResponsable) ||
+      Boolean(responsables.acreditacion_id) ||
+      Boolean(responsables.acreditacion_nombre);
+
     if (!tieneDatosParaActualizar) {
-      console.log(`âš ï¸ No hay datos para actualizar en requerimiento ${req.id}`);
+      console.log('[Req ' + req.id + '] No fields to update');
       continue;
     }
 
-    console.log(`   ðŸ“¦ [Requerimiento ${req.id}] Datos completos a actualizar:`, JSON.stringify(updateData, null, 2));
+    console.log('[Req ' + req.id + '] Update payload:', JSON.stringify(updateData, null, 2));
 
-    // Actualizar el requerimiento
     const { error: updateError, data: updatedData } = await supabase
       .from('brg_acreditacion_solicitud_requerimiento')
       .update(updateData)
@@ -1898,9 +1927,9 @@ export const updateProyectoRequerimientosResponsables = async (
       .select();
 
     if (updateError) {
-      console.error(`âŒ Error actualizando requerimiento ${req.id}:`, updateError);
-      console.error(`   ðŸ“¦ Datos que se intentaron guardar:`, JSON.stringify(updateData, null, 2));
-      console.error(`   ðŸ” Detalles del error:`, {
+      console.error('[Req ' + req.id + '] Update error:', updateError);
+      console.error('[Req ' + req.id + '] Payload attempted:', JSON.stringify(updateData, null, 2));
+      console.error('[Req ' + req.id + '] Error detail:', {
         message: updateError.message,
         details: updateError.details,
         hint: updateError.hint,
@@ -1908,26 +1937,25 @@ export const updateProyectoRequerimientosResponsables = async (
       });
       errores++;
     } else {
-      console.log(`âœ… Requerimiento ${req.id} (${req.requerimiento}) actualizado exitosamente`);
+      console.log('[Req ' + req.id + '] Updated successfully (' + req.requerimiento + ')');
       if (updatedData && updatedData.length > 0) {
-        console.log(`   ðŸ“Š Datos actualizados en BD:`, JSON.stringify(updatedData[0], null, 2));
+        console.log('[Req ' + req.id + '] DB row:', JSON.stringify(updatedData[0], null, 2));
       }
       if (nombreResponsable) {
-        console.log(`   ${req.responsable} â†’ ${nombreResponsable}`);
+        console.log('[Req ' + req.id + '] Role ' + req.responsable + ' -> nombre_responsable ' + nombreResponsable);
       }
       if (responsables.acreditacion_id) {
-        console.log(`   âœ… enc_acreditacion_id guardado: ${responsables.acreditacion_id}`);
+        console.log('[Req ' + req.id + '] enc_acreditacion_id saved:', responsables.acreditacion_id);
       }
       if (responsables.acreditacion_nombre) {
-        console.log(`   âœ… nombre_enc_acreditacion guardado: ${responsables.acreditacion_nombre}`);
+        console.log('[Req ' + req.id + '] nombre_enc_acreditacion saved:', responsables.acreditacion_nombre);
       }
       actualizados++;
     }
   }
 
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
-  console.log(`âœ… ActualizaciÃ³n completada: ${actualizados} actualizados, ${errores} errores`);
-  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n');
+  console.log('=== Requirement responsibles update finished ===');
+  console.log('Updated:', actualizados, 'Errors:', errores);
 };
 
 // FunciÃ³n para guardar trabajadores del proyecto
@@ -2650,5 +2678,4 @@ export const subirDocumentoAcreditacion = async (
     throw wrappedError;
   }
 };
-
 
