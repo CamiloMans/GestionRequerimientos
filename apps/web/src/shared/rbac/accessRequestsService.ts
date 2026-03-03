@@ -935,11 +935,14 @@ export const updateManagedUserPermissionLevel = async (params: {
 };
 
 /**
- * Revocar acceso completo de un usuario a un modulo
+ * Revocar acceso de un usuario a un modulo.
+ * Si se especifica roleCode, revoca solo ese rol.
+ * Si no se especifica roleCode, revoca todos los roles del modulo.
  */
 export const revokeManagedUserModuleAccess = async (params: {
   userId: string;
   moduleCode: string;
+  roleCode?: string;
 }): Promise<void> => {
   const normalizedModule = normalizeModuleCode(params.moduleCode);
 
@@ -950,9 +953,26 @@ export const revokeManagedUserModuleAccess = async (params: {
     return;
   }
 
-  const moduleRoleIds = Array.from(new Set(moduleRoles.map((role) => role.id)));
+  let roleIdsToRevoke: Array<string | number> = [];
 
-  if (moduleRoleIds.length === 0) {
+  if (params.roleCode && params.roleCode.trim().length > 0) {
+    const normalizedRoleCode = params.roleCode.trim().toLowerCase();
+    const matchingRole = moduleRoles.find(
+      (role) => role.code.toLowerCase().trim() === normalizedRoleCode
+    );
+
+    if (!matchingRole) {
+      throw new Error(
+        `El rol "${params.roleCode}" no pertenece al modulo "${normalizedModule}".`
+      );
+    }
+
+    roleIdsToRevoke = [matchingRole.id];
+  } else {
+    roleIdsToRevoke = Array.from(new Set(moduleRoles.map((role) => role.id)));
+  }
+
+  if (roleIdsToRevoke.length === 0) {
     return;
   }
 
@@ -960,7 +980,7 @@ export const revokeManagedUserModuleAccess = async (params: {
     .from('rbac_user_role')
     .delete()
     .eq('user_id', params.userId)
-    .in('role_id', moduleRoleIds);
+    .in('role_id', roleIdsToRevoke);
 
   if (error) {
     throw new Error(`Error al revocar acceso: ${error.message}`);

@@ -20,6 +20,7 @@ interface AccessRequestsModalProps {
 }
 
 type Tab = 'pending' | 'permissions';
+type EditUserPanel = 'manage' | 'add';
 
 interface UserPermissionsGroup {
   user_id: string;
@@ -95,8 +96,12 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
   ]);
 
   const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [editUserPanel, setEditUserPanel] = useState<EditUserPanel>('manage');
   const [draftLevelsByModule, setDraftLevelsByModule] = useState<
     Record<string, PermissionLevel>
+  >({});
+  const [draftRevokeRoleByModule, setDraftRevokeRoleByModule] = useState<
+    Record<string, string>
   >({});
   const [addModuleCode, setAddModuleCode] = useState('');
   const [addLevel, setAddLevel] = useState<PermissionLevel>('viewer');
@@ -111,7 +116,9 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
     setTab('pending');
     setSearch('');
     setEditUserId(null);
+    setEditUserPanel('manage');
     setDraftLevelsByModule({});
+    setDraftRevokeRoleByModule({});
     setAddModuleCode('');
     setAddLevel('viewer');
 
@@ -269,10 +276,18 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
     if (!user) return;
 
     const nextDrafts: Record<string, PermissionLevel> = {};
+    const nextRevokeRoleDrafts: Record<string, string> = {};
+
     user.permissions.forEach((entry) => {
       nextDrafts[entry.module_code] = entry.level;
+
+      if (entry.role_codes.length > 0) {
+        nextRevokeRoleDrafts[entry.module_code] = entry.role_codes[0];
+      }
     });
+
     setDraftLevelsByModule(nextDrafts);
+    setDraftRevokeRoleByModule(nextRevokeRoleDrafts);
   }, [editUserId, usersById]);
 
   const addableModules = useMemo(() => {
@@ -332,8 +347,16 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
   ) => {
     if (!selectedUser) return;
 
+    const selectedRoleCode =
+      draftRevokeRoleByModule[entry.module_code] || entry.role_codes[0] || '';
+
+    if (!selectedRoleCode) {
+      alert('No hay un rol seleccionado para revocar.');
+      return;
+    }
+
     const confirmed = window.confirm(
-      `Se revocara el acceso al modulo ${formatModuleName(entry.module_code)} para ${getUserDisplayName(
+      `Se revocara el rol ${selectedRoleCode} del modulo ${formatModuleName(entry.module_code)} para ${getUserDisplayName(
         selectedUser.user_name,
         selectedUser.user_email,
         selectedUser.user_id
@@ -341,13 +364,14 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
     );
     if (!confirmed) return;
 
-    const key = `revoke:${selectedUser.user_id}:${entry.module_code}`;
+    const key = `revoke:${selectedUser.user_id}:${entry.module_code}:${selectedRoleCode}`;
 
     try {
       setProcessingPermissionKey(key);
       await revokeManagedUserModuleAccess({
         userId: selectedUser.user_id,
         moduleCode: entry.module_code,
+        roleCode: selectedRoleCode,
       });
       await loadPermissions();
     } catch (error: any) {
@@ -508,7 +532,10 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
                             </p>
                           </div>
                           <button
-                            onClick={() => setEditUserId(user.user_id)}
+                            onClick={() => {
+                              setEditUserPanel('manage');
+                              setEditUserId(user.user_id);
+                            }}
                             className="px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700"
                           >
                             Editar permisos
@@ -621,7 +648,7 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
 
       {selectedUser && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setEditUserId(null)} />
+          <div className="fixed inset-0 bg-black/60" onClick={() => { setEditUserPanel('manage'); setEditUserId(null); }} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
             <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-teal-50 to-blue-50">
               <h3 className="text-xl font-semibold text-gray-900">Editar permisos por modulo</h3>
@@ -634,6 +661,31 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
                 {' - '}
                 {selectedUser.user_email || 'Sin correo'}
               </p>
+            </div>
+
+            <div className="border-b border-gray-200 px-5 py-3 bg-white">
+              <div className="inline-flex items-center rounded-lg bg-gray-100 p-1 gap-1">
+                <button
+                  onClick={() => setEditUserPanel('manage')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    editUserPanel === 'manage'
+                      ? 'bg-white text-teal-700 shadow-sm border border-teal-100'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Gestionar permisos
+                </button>
+                <button
+                  onClick={() => setEditUserPanel('add')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    editUserPanel === 'add'
+                      ? 'bg-white text-teal-700 shadow-sm border border-teal-100'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Agregar modulo
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -657,134 +709,201 @@ const AccessRequestsModal: React.FC<AccessRequestsModalProps> = ({
                 )}
               </div>
 
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Permisos actuales</h4>
-                <div className="space-y-3">
-                  {selectedUser.permissions.length === 0 && (
-                    <p className="text-sm text-gray-500">El usuario no tiene permisos asignados.</p>
-                  )}
+              {editUserPanel === 'manage' ? (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700">Permisos actuales</h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Actualiza niveles por modulo o revoca un rol especifico sin afectar los demas.
+                  </p>
+                  <div className="space-y-3 mt-3">
+                    {selectedUser.permissions.length === 0 && (
+                      <p className="text-sm text-gray-500">El usuario no tiene permisos asignados.</p>
+                    )}
 
-                  {selectedUser.permissions.map((entry) => {
-                    const updateKey = `update:${selectedUser.user_id}:${entry.module_code}`;
-                    const revokeKey = `revoke:${selectedUser.user_id}:${entry.module_code}`;
-                    const updating = processingPermissionKey === updateKey;
-                    const revoking = processingPermissionKey === revokeKey;
-                    const currentDraft = draftLevelsByModule[entry.module_code] || entry.level;
+                    {selectedUser.permissions.map((entry) => {
+                      const updateKey = `update:${selectedUser.user_id}:${entry.module_code}`;
+                      const selectedRevokeRoleCode =
+                        draftRevokeRoleByModule[entry.module_code] || entry.role_codes[0] || '';
+                      const revokeKey = `revoke:${selectedUser.user_id}:${entry.module_code}:${selectedRevokeRoleCode}`;
+                      const updating = processingPermissionKey === updateKey;
+                      const revoking = processingPermissionKey === revokeKey;
+                      const currentDraft = draftLevelsByModule[entry.module_code] || entry.level;
 
-                    return (
-                      <div
-                        key={`${selectedUser.user_id}-${entry.module_code}`}
-                        className="border border-gray-200 rounded-xl p-4"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-900">
-                              {formatModuleName(entry.module_code)}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Nivel actual: {getPermissionLevelLabel(entry.level)}
-                            </p>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {entry.role_codes.map((roleCode) => (
-                                <span
-                                  key={`${selectedUser.user_id}-${entry.module_code}-${roleCode}`}
-                                  className="text-xs px-2.5 py-1 rounded-md bg-gray-100 text-gray-700"
-                                >
-                                  {roleCode}
-                                </span>
-                              ))}
+                      return (
+                        <div
+                          key={`${selectedUser.user_id}-${entry.module_code}`}
+                          className="border border-gray-200 rounded-xl p-4 bg-white"
+                        >
+                          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {formatModuleName(entry.module_code)}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Nivel actual: {getPermissionLevelLabel(entry.level)}
+                              </p>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {entry.role_codes.map((roleCode) => (
+                                  <span
+                                    key={`${selectedUser.user_id}-${entry.module_code}-${roleCode}`}
+                                    className="text-xs px-2.5 py-1 rounded-md bg-gray-100 text-gray-700"
+                                  >
+                                    {roleCode}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="w-full xl:w-[380px] space-y-3">
+                              <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3">
+                                <p className="text-xs font-semibold text-blue-800">Actualizar nivel del modulo</p>
+                                <div className="flex flex-wrap items-center gap-2 mt-2">
+                                  <select
+                                    value={currentDraft}
+                                    onChange={(event) =>
+                                      setDraftLevelsByModule((prev) => ({
+                                        ...prev,
+                                        [entry.module_code]: event.target.value as PermissionLevel,
+                                      }))
+                                    }
+                                    className="px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm flex-1 min-w-[170px]"
+                                    disabled={updating || revoking}
+                                  >
+                                    {getAvailablePermissionLevels(entry.module_code).map(
+                                      (levelOption) => (
+                                        <option key={levelOption} value={levelOption}>
+                                          {getPermissionLevelLabel(levelOption)}
+                                        </option>
+                                      )
+                                    )}
+                                  </select>
+                                  <button
+                                    onClick={() => submitUpdateModulePermission(entry)}
+                                    disabled={updating || revoking}
+                                    className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                  >
+                                    {updating ? 'Guardando...' : 'Guardar'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg border border-red-100 bg-red-50/70 p-3">
+                                <p className="text-xs font-semibold text-red-800">Revocar rol especifico</p>
+                                <div className="flex flex-wrap items-center gap-2 mt-2">
+                                  <select
+                                    value={selectedRevokeRoleCode}
+                                    onChange={(event) =>
+                                      setDraftRevokeRoleByModule((prev) => ({
+                                        ...prev,
+                                        [entry.module_code]: event.target.value,
+                                      }))
+                                    }
+                                    className="px-3 py-2 border border-red-200 rounded-lg bg-white text-sm flex-1 min-w-[220px]"
+                                    disabled={updating || revoking || entry.role_codes.length === 0}
+                                  >
+                                    {entry.role_codes.map((roleCode) => (
+                                      <option key={`${selectedUser.user_id}-${entry.module_code}-revoke-${roleCode}`} value={roleCode}>
+                                        Revocar {roleCode}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => submitRevokeModulePermission(entry)}
+                                    disabled={updating || revoking || !selectedRevokeRoleCode}
+                                    className="px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    {revoking ? 'Revocando...' : 'Revocar'}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="border border-gray-200 rounded-xl p-4 bg-white">
+                    <h4 className="text-sm font-semibold text-gray-700">Agregar permiso a modulo</h4>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Selecciona un modulo disponible y el nivel de acceso que deseas asignar.
+                    </p>
+                    {addableModules.length === 0 ? (
+                      <p className="text-sm text-gray-500 mt-3">
+                        No hay mas modulos disponibles para agregar a este usuario.
+                      </p>
+                    ) : (
+                      <div className="space-y-3 mt-3">
+                        <div className="rounded-lg border border-teal-100 bg-teal-50/70 p-3">
+                          <p className="text-xs font-semibold text-teal-800">Seleccion de modulo</p>
+                          <select
+                            value={addModuleCode}
+                            onChange={(event) => setAddModuleCode(event.target.value)}
+                            className="mt-2 w-full px-3 py-2 border border-teal-200 rounded-lg bg-white text-sm"
+                          >
+                            {addableModules.map((moduleCode) => (
+                              <option key={moduleCode} value={moduleCode}>
+                                {formatModuleName(moduleCode)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              value={currentDraft}
-                              onChange={(event) =>
-                                setDraftLevelsByModule((prev) => ({
-                                  ...prev,
-                                  [entry.module_code]: event.target.value as PermissionLevel,
-                                }))
-                              }
-                              className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-                              disabled={updating || revoking}
-                            >
-                              {getAvailablePermissionLevels(entry.module_code).map(
-                                (levelOption) => (
-                                  <option key={levelOption} value={levelOption}>
-                                    {getPermissionLevelLabel(levelOption)}
-                                  </option>
-                                )
-                              )}
-                            </select>
-                            <button
-                              onClick={() => submitUpdateModulePermission(entry)}
-                              disabled={updating || revoking}
-                              className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                            >
-                              {updating ? 'Guardando...' : 'Guardar'}
-                            </button>
-                            <button
-                              onClick={() => submitRevokeModulePermission(entry)}
-                              disabled={updating || revoking}
-                              className="px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
-                            >
-                              {revoking ? 'Revocando...' : 'Revocar'}
-                            </button>
-                          </div>
+                        <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3">
+                          <p className="text-xs font-semibold text-blue-800">Nivel de acceso</p>
+                          <select
+                            value={addLevel}
+                            onChange={(event) => setAddLevel(event.target.value as PermissionLevel)}
+                            className="mt-2 w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm"
+                          >
+                            {getAvailablePermissionLevels(addModuleCode).map((levelOption) => (
+                              <option key={`add-level-${levelOption}`} value={levelOption}>
+                                {getPermissionLevelLabel(levelOption)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-3">
+                          <p className="text-xs font-semibold text-emerald-800">Confirmar asignacion</p>
+                          <button
+                            onClick={submitAddModulePermission}
+                            disabled={!addModuleCode || processingPermissionKey === `add:${selectedUser.user_id}:${addModuleCode}`}
+                            className="mt-2 px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                          >
+                            {processingPermissionKey === `add:${selectedUser.user_id}:${addModuleCode}`
+                              ? 'Agregando...'
+                              : 'Agregar permiso'}
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-5">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Agregar permiso a modulo</h4>
-                {addableModules.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    No hay mas modulos disponibles para agregar a este usuario.
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      value={addModuleCode}
-                      onChange={(event) => setAddModuleCode(event.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-                    >
-                      {addableModules.map((moduleCode) => (
-                        <option key={moduleCode} value={moduleCode}>
-                          {formatModuleName(moduleCode)}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={addLevel}
-                      onChange={(event) => setAddLevel(event.target.value as PermissionLevel)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
-                    >
-                      {getAvailablePermissionLevels(addModuleCode).map((levelOption) => (
-                        <option key={`add-level-${levelOption}`} value={levelOption}>
-                          {getPermissionLevelLabel(levelOption)}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={submitAddModulePermission}
-                      disabled={!addModuleCode || processingPermissionKey === `add:${selectedUser.user_id}:${addModuleCode}`}
-                      className="px-3 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 disabled:opacity-50"
-                    >
-                      {processingPermissionKey === `add:${selectedUser.user_id}:${addModuleCode}`
-                        ? 'Agregando...'
-                        : 'Agregar permiso'}
-                    </button>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
 
+                  <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                    <h4 className="text-sm font-semibold text-gray-700">Modulos asignados actualmente</h4>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedUser.permissions.map((entry) => (
+                        <span
+                          key={`${selectedUser.user_id}-assigned-${entry.module_code}`}
+                          className="text-xs px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-700"
+                        >
+                          {formatModuleName(entry.module_code)} - {getPermissionLevelLabel(entry.level)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end">
               <button
-                onClick={() => setEditUserId(null)}
+                onClick={() => {
+                  setEditUserPanel('manage');
+                  setEditUserId(null);
+                }}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
                 Cerrar

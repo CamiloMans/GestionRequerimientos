@@ -73,6 +73,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [filterNombreTrabajador, setFilterNombreTrabajador] = useState('');
   const [filterCategoriaEmpresa, setFilterCategoriaEmpresa] = useState('');
   const [filterCategoria, setFilterCategoria] = useState('');
+  const [filterEmpresaAcreditacion, setFilterEmpresaAcreditacion] = useState('');
   const [filterRealizado, setFilterRealizado] = useState('');
 
   // Cerrar dropdowns al hacer clic fuera
@@ -355,11 +356,12 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     const matchesNombreTrabajador = filterNombreTrabajador ? getRequirementEntityLabel(req) === filterNombreTrabajador : true;
     const matchesCategoriaEmpresa = filterCategoriaEmpresa ? req.categoria_empresa === filterCategoriaEmpresa : true;
     const matchesCategoria = filterCategoria ? req.categoria === filterCategoria : true;
+    const matchesEmpresaAcreditacion = filterEmpresaAcreditacion ? req.empresa_acreditacion === filterEmpresaAcreditacion : true;
     const matchesRealizado = filterRealizado === '' ? true : 
       filterRealizado === 'realizado' ? req.realizado : !req.realizado;
     
     return matchesCargo && matchesNombreResponsable && matchesNombreTrabajador && 
-           matchesCategoriaEmpresa && matchesCategoria && matchesRealizado;
+           matchesCategoriaEmpresa && matchesCategoria && matchesEmpresaAcreditacion && matchesRealizado;
   });
 
   // Obtener listas únicas para filtros
@@ -368,6 +370,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const nombresTrabajadores = Array.from(new Set(requirements.map(r => getRequirementEntityLabel(r)).filter(Boolean)));
   const categoriasEmpresa = Array.from(new Set(requirements.map(r => r.categoria_empresa).filter(Boolean)));
   const categorias = Array.from(new Set(requirements.map(r => r.categoria).filter(Boolean)));
+  const empresasAcreditacion = Array.from(new Set(requirements.map(r => r.empresa_acreditacion).filter(Boolean)));
 
   // Handler para toggle de dropdown de filtro
   const handleFilterToggle = (column: string) => {
@@ -391,6 +394,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         break;
       case 'categoria':
         setFilterCategoria(filterCategoria === value ? '' : value);
+        break;
+      case 'empresa_acreditacion':
+        setFilterEmpresaAcreditacion(filterEmpresaAcreditacion === value ? '' : value);
         break;
       case 'realizado':
         setFilterRealizado(filterRealizado === value ? '' : value);
@@ -1761,7 +1767,36 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                     </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Empresa Acreditación
+                    <div className="flex items-center gap-2 relative filter-dropdown-container">
+                      <span>Empresa Acreditacion</span>
+                      <button
+                        onClick={() => handleFilterToggle('empresa_acreditacion')}
+                        className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterEmpresaAcreditacion ? 'text-primary' : 'text-gray-400'}`}
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_drop_down</span>
+                      </button>
+                      {openFilterDropdown === 'empresa_acreditacion' && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-auto max-h-60 overflow-y-auto">
+                          <div className="py-0.5">
+                            <button
+                              onClick={() => handleFilterSelect('empresa_acreditacion', '')}
+                              className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${!filterEmpresaAcreditacion ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                            >
+                              Todas las Empresas
+                            </button>
+                            {empresasAcreditacion.map((empresa) => (
+                              <button
+                                key={empresa}
+                                onClick={() => handleFilterSelect('empresa_acreditacion', empresa)}
+                                className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 whitespace-nowrap ${filterEmpresaAcreditacion === empresa ? 'bg-blue-50 text-primary font-semibold' : ''}`}
+                              >
+                                {empresa}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Documentos
