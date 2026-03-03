@@ -42,7 +42,20 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [projectStatus, setProjectStatus] = useState<string>(project.status);
 
   const isReadOnlyCollaborator = accessLevel === 'editor' || accessLevel === 'viewer';
-  const canUploadDocuments = !isReadOnlyCollaborator;
+  const isMymaEmpresaAcreditacion = (empresaAcreditacion?: string) =>
+    (empresaAcreditacion || '').trim().toLowerCase() === 'myma';
+
+  const canUploadRequirementDocument = (requerimiento: ProjectRequirement) => {
+    if (accessLevel === 'admin' || accessLevel === 'accreditor') return true;
+    if (accessLevel === 'editor') return !isMymaEmpresaAcreditacion(requerimiento.empresa_acreditacion);
+    return false;
+  };
+
+  const canViewRequirementDocument = (requerimiento: ProjectRequirement) => {
+    if (accessLevel !== 'editor') return true;
+    return !isMymaEmpresaAcreditacion(requerimiento.empresa_acreditacion);
+  };
+
   const canDeleteDocuments = !isReadOnlyCollaborator;
   const canToggleRealizado = !isReadOnlyCollaborator;
   const canOpenWorkerName = !isReadOnlyCollaborator;
@@ -1083,7 +1096,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   // Función para manejar la subida de un documento
   const handleSubirDocumento = async (file: File, requerimiento: ProjectRequirement) => {
-    if (!canUploadDocuments) {
+    if (!canUploadRequirementDocument(requerimiento)) {
       return;
     }
 
@@ -1915,7 +1928,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
                         {/* Documentos */}
                         <td className="px-6 py-4">
-                          {canUploadDocuments ? (
+                          {canUploadRequirementDocument(req) ? (
                             <label className="cursor-pointer">
                               <input
                                 type="file"
@@ -1966,63 +1979,69 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                         {/* Documento */}
                         <td className="px-6 py-4 text-center">
                           {req.drive_doc_url ? (
-                            // Si hay link de Drive, mostrar todos los iconos (Drive está disponible)
-                            <div className="flex items-center justify-center gap-1">
-                              {canPreviewDocument && (
+                            canViewRequirementDocument(req) || canDeleteDocuments ? (
+                              <div className="flex items-center justify-center gap-1">
+                                {canViewRequirementDocument(req) && canPreviewDocument && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVerDocumentoRequerimiento(req.drive_doc_url!);
+                                    }}
+                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
+                                    title="Visualizar documento"
+                                  >
+                                    <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                  </button>
+                                )}
+                                {canViewRequirementDocument(req) && canOpenDriveDocument && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAbrirDocumentoRequerimiento(req.drive_doc_url!);
+                                    }}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                                    title="Abrir en Google Drive"
+                                  >
+                                    <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                                  </button>
+                                )}
+                                {canDeleteDocuments && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEliminarDocumentoRequerimiento(req.id);
+                                    }}
+                                    className="text-gray-600 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                                    title="Eliminar documento"
+                                  >
+                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )
+                          ) : req.localFileUrl ? (
+                            canViewRequirementDocument(req) ? (
+                              <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleVerDocumentoRequerimiento(req.drive_doc_url!);
+                                    handleVerArchivoLocal(req.localFileUrl!);
                                   }}
                                   className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
-                                  title="Visualizar documento"
+                                  title={`Visualizar documento (${req.localFileName || "archivo local"})`}
                                 >
                                   <span className="material-symbols-outlined text-[18px]">visibility</span>
                                 </button>
-                              )}
-                              {canOpenDriveDocument && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAbrirDocumentoRequerimiento(req.drive_doc_url!);
-                                  }}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-full transition-colors"
-                                  title="Abrir en Google Drive"
-                                >
-                                  <span className="material-symbols-outlined text-[18px]">open_in_new</span>
-                                </button>
-                              )}
-                              {canDeleteDocuments && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEliminarDocumentoRequerimiento(req.id);
-                                  }}
-                                  className="text-gray-600 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-full transition-colors"
-                                  title="Eliminar documento"
-                                >
-                                  <span className="material-symbols-outlined text-[18px]">delete</span>
-                                </button>
-                              )}
-                            </div>
-                          ) : req.localFileUrl ? (
-                            // Si solo hay archivo local, mostrar solo el icono de visualización
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleVerArchivoLocal(req.localFileUrl!);
-                                }}
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1.5 rounded-full transition-colors"
-                                title={`Visualizar documento (${req.localFileName || 'archivo local'})`}
-                              >
-                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                              </button>
-                            </div>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )
                           ) : (
                             <span className="text-gray-400 text-xs">-</span>
                           )}
