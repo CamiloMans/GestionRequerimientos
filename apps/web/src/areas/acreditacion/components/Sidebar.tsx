@@ -60,6 +60,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
   const isReportsActive = currentActiveView === 'reports';
   const isDashboardsActive = currentActiveView === 'dashboards';
   const canAccessDashboards = !permissionsLoading && navigationPolicy.canAccessDashboards;
+  const canShowRequestsSstButton =
+    !permissionsLoading &&
+    navigationPolicy.canAccessRequestsSst &&
+    navigationPolicy.accessLevel !== 'editor';
 
   // Construir rutas del área
   const getAreaPath = (path: string) => {
@@ -272,7 +276,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onNavigateToRequests
               )}
               
               {/* Requerimientos SST segun politica de navegacion */}
-              {!permissionsLoading && navigationPolicy.canAccessRequestsSst && (
+              {canShowRequestsSstButton && (
                 <button 
                   onClick={handleRequestsClick}
                   className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
