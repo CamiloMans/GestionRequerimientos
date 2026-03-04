@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AreaId } from '@contracts/areas';
 import { usePermissions } from '@shared/rbac/usePermissions';
 import {
@@ -85,7 +85,8 @@ const ServiciosCatalogoGestion: React.FC = () => {
   const [modalMode, setModalMode] = useState<ModalMode>('create');
   const [selectedServicio, setSelectedServicio] = useState<ServicioCatalogoDisponible | null>(null);
   const [formServicio, setFormServicio] = useState('');
-  const [formEspecialidad, setFormEspecialidad] = useState('');
+  const [formEspecialidades, setFormEspecialidades] = useState<string[]>([]);
+  const [searchEspecialidadModal, setSearchEspecialidadModal] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -226,12 +227,35 @@ const ServiciosCatalogoGestion: React.FC = () => {
     const colorIndex = hash % colorPalette.length;
     return colorPalette[colorIndex];
   };
+  const especialidadesFiltradasModal = useMemo(() => {
+    const normalizedSearch = normalizeSearchText(searchEspecialidadModal);
+    if (!normalizedSearch) return especialidades;
+
+    return especialidades.filter((especialidad) =>
+      normalizeSearchText(especialidad).includes(normalizedSearch)
+    );
+  }, [especialidades, searchEspecialidadModal]);
+
+  const toggleEspecialidadSelection = (especialidad: string) => {
+    setFormEspecialidades((prev) => {
+      if (prev.includes(especialidad)) {
+        return prev.filter((item) => item !== especialidad);
+      }
+      return [...prev, especialidad];
+    });
+  };
+
+  const removeEspecialidadSelection = (especialidad: string) => {
+    setFormEspecialidades((prev) => prev.filter((item) => item !== especialidad));
+  };
+
   const closeModal = (force = false) => {
     if (saving && !force) return;
     setIsModalOpen(false);
     setSelectedServicio(null);
     setFormServicio('');
-    setFormEspecialidad('');
+    setFormEspecialidades([]);
+    setSearchEspecialidadModal('');
     setFormError(null);
   };
 
@@ -239,7 +263,8 @@ const ServiciosCatalogoGestion: React.FC = () => {
     setModalMode('create');
     setSelectedServicio(null);
     setFormServicio('');
-    setFormEspecialidad(especialidades[0] ?? '');
+    setFormEspecialidades([]);
+    setSearchEspecialidadModal('');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -248,7 +273,8 @@ const ServiciosCatalogoGestion: React.FC = () => {
     setModalMode('edit');
     setSelectedServicio(item);
     setFormServicio(item.servicio);
-    setFormEspecialidad(getEspecialidadesFromJsonb(item.especialidad)[0] ?? '');
+    setFormEspecialidades(getEspecialidadesFromJsonb(item.especialidad));
+    setSearchEspecialidadModal('');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -257,10 +283,12 @@ const ServiciosCatalogoGestion: React.FC = () => {
     event.preventDefault();
 
     const servicio = formServicio.trim();
-    const especialidad = formEspecialidad.trim();
+    const especialidadesSeleccionadas = Array.from(
+      new Set(formEspecialidades.map((item) => item.trim()).filter(Boolean))
+    );
 
-    if (!servicio || !especialidad) {
-      setFormError('Debes completar servicio y especialidad.');
+    if (!servicio || especialidadesSeleccionadas.length === 0) {
+      setFormError('Debes completar servicio y al menos una especialidad.');
       return;
     }
 
@@ -269,14 +297,17 @@ const ServiciosCatalogoGestion: React.FC = () => {
       setFormError(null);
 
       if (modalMode === 'create') {
-        await createServicioCatalogoDisponible({ servicio, especialidad });
+        await createServicioCatalogoDisponible({ servicio, especialidad: especialidadesSeleccionadas });
       } else {
         if (!selectedServicio) {
           setFormError('No se encontro el registro a editar.');
           return;
         }
 
-        await updateServicioCatalogoDisponible(selectedServicio.id, { servicio, especialidad });
+        await updateServicioCatalogoDisponible(selectedServicio.id, {
+          servicio,
+          especialidad: especialidadesSeleccionadas,
+        });
       }
 
       await loadServicios();
@@ -605,31 +636,91 @@ const ServiciosCatalogoGestion: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Especialidad <span className="text-red-500">*</span>
+                  Especialidades <span className="text-red-500">*</span>
                 </label>
                 {loadingEspecialidades ? (
                   <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-500">
                     Cargando especialidades...
                   </div>
                 ) : especialidades.length > 0 ? (
-                  <select
-                    value={formEspecialidad}
-                    onChange={(e) => setFormEspecialidad(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
-                  >
-                    <option value="">Selecciona una especialidad</option>
-                    {especialidades.map((especialidad) => (
-                      <option key={especialidad} value={especialidad}>
-                        {especialidad}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
+                        search
+                      </span>
+                      <input
+                        type="text"
+                        value={searchEspecialidadModal}
+                        onChange={(e) => setSearchEspecialidadModal(e.target.value)}
+                        placeholder="Buscar especialidad"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      />
+                    </div>
+
+                    <div className="min-h-[2.5rem] border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+                      {formEspecialidades.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {formEspecialidades.map((especialidad) => (
+                            <span
+                              key={especialidad}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getEspecialidadColor(especialidad)}`}
+                            >
+                              {especialidad}
+                              <button
+                                type="button"
+                                onClick={() => removeEspecialidadSelection(especialidad)}
+                                className="inline-flex items-center justify-center rounded-full hover:bg-black/10 transition-colors"
+                                aria-label={`Quitar ${especialidad}`}
+                              >
+                                <span className="material-symbols-outlined text-sm leading-none">close</span>
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">No hay especialidades seleccionadas.</p>
+                      )}
+                    </div>
+
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="max-h-52 overflow-y-auto divide-y divide-gray-100">
+                        {especialidadesFiltradasModal.length > 0 ? (
+                          especialidadesFiltradasModal.map((especialidad) => {
+                            const isSelected = formEspecialidades.includes(especialidad);
+                            return (
+                              <label
+                                key={especialidad}
+                                className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleEspecialidadSelection(especialidad)}
+                                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <span className="text-sm text-[#111318]">{especialidad}</span>
+                              </label>
+                            );
+                          })
+                        ) : (
+                          <p className="px-3 py-3 text-sm text-gray-500">No se encontraron especialidades.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <input
                     type="text"
-                    value={formEspecialidad}
-                    onChange={(e) => setFormEspecialidad(e.target.value)}
-                    placeholder="Nombre de la especialidad"
+                    value={formEspecialidades.join(', ')}
+                    onChange={(e) =>
+                      setFormEspecialidades(
+                        e.target.value
+                          .split(',')
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                      )
+                    }
+                    placeholder="Escribe especialidades separadas por coma"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                   />
                 )}
@@ -667,13 +758,3 @@ const ServiciosCatalogoGestion: React.FC = () => {
 };
 
 export default ServiciosCatalogoGestion;
-
-
-
-
-
-
-
-
-
-

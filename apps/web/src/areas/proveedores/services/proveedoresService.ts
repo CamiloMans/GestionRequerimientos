@@ -184,12 +184,14 @@ export const fetchServiciosCatalogoDisponibles = async (): Promise<ServicioCatal
  */
 export const createServicioCatalogoDisponible = async (params: {
   servicio: string;
-  especialidad: string;
+  especialidad: string | string[];
 }): Promise<ServicioCatalogoDisponible> => {
   const servicio = params.servicio.trim();
-  const especialidad = params.especialidad.trim();
+  const especialidad = Array.isArray(params.especialidad)
+    ? Array.from(new Set(params.especialidad.map((item) => item.trim()).filter(Boolean)))
+    : params.especialidad.trim();
 
-  if (!servicio || !especialidad) {
+  if (!servicio || (Array.isArray(especialidad) ? especialidad.length === 0 : !especialidad)) {
     throw new Error('Debes ingresar servicio y especialidad.');
   }
 
@@ -219,13 +221,15 @@ export const updateServicioCatalogoDisponible = async (
   id: number,
   params: {
     servicio: string;
-    especialidad: string;
+    especialidad: string | string[];
   }
 ): Promise<ServicioCatalogoDisponible> => {
   const servicio = params.servicio.trim();
-  const especialidad = params.especialidad.trim();
+  const especialidad = Array.isArray(params.especialidad)
+    ? Array.from(new Set(params.especialidad.map((item) => item.trim()).filter(Boolean)))
+    : params.especialidad.trim();
 
-  if (!id || !servicio || !especialidad) {
+  if (!id || !servicio || (Array.isArray(especialidad) ? especialidad.length === 0 : !especialidad)) {
     throw new Error('Datos incompletos para actualizar el servicio del catalogo.');
   }
 
@@ -848,5 +852,3 @@ export const fetchAllEvaluaciones = async (): Promise<EvaluacionProveedor[]> => 
 
   return data || [];
 };
-
-
