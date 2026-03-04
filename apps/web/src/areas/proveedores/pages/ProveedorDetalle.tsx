@@ -64,8 +64,68 @@ const ProveedorDetalle: React.FC = () => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
   };
 
-  const buildCatalogoKey = (servicio: string, especialidad: string) => {
-    return `${normalizeSearchText(servicio)}::${normalizeSearchText(especialidad)}`;
+  const getEspecialidadesFromJsonb = (value: unknown): string[] => {
+    const values: string[] = [];
+
+    const pushValue = (input: unknown): void => {
+      if (input === null || input === undefined) return;
+
+      if (Array.isArray(input)) {
+        input.forEach(pushValue);
+        return;
+      }
+
+      if (typeof input === 'object') {
+        const record = input as Record<string, unknown>;
+        const priorityKeys = ['especialidad', 'especialidades', 'values', 'value', 'items', 'lista'];
+        const key = priorityKeys.find((candidate) => candidate in record);
+
+        if (key) {
+          pushValue(record[key]);
+        } else {
+          Object.values(record).forEach(pushValue);
+        }
+        return;
+      }
+
+      if (typeof input !== 'string') return;
+
+      const trimmed = input.trim();
+      if (!trimmed) return;
+
+      const looksLikeJson = trimmed.startsWith('[') || trimmed.startsWith('{');
+      if (looksLikeJson) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          pushValue(parsed);
+          return;
+        } catch {
+          // Mantener string original si no es JSON valido.
+        }
+      }
+
+      values.push(trimmed);
+    };
+
+    pushValue(value);
+    return Array.from(new Set(values));
+  };
+
+  const getEspecialidadLabel = (value: unknown): string => {
+    const especialidades = getEspecialidadesFromJsonb(value);
+    if (especialidades.length > 0) {
+      return especialidades.join(', ');
+    }
+
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    return '';
+  };
+
+  const buildCatalogoKey = (servicio: string, especialidad: unknown) => {
+    return `${normalizeSearchText(servicio)}::${normalizeSearchText(getEspecialidadLabel(especialidad))}`;
   };
 
   // Cargar categorías (especialidades)
@@ -119,7 +179,7 @@ const ProveedorDetalle: React.FC = () => {
 
       try {
         setLoadingServicios(true);
-        console.log('🔍 Cargando evaluaciones para proveedor:', {
+        console.log('[DEBUG] Cargando evaluaciones para proveedor:', {
           id: proveedor.id,
           nombre: proveedor.nombre_proveedor,
           rut: proveedor.rut,
@@ -129,17 +189,17 @@ const ProveedorDetalle: React.FC = () => {
         let evaluaciones: EvaluacionProveedor[] = [];
         
         if (proveedor.rut) {
-          console.log('📋 Buscando por RUT:', proveedor.rut);
+          console.log('[DEBUG] Buscando por RUT:', proveedor.rut);
           evaluaciones = await fetchEvaluacionesByRutProveedor(proveedor.rut);
         }
         
         // Si no se encontraron por RUT, buscar por nombre
         if (evaluaciones.length === 0) {
-          console.log('📋 No se encontraron por RUT, buscando por nombre:', proveedor.nombre_proveedor);
+          console.log('[DEBUG] No se encontraron por RUT, buscando por nombre:', proveedor.nombre_proveedor);
           evaluaciones = await fetchEvaluacionesByNombreProveedor(proveedor.nombre_proveedor);
         }
         
-        console.log(`✅ Total de evaluaciones encontradas: ${evaluaciones.length}`);
+        console.log(`[DEBUG] Total de evaluaciones encontradas: ${evaluaciones.length}`);
         
         // Guardar las evaluaciones originales para poder pasarlas al formulario de edición
         setEvaluaciones(evaluaciones);
@@ -150,7 +210,7 @@ const ProveedorDetalle: React.FC = () => {
           nombre: evaluacion.nombre_proyecto || evaluacion.nombre || evaluacion.nombre_proveedor || 'Sin nombre',
           codigo: evaluacion.codigo_proyecto || evaluacion.orden_compra || `EVAL-${evaluacion.id}`,
           descripcion: evaluacion.actividad || evaluacion.observacion || 'Sin descripción',
-          categoria: evaluacion.especialidad || evaluacion.actividad || 'Sin categoría',
+          categoria: getEspecialidadLabel(evaluacion.especialidad) || evaluacion.actividad || 'Sin categoría',
           tarifaRef: evaluacion.precio_servicio || null,
           ordenCompra: evaluacion.orden_compra || null,
           fechaEvaluacion: evaluacion.fecha_evaluacion || null,
@@ -230,39 +290,58 @@ const ProveedorDetalle: React.FC = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedServicios = filteredServicios.slice(startIndex, endIndex);
 
+  const catalogoServiciosVisuales = catalogoServicios.map((item) => {
+    const especialidades = getEspecialidadesFromJsonb(item.especialidad);
+    const especialidadLabel = getEspecialidadLabel(item.especialidad);
+    return { ...item, especialidades, especialidadLabel };
+  });
+
+  const catalogoDisponiblesVisuales = catalogoDisponibles.map((item) => {
+    const especialidades = getEspecialidadesFromJsonb(item.especialidad);
+    const especialidadLabel = getEspecialidadLabel(item.especialidad);
+    return { ...item, especialidades, especialidadLabel };
+  });
+
   const especialidadesCatalogo = Array.from(
     new Set(
-      catalogoServicios
-        .map((item) => item.especialidad.trim())
+      catalogoServiciosVisuales
+        .flatMap((item) => item.especialidades)
+        .map((especialidad) => especialidad.trim())
         .filter((especialidad) => especialidad.length > 0)
     )
   ).sort((a, b) => a.localeCompare(b, 'es'));
 
-  const filteredCatalogo = catalogoServicios.filter((item) => {
+  const filteredCatalogo = catalogoServiciosVisuales.filter((item) => {
     const normalizedCatalogoSearch = normalizeSearchText(searchCatalogo);
     const matchesSearch =
       !normalizedCatalogoSearch ||
       normalizeSearchText(item.servicio).includes(normalizedCatalogoSearch) ||
-      normalizeSearchText(item.especialidad).includes(normalizedCatalogoSearch);
+      item.especialidades.some((especialidad) =>
+        normalizeSearchText(especialidad).includes(normalizedCatalogoSearch)
+      ) ||
+      normalizeSearchText(item.especialidadLabel).includes(normalizedCatalogoSearch);
+
     const matchesEspecialidad =
-      filterEspecialidadCatalogo === 'Todas' ||
-      item.especialidad === filterEspecialidadCatalogo;
+      filterEspecialidadCatalogo === 'Todas' || item.especialidades.includes(filterEspecialidadCatalogo);
 
     return matchesSearch && matchesEspecialidad;
   });
 
   const catalogoExistenteSet = new Set(
-    catalogoServicios.map((item) => buildCatalogoKey(item.servicio, item.especialidad))
+    catalogoServiciosVisuales.map((item) => buildCatalogoKey(item.servicio, item.especialidad))
   );
 
-  const catalogoDisponiblesFiltrados = catalogoDisponibles
+  const catalogoDisponiblesFiltrados = catalogoDisponiblesVisuales
     .filter((item) => !catalogoExistenteSet.has(buildCatalogoKey(item.servicio, item.especialidad)))
     .filter((item) => {
       const normalizedCatalogoDisponiblesSearch = normalizeSearchText(searchCatalogoDisponibles);
       if (!normalizedCatalogoDisponiblesSearch) return true;
       return (
         normalizeSearchText(item.servicio).includes(normalizedCatalogoDisponiblesSearch) ||
-        normalizeSearchText(item.especialidad).includes(normalizedCatalogoDisponiblesSearch)
+        item.especialidades.some((especialidad) =>
+          normalizeSearchText(especialidad).includes(normalizedCatalogoDisponiblesSearch)
+        ) ||
+        normalizeSearchText(item.especialidadLabel).includes(normalizedCatalogoDisponiblesSearch)
       );
     });
 
@@ -270,17 +349,23 @@ const ProveedorDetalle: React.FC = () => {
     ? buildCatalogoKey(editingCatalogoServicio.servicio, editingCatalogoServicio.especialidad)
     : null;
 
-  const editCatalogoBase = catalogoDisponibles.filter((item) => {
+  const editCatalogoBase = catalogoDisponiblesVisuales.filter((item) => {
     const itemKey = buildCatalogoKey(item.servicio, item.especialidad);
     return itemKey === editingCatalogoCurrentKey || !catalogoExistenteSet.has(itemKey);
   });
 
   const currentEditingOption = editingCatalogoServicio
-    ? {
-        id: editingCatalogoServicio.id,
-        servicio: editingCatalogoServicio.servicio,
-        especialidad: editingCatalogoServicio.especialidad,
-      }
+    ? (() => {
+        const especialidades = getEspecialidadesFromJsonb(editingCatalogoServicio.especialidad);
+        const especialidadLabel = getEspecialidadLabel(editingCatalogoServicio.especialidad);
+        return {
+          id: editingCatalogoServicio.id,
+          servicio: editingCatalogoServicio.servicio,
+          especialidad: editingCatalogoServicio.especialidad,
+          especialidades,
+          especialidadLabel,
+        };
+      })()
     : null;
 
   const hasCurrentEditingOption =
@@ -301,10 +386,12 @@ const ProveedorDetalle: React.FC = () => {
     if (!normalizedEditSearch) return true;
     return (
       normalizeSearchText(item.servicio).includes(normalizedEditSearch) ||
-      normalizeSearchText(item.especialidad).includes(normalizedEditSearch)
+      item.especialidades.some((especialidad) =>
+        normalizeSearchText(especialidad).includes(normalizedEditSearch)
+      ) ||
+      normalizeSearchText(item.especialidadLabel).includes(normalizedEditSearch)
     );
   });
-      
 
   const totalPagesCatalogo = Math.max(1, Math.ceil(filteredCatalogo.length / itemsPerPage));
   const startIndexCatalogo = (currentPageCatalogo - 1) * itemsPerPage;
@@ -448,8 +535,9 @@ const ProveedorDetalle: React.FC = () => {
   const handleDeleteCatalogoServicio = async (item: ProveedorServicioCatalogo) => {
     if (!proveedor?.rut) return;
 
+    const especialidadLabel = getEspecialidadLabel(item.especialidad) || 'Sin especialidad';
     const confirmed = window.confirm(
-      'Se eliminara el registro del servicio "' + item.servicio + '" (' + item.especialidad + '). ?Deseas continuar?'
+      'Se eliminara el registro del servicio "' + item.servicio + '" (' + especialidadLabel + '). ?Deseas continuar?'
     );
 
     if (!confirmed) return;
@@ -635,7 +723,7 @@ const ProveedorDetalle: React.FC = () => {
                 
                 return evaluacionMostrar !== null && evaluacionMostrar !== undefined ? (
                   <div className="text-right">
-                    <div className="text-sm text-gray-600 mb-1">EVALUACIÓN</div>
+                    <div className="text-sm text-gray-600 mb-1">EVALUACION</div>
                     <div className="flex items-center gap-2">
                       <div className="w-24 bg-gray-100 rounded-full h-2">
                         <div
@@ -650,7 +738,7 @@ const ProveedorDetalle: React.FC = () => {
               })()}
               {proveedor.clasificacion && (
                 <div className="text-right">
-                  <div className="text-sm text-gray-600 mb-1">CLASIFICACIÓN</div>
+                  <div className="text-sm text-gray-600 mb-1">CLASIFICACION</div>
                   <div
                     className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-lg ${getClasificacionColor(
                       proveedor.clasificacion
@@ -753,16 +841,16 @@ const ProveedorDetalle: React.FC = () => {
                   <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
                     <tr>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">NOMBRE DEL SERVICIO</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DESCRIPCIÓN</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DESCRIPCION</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">FECHA</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUADOR</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ORDEN DE SERVICIO</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">MONTO</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ORDEN SERVICIO</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CALIFICACIÓN</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DOCUMENTACIÓN</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACION</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CALIFICACION</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">DOCUMENTACION</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"></th>
                     </tr>
                   </thead>
@@ -814,14 +902,14 @@ const ProveedorDetalle: React.FC = () => {
                             })}
                           </span>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
                         {servicio.evaluadorResponsable ? (
                           <span className="text-sm text-[#111318]">{servicio.evaluadorResponsable}</span>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -837,14 +925,14 @@ const ProveedorDetalle: React.FC = () => {
                         {servicio.ordenCompra ? (
                           <span className="text-sm text-[#111318]">{servicio.ordenCompra}</span>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
                         {servicio.tarifaRef !== null ? (
                           <span className="text-sm font-medium text-[#111318]">{formatCurrency(servicio.tarifaRef)}</span>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -864,7 +952,7 @@ const ProveedorDetalle: React.FC = () => {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -877,7 +965,7 @@ const ProveedorDetalle: React.FC = () => {
                             {servicio.clasificacion}
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -892,7 +980,7 @@ const ProveedorDetalle: React.FC = () => {
                             <span className="material-symbols-outlined text-lg">description</span>
                           </a>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -1087,14 +1175,23 @@ const ProveedorDetalle: React.FC = () => {
                               <span className="font-medium text-[#111318]">{item.servicio}</span>
                             </td>
                             <td className="py-4 px-6">
-                              <span
-                                className={
-                                  'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ' +
-                                  getCategoriaColor(item.especialidad)
-                                }
-                              >
-                                {item.especialidad}
-                              </span>
+                              {item.especialidades.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {item.especialidades.map((especialidad) => (
+                                    <span
+                                      key={item.id + '-' + especialidad}
+                                      className={
+                                        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ' +
+                                        getCategoriaColor(especialidad)
+                                      }
+                                    >
+                                      {especialidad}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-400">-</span>
+                              )}
                             </td>
                             <td className="py-4 px-6">
                               <div className="flex items-center justify-end gap-2">
@@ -1246,13 +1343,14 @@ const ProveedorDetalle: React.FC = () => {
                     <div className="divide-y divide-gray-100">
                       {catalogoDisponiblesFiltrados.map((item) => {
                         const isSelected =
-                          selectedCatalogoDisponible?.servicio === item.servicio &&
-                          selectedCatalogoDisponible?.especialidad === item.especialidad;
+                          !!selectedCatalogoDisponible &&
+                          buildCatalogoKey(selectedCatalogoDisponible.servicio, selectedCatalogoDisponible.especialidad) ===
+                            buildCatalogoKey(item.servicio, item.especialidad);
 
                         return (
                           <button
                             type="button"
-                            key={'modal-' + item.id + '-' + item.servicio + '-' + item.especialidad}
+                            key={'modal-' + item.id + '-' + item.servicio + '-' + item.especialidadLabel}
                             onClick={() => setSelectedCatalogoDisponible(item)}
                             className={
                               isSelected
@@ -1263,7 +1361,7 @@ const ProveedorDetalle: React.FC = () => {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-semibold text-[#111318]">{item.servicio}</p>
-                                <p className="text-xs text-gray-500">{item.especialidad}</p>
+                                <p className="text-xs text-gray-500">{item.especialidadLabel || 'Sin especialidad'}</p>
                               </div>
                               <span
                                 className={
@@ -1332,7 +1430,7 @@ const ProveedorDetalle: React.FC = () => {
               <div className="p-6 space-y-4">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
                   Registro actual: <span className="font-semibold text-[#111318]">{editingCatalogoServicio.servicio}</span>{' '}
-                  <span className="text-gray-500">({editingCatalogoServicio.especialidad})</span>
+                  <span className="text-gray-500">({getEspecialidadLabel(editingCatalogoServicio.especialidad) || 'Sin especialidad'})</span>
                 </div>
 
                 <div>
@@ -1378,7 +1476,7 @@ const ProveedorDetalle: React.FC = () => {
                         return (
                           <button
                             type="button"
-                            key={'edit-modal-' + item.id + '-' + item.servicio + '-' + item.especialidad}
+                            key={'edit-modal-' + item.id + '-' + item.servicio + '-' + item.especialidadLabel}
                             onClick={() => setSelectedEditCatalogoDisponible(item)}
                             className={
                               isSelected
@@ -1389,7 +1487,7 @@ const ProveedorDetalle: React.FC = () => {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-semibold text-[#111318]">{item.servicio}</p>
-                                <p className="text-xs text-gray-500">{item.especialidad}</p>
+                                <p className="text-xs text-gray-500">{item.especialidadLabel || 'Sin especialidad'}</p>
                               </div>
                               <span
                                 className={

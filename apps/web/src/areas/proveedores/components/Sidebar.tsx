@@ -16,7 +16,7 @@ import SidebarSettingsModal from '@shared/layout/SidebarSettingsModal';
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  activeView?: 'dashboard' | 'actuales' | 'evaluacion' | 'evaluacion-2025' | 'evaluaciones-tabla' | 'catalogo-servicios';
+  activeView?: 'dashboard' | 'actuales' | 'evaluacion' | 'evaluacion-2025' | 'evaluaciones-tabla' | 'catalogo-servicios' | 'catalogo-especialidades';
   hideOnDesktop?: boolean;
 }
 
@@ -39,6 +39,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
   const isEvaluacion2025Active = activeView === 'evaluacion-2025';
   const isEvaluacionesTablaActive = activeView === 'evaluaciones-tabla';
   const isCatalogoServiciosActive = activeView === 'catalogo-servicios';
+  const isCatalogoEspecialidadesActive = activeView === 'catalogo-especialidades';
 
   // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
   // TambiÃ©n deshabilitar mientras se cargan los permisos
@@ -161,6 +162,11 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 
   const handleCatalogoServiciosClick = () => {
     navigate(getAreaPath('catalogo-servicios'));
+    onClose();
+  };
+
+  const handleCatalogoEspecialidadesClick = () => {
+    navigate(getAreaPath('catalogo-especialidades'));
     onClose();
   };
 
@@ -321,7 +327,31 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
                 </span>
               </button>
 
-              {/* Evaluación de Servicios */}
+              {/* Catalogo de Especialidades */}
+              <button
+                onClick={handleCatalogoEspecialidadesClick}
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                  isCatalogoEspecialidadesActive
+                    ? 'bg-primary text-white hover:bg-primary-hover'
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
+                title="Catalogo de Especialidades"
+              >
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isCatalogoEspecialidadesActive ? 'fill' : ''}`}>
+                  category
+                </span>
+                <span
+                  className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isCatalogoEspecialidadesActive
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100'
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  Catalogo Especialidades
+                </span>
+              </button>
+
+              {/* Evaluacion de Servicios */}
               <button
                 onClick={handleEvaluacionClick}
                 disabled={loadingPermissions || onlyViewPermission}

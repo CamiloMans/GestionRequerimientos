@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import ServiciosEvaluados from './pages/ServiciosEvaluados';
 import EvaluacionesTabla from './pages/EvaluacionesTabla';
 import ServiciosCatalogoGestion from './pages/ServiciosCatalogoGestion';
+import EspecialidadesCatalogoGestion from './pages/EspecialidadesCatalogoGestion';
 
 /**
  * Componente que maneja las rutas del área de Proveedores
@@ -28,6 +29,7 @@ const ProveedoresRoutes: React.FC = () => {
       <Route path="servicios-evaluados" element={<ServiciosEvaluados />} />
       <Route path="evaluaciones-tabla" element={<EvaluacionesTabla />} />
       <Route path="catalogo-servicios" element={<ServiciosCatalogoGestion />} />
+      <Route path="catalogo-especialidades" element={<EspecialidadesCatalogoGestion />} />
       <Route path="reportes" element={<div className="p-8">Reportes (por implementar)</div>} />
       <Route path="/" element={<Navigate to="dashboard" replace />} />
       <Route path="*" element={<Navigate to="dashboard" replace />} />

@@ -40,9 +40,9 @@ export interface ProveedorResponse {
 /**
  * Calcular la clasificación basada en el porcentaje de evaluación
  * Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
- * > 0.764 → A
- * 0.5 <= cumplimiento <= 0.764 → B
- * < 0.5 → C
+ * > 0.764 -> A
+ * 0.5 <= cumplimiento <= 0.764 -> B
+ * < 0.5 -> C
  */
 export const calcularClasificacion = (evaluacion: number | null | undefined): string | null => {
   if (evaluacion === null || evaluacion === undefined) {
@@ -271,21 +271,73 @@ export const deleteServicioCatalogoDisponible = async (id: number): Promise<void
   }
 };
 
+const normalizeEspecialidadInput = (value: unknown): string | string[] => {
+  const values: string[] = [];
+
+  const pushValue = (input: unknown): void => {
+    if (input === null || input === undefined) return;
+
+    if (Array.isArray(input)) {
+      input.forEach(pushValue);
+      return;
+    }
+
+    if (typeof input === 'object') {
+      const record = input as Record<string, unknown>;
+      const priorityKeys = ['especialidad', 'especialidades', 'values', 'value', 'items', 'lista'];
+      const key = priorityKeys.find((candidate) => candidate in record);
+
+      if (key) {
+        pushValue(record[key]);
+      } else {
+        Object.values(record).forEach(pushValue);
+      }
+      return;
+    }
+
+    if (typeof input !== 'string') return;
+
+    const trimmed = input.trim();
+    if (!trimmed) return;
+
+    const looksLikeJson = trimmed.startsWith('[') || trimmed.startsWith('{');
+    if (looksLikeJson) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        pushValue(parsed);
+        return;
+      } catch {
+        // Si no es JSON valido, se usa el texto original.
+      }
+    }
+
+    values.push(trimmed);
+  };
+
+  pushValue(value);
+
+  const uniqueValues = Array.from(new Set(values));
+  if (uniqueValues.length <= 1) {
+    return uniqueValues[0] ?? '';
+  }
+
+  return uniqueValues;
+};
 /**
  * Asociar un servicio del catalogo base a un proveedor
  */
 export const createProveedorServicioCatalogo = async (params: {
   servicio: string;
-  especialidad: string;
+  especialidad: unknown;
   nombre_proveedor: string;
   rut: string;
 }): Promise<void> => {
   const servicio = params.servicio.trim();
-  const especialidad = params.especialidad.trim();
+  const especialidad = normalizeEspecialidadInput(params.especialidad);
   const nombreProveedor = params.nombre_proveedor.trim();
   const rut = params.rut.trim();
 
-  if (!servicio || !especialidad || !nombreProveedor || !rut) {
+  if (!servicio || (Array.isArray(especialidad) ? especialidad.length === 0 : !especialidad) || !nombreProveedor || !rut) {
     throw new Error('Datos incompletos para asociar servicio al proveedor.');
   }
 
@@ -317,17 +369,17 @@ export const updateProveedorServicioCatalogo = async (
   id: number,
   params: {
     servicio: string;
-    especialidad: string;
+    especialidad: unknown;
     nombre_proveedor: string;
     rut: string;
   }
 ): Promise<void> => {
   const servicio = params.servicio.trim();
-  const especialidad = params.especialidad.trim();
+  const especialidad = normalizeEspecialidadInput(params.especialidad);
   const nombreProveedor = params.nombre_proveedor.trim();
   const rut = params.rut.trim();
 
-  if (!id || !servicio || !especialidad || !nombreProveedor || !rut) {
+  if (!id || !servicio || (Array.isArray(especialidad) ? especialidad.length === 0 : !especialidad) || !nombreProveedor || !rut) {
     throw new Error('Datos incompletos para actualizar servicio del proveedor.');
   }
 
@@ -464,6 +516,56 @@ export const createEspecialidad = async (nombreEspecialidad: string): Promise<{ 
     id: data.id,
     nombre: data.nombre_especialidad,
   };
+};
+
+/**
+ * Actualizar una especialidad existente
+ */
+export const updateEspecialidad = async (
+  id: number,
+  nombreEspecialidad: string
+): Promise<{ id: number; nombre: string }> => {
+  const nombre = nombreEspecialidad.trim();
+
+  if (!id || !nombre) {
+    throw new Error('Debes ingresar un nombre de especialidad valido.');
+  }
+
+  const { data, error } = await supabase
+    .from('dim_core_especialidad')
+    .update({ nombre_especialidad: nombre })
+    .eq('id', id)
+    .select('id, nombre_especialidad')
+    .single();
+
+  if (error) {
+    console.error('Error updating especialidad:', error);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    nombre: data.nombre_especialidad,
+  };
+};
+
+/**
+ * Eliminar una especialidad
+ */
+export const deleteEspecialidad = async (id: number): Promise<void> => {
+  if (!id) {
+    throw new Error('ID invalido para eliminar especialidad.');
+  }
+
+  const { error } = await supabase
+    .from('dim_core_especialidad')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting especialidad:', error);
+    throw error;
+  }
 };
 
 /**
@@ -699,16 +801,16 @@ export const updateEvaluacionServicios = async (
  */
 export const sendEvaluacionProveedorToN8n = async (payload: any): Promise<any> => {
   try {
-    console.log('🔗 Invocando edge function: Envio-de-registro-de-Evaluacion-de-Servicio');
-    console.log('📦 Payload completo:', JSON.stringify(payload, null, 2));
+    console.log('[DEBUG] Invocando edge function: Envio-de-registro-de-Evaluacion-de-Servicio');
+    console.log('[DEBUG] Payload completo:', JSON.stringify(payload, null, 2));
     
     const { data, error } = await supabase.functions.invoke('Envio-de-registro-de-Evaluacion-de-Servicio', {
       body: payload,
     });
 
     if (error) {
-      console.error('❌ Error al invocar función edge:', error);
-      console.error('🔍 Detalles del error:', {
+      console.error('[ERROR] Error al invocar función edge:', error);
+      console.error('[DEBUG] Detalles del error:', {
         message: error.message,
         name: error.name,
         stack: error.stack,
@@ -722,7 +824,7 @@ export const sendEvaluacionProveedorToN8n = async (payload: any): Promise<any> =
       throw error;
     }
 
-    console.log('📥 Respuesta recibida de la edge function:', data);
+    console.log('[DEBUG] Respuesta recibida de la edge function:', data);
 
     if (!data) {
       throw new Error('No se recibió respuesta de la edge function');
@@ -735,7 +837,7 @@ export const sendEvaluacionProveedorToN8n = async (payload: any): Promise<any> =
 
     return data;
   } catch (error: any) {
-    console.error('❌ Error completo al enviar evaluación a n8n:', error);
+    console.error('[ERROR] Error completo al enviar evaluación a n8n:', error);
     throw error;
   }
 };
@@ -784,7 +886,7 @@ export interface EvaluacionProveedor {
 export const fetchEvaluacionesByNombreProveedor = async (
   nombreProveedor: string
 ): Promise<EvaluacionProveedor[]> => {
-  console.log('🔍 Buscando evaluaciones por nombre:', nombreProveedor);
+  console.log('[DEBUG] Buscando evaluaciones por nombre:', nombreProveedor);
   
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
@@ -797,9 +899,9 @@ export const fetchEvaluacionesByNombreProveedor = async (
     throw error;
   }
 
-  console.log(`✅ Encontradas ${data?.length || 0} evaluaciones para nombre ${nombreProveedor}`);
+  console.log(`[DEBUG] Encontradas ${data?.length || 0} evaluaciones para nombre ${nombreProveedor}`);
   if (data && data.length > 0) {
-    console.log('📋 Evaluaciones encontradas:', data);
+    console.log('[DEBUG] Evaluaciones encontradas:', data);
   }
 
   return data || [];
@@ -811,7 +913,7 @@ export const fetchEvaluacionesByNombreProveedor = async (
 export const fetchEvaluacionesByRutProveedor = async (
   rutProveedor: string
 ): Promise<EvaluacionProveedor[]> => {
-  console.log('🔍 Buscando evaluaciones por RUT:', rutProveedor);
+  console.log('[DEBUG] Buscando evaluaciones por RUT:', rutProveedor);
   
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
@@ -824,9 +926,9 @@ export const fetchEvaluacionesByRutProveedor = async (
     throw error;
   }
 
-  console.log(`✅ Encontradas ${data?.length || 0} evaluaciones para RUT ${rutProveedor}`);
+  console.log(`[DEBUG] Encontradas ${data?.length || 0} evaluaciones para RUT ${rutProveedor}`);
   if (data && data.length > 0) {
-    console.log('📋 Evaluaciones encontradas:', data);
+    console.log('[DEBUG] Evaluaciones encontradas:', data);
   }
 
   return data || [];
@@ -836,7 +938,7 @@ export const fetchEvaluacionesByRutProveedor = async (
  * Obtener todas las evaluaciones de todos los proveedores
  */
 export const fetchAllEvaluaciones = async (): Promise<EvaluacionProveedor[]> => {
-  console.log('🔍 Buscando todas las evaluaciones');
+  console.log('[DEBUG] Buscando todas las evaluaciones');
   
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
@@ -848,7 +950,7 @@ export const fetchAllEvaluaciones = async (): Promise<EvaluacionProveedor[]> => 
     throw error;
   }
 
-  console.log(`✅ Encontradas ${data?.length || 0} evaluaciones en total`);
+  console.log(`[DEBUG] Encontradas ${data?.length || 0} evaluaciones en total`);
 
   return data || [];
 };
