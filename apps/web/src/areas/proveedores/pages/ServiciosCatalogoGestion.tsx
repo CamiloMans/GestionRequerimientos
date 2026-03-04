@@ -12,6 +12,60 @@ import {
 import { normalizeSearchText } from '../utils/search';
 
 type ModalMode = 'create' | 'edit';
+type ServicioCatalogoVisual = Omit<ServicioCatalogoDisponible, 'especialidad'> & {
+  especialidadRaw: unknown;
+  especialidades: string[];
+};
+
+const getEspecialidadesFromJsonb = (value: unknown): string[] => {
+  const values: string[] = [];
+
+  const pushValue = (input: unknown): void => {
+    if (input === null || input === undefined) return;
+
+    if (Array.isArray(input)) {
+      input.forEach(pushValue);
+      return;
+    }
+
+    if (typeof input === 'object') {
+      const record = input as Record<string, unknown>;
+      const priorityKeys = ['especialidad', 'especialidades', 'values', 'value', 'items', 'lista'];
+      const key = priorityKeys.find((k) => k in record);
+
+      if (key) {
+        pushValue(record[key]);
+      } else {
+        Object.values(record).forEach(pushValue);
+      }
+      return;
+    }
+
+    if (typeof input !== 'string') {
+      return;
+    }
+
+    const trimmed = input.trim();
+    if (!trimmed) return;
+
+    const looksLikeJson = trimmed.startsWith('[') || trimmed.startsWith('{');
+    if (looksLikeJson) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        pushValue(parsed);
+        return;
+      } catch {
+        // Si no es JSON valido, se trata como texto plano.
+      }
+    }
+
+    values.push(trimmed);
+  };
+
+  pushValue(value);
+
+  return Array.from(new Set(values));
+};
 
 const ServiciosCatalogoGestion: React.FC = () => {
   const { hasPermission, loading: loadingPermissions } = usePermissions(AreaId.PROVEEDORES);
@@ -83,31 +137,42 @@ const ServiciosCatalogoGestion: React.FC = () => {
     setCurrentPage(1);
   }, [searchTerm, filterEspecialidad]);
 
+  const serviciosVisuales = useMemo<ServicioCatalogoVisual[]>(() => {
+    return servicios.map((item) => ({
+      ...item,
+      especialidadRaw: item.especialidad,
+      especialidades: getEspecialidadesFromJsonb(item.especialidad),
+    }));
+  }, [servicios]);
+
   const especialidadesEnCatalogo = useMemo(() => {
     return Array.from(
       new Set(
-        servicios
-          .map((item) => item.especialidad?.trim() ?? '')
+        serviciosVisuales
+          .flatMap((item) => item.especialidades)
+          .map((item) => item.trim())
           .filter((item) => item.length > 0)
       )
     ).sort((a, b) => a.localeCompare(b, 'es'));
-  }, [servicios]);
+  }, [serviciosVisuales]);
 
   const filteredServicios = useMemo(() => {
     const normalizedSearch = normalizeSearchText(searchTerm);
 
-    return servicios.filter((item) => {
+    return serviciosVisuales.filter((item) => {
       const matchesSearch =
         !normalizedSearch ||
         normalizeSearchText(item.servicio).includes(normalizedSearch) ||
-        normalizeSearchText(item.especialidad).includes(normalizedSearch);
+        item.especialidades.some((especialidad) =>
+          normalizeSearchText(especialidad).includes(normalizedSearch)
+        );
 
       const matchesEspecialidad =
-        filterEspecialidad === 'Todas' || item.especialidad === filterEspecialidad;
+        filterEspecialidad === 'Todas' || item.especialidades.includes(filterEspecialidad);
 
       return matchesSearch && matchesEspecialidad;
     });
-  }, [servicios, searchTerm, filterEspecialidad]);
+  }, [serviciosVisuales, searchTerm, filterEspecialidad]);
 
   const totalPages = Math.max(1, Math.ceil(filteredServicios.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -126,6 +191,41 @@ const ServiciosCatalogoGestion: React.FC = () => {
     });
   };
 
+
+  const getEspecialidadColor = (especialidad: string) => {
+    const colorPalette = [
+      'bg-blue-100 text-blue-700 border-blue-200',
+      'bg-purple-100 text-purple-700 border-purple-200',
+      'bg-cyan-100 text-cyan-700 border-cyan-200',
+      'bg-indigo-100 text-indigo-700 border-indigo-200',
+      'bg-orange-100 text-orange-700 border-orange-200',
+      'bg-teal-100 text-teal-700 border-teal-200',
+      'bg-green-100 text-green-700 border-green-200',
+      'bg-pink-100 text-pink-700 border-pink-200',
+      'bg-rose-100 text-rose-700 border-rose-200',
+      'bg-amber-100 text-amber-700 border-amber-200',
+      'bg-lime-100 text-lime-700 border-lime-200',
+      'bg-emerald-100 text-emerald-700 border-emerald-200',
+      'bg-sky-100 text-sky-700 border-sky-200',
+      'bg-violet-100 text-violet-700 border-violet-200',
+      'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+      'bg-stone-100 text-stone-700 border-stone-200',
+    ];
+
+    const hashString = (str: string): number => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return Math.abs(hash);
+    };
+
+    const hash = hashString(especialidad.toLowerCase());
+    const colorIndex = hash % colorPalette.length;
+    return colorPalette[colorIndex];
+  };
   const closeModal = (force = false) => {
     if (saving && !force) return;
     setIsModalOpen(false);
@@ -148,7 +248,7 @@ const ServiciosCatalogoGestion: React.FC = () => {
     setModalMode('edit');
     setSelectedServicio(item);
     setFormServicio(item.servicio);
-    setFormEspecialidad(item.especialidad);
+    setFormEspecialidad(getEspecialidadesFromJsonb(item.especialidad)[0] ?? '');
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -223,6 +323,9 @@ const ServiciosCatalogoGestion: React.FC = () => {
     }
   };
 
+  const especialidadesServicioAEliminar = servicioToDelete
+    ? getEspecialidadesFromJsonb(servicioToDelete.especialidad)
+    : [];
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -326,9 +429,20 @@ const ServiciosCatalogoGestion: React.FC = () => {
                         <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                           <td className="py-4 px-6 text-sm text-[#111318] font-medium">{item.servicio}</td>
                           <td className="py-4 px-6">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200">
-                              {item.especialidad}
-                            </span>
+                            {item.especialidades.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {item.especialidades.map((especialidad) => (
+                                  <span
+                                    key={item.id + '-' + especialidad}
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getEspecialidadColor(especialidad)}`}
+                                  >
+                                    {especialidad}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
                           </td>
                           <td className="py-4 px-6 text-sm text-gray-600">{formatDate(item.created_at)}</td>
                           <td className="py-4 px-6 text-sm text-gray-600">{formatDate(item.updated_at)}</td>
@@ -419,7 +533,7 @@ const ServiciosCatalogoGestion: React.FC = () => {
                 <p className="text-sm text-gray-600">
                   Se eliminara el registro del servicio{' '}
                   <span className="font-semibold">"{servicioToDelete.servicio}"</span> (
-                  <span className="font-semibold">{servicioToDelete.especialidad}</span>). Esta accion no
+                  <span className="font-semibold">{especialidadesServicioAEliminar.join(', ') || 'Sin especialidad'}</span>). Esta accion no
                   se puede deshacer.
                 </p>
               </div>
@@ -553,6 +667,12 @@ const ServiciosCatalogoGestion: React.FC = () => {
 };
 
 export default ServiciosCatalogoGestion;
+
+
+
+
+
+
 
 
 
