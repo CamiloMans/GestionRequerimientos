@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, fetchEvaluacionesByRutProveedor, EvaluacionProveedor } from '../services/proveedoresService';
+import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, fetchEvaluacionesByRutProveedor, EvaluacionProveedor, fetchServiciosCatalogoByRut, ProveedorServicioCatalogo, fetchServiciosCatalogoDisponibles, ServicioCatalogoDisponible, createProveedorServicioCatalogo, updateProveedorServicioCatalogo, deleteProveedorServicioCatalogo } from '../services/proveedoresService';
 import { Clasificacion } from '../types';
+import { normalizeSearchText } from '../utils/search';
 
 interface Servicio {
   id: number;
@@ -20,6 +21,8 @@ interface Servicio {
   notaTotalPonderada?: number | null;
 }
 
+type ProveedorDetalleView = 'ejecutados' | 'catalogo';
+
 const ProveedorDetalle: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -35,9 +38,34 @@ const ProveedorDetalle: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
   const [evaluaciones, setEvaluaciones] = useState<EvaluacionProveedor[]>([]);
+  const [activeView, setActiveView] = useState<ProveedorDetalleView>('ejecutados');
+  const [catalogoServicios, setCatalogoServicios] = useState<ProveedorServicioCatalogo[]>([]);
+  const [loadingCatalogo, setLoadingCatalogo] = useState(false);
+  const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null);
+  const [searchCatalogo, setSearchCatalogo] = useState('');
+  const [filterEspecialidadCatalogo, setFilterEspecialidadCatalogo] = useState<string>('Todas');
+  const [currentPageCatalogo, setCurrentPageCatalogo] = useState(1);
+  const [showAddCatalogoModal, setShowAddCatalogoModal] = useState(false);
+  const [catalogoDisponibles, setCatalogoDisponibles] = useState<ServicioCatalogoDisponible[]>([]);
+  const [loadingCatalogoDisponibles, setLoadingCatalogoDisponibles] = useState(false);
+  const [savingCatalogoServicio, setSavingCatalogoServicio] = useState(false);
+  const [errorCatalogoDisponibles, setErrorCatalogoDisponibles] = useState<string | null>(null);
+  const [searchCatalogoDisponibles, setSearchCatalogoDisponibles] = useState('');
+  const [selectedCatalogoDisponible, setSelectedCatalogoDisponible] = useState<ServicioCatalogoDisponible | null>(null);
+  const [showEditCatalogoModal, setShowEditCatalogoModal] = useState(false);
+  const [editingCatalogoServicio, setEditingCatalogoServicio] = useState<ProveedorServicioCatalogo | null>(null);
+  const [selectedEditCatalogoDisponible, setSelectedEditCatalogoDisponible] = useState<ServicioCatalogoDisponible | null>(null);
+  const [searchEditCatalogoDisponibles, setSearchEditCatalogoDisponibles] = useState('');
+  const [savingEditCatalogoServicio, setSavingEditCatalogoServicio] = useState(false);
+  const [deletingCatalogoServicioId, setDeletingCatalogoServicioId] = useState<number | null>(null);
+  const [errorEditCatalogoServicio, setErrorEditCatalogoServicio] = useState<string | null>(null);
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
+  };
+
+  const buildCatalogoKey = (servicio: string, especialidad: string) => {
+    return `${normalizeSearchText(servicio)}::${normalizeSearchText(especialidad)}`;
   };
 
   // Cargar categorías (especialidades)
@@ -148,14 +176,50 @@ const ProveedorDetalle: React.FC = () => {
     }
   }, [proveedor]);
 
+  useEffect(() => {
+    const loadCatalogo = async () => {
+      if (!proveedor) return;
+
+      setCatalogoServicios([]);
+      setErrorCatalogo(null);
+      setSearchCatalogo('');
+      setFilterEspecialidadCatalogo('Todas');
+      setCurrentPageCatalogo(1);
+
+      if (!proveedor.rut) {
+        setLoadingCatalogo(false);
+        return;
+      }
+
+      try {
+        setLoadingCatalogo(true);
+        const data = await fetchServiciosCatalogoByRut(proveedor.rut);
+        setCatalogoServicios(data);
+      } catch (err: any) {
+        console.error('Error al cargar catalogo de servicios del proveedor:', err);
+        setErrorCatalogo('Error al cargar el catalogo del proveedor.');
+        setCatalogoServicios([]);
+      } finally {
+        setLoadingCatalogo(false);
+      }
+    };
+
+    if (proveedor) {
+      loadCatalogo();
+    }
+  }, [proveedor]);
   // Filtrar servicios
+  const normalizedSearchTerm = normalizeSearchText(searchTerm);
   const filteredServicios = servicios.filter((servicio) => {
     const matchesSearch =
-      servicio.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      servicio.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      servicio.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
+      !normalizedSearchTerm ||
+      normalizeSearchText(servicio.nombre).includes(normalizedSearchTerm) ||
+      normalizeSearchText(servicio.codigo).includes(normalizedSearchTerm) ||
+      normalizeSearchText(servicio.descripcion).includes(normalizedSearchTerm);
 
-    const matchesCategoria = filterCategoria === 'Todas las categorías' || servicio.categoria === filterCategoria;
+    const matchesCategoria =
+      normalizeSearchText(filterCategoria) === 'todas las categorias' ||
+      servicio.categoria === filterCategoria;
 
     return matchesSearch && matchesCategoria;
   });
@@ -166,6 +230,248 @@ const ProveedorDetalle: React.FC = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedServicios = filteredServicios.slice(startIndex, endIndex);
 
+  const especialidadesCatalogo = Array.from(
+    new Set(
+      catalogoServicios
+        .map((item) => item.especialidad.trim())
+        .filter((especialidad) => especialidad.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b, 'es'));
+
+  const filteredCatalogo = catalogoServicios.filter((item) => {
+    const normalizedCatalogoSearch = normalizeSearchText(searchCatalogo);
+    const matchesSearch =
+      !normalizedCatalogoSearch ||
+      normalizeSearchText(item.servicio).includes(normalizedCatalogoSearch) ||
+      normalizeSearchText(item.especialidad).includes(normalizedCatalogoSearch);
+    const matchesEspecialidad =
+      filterEspecialidadCatalogo === 'Todas' ||
+      item.especialidad === filterEspecialidadCatalogo;
+
+    return matchesSearch && matchesEspecialidad;
+  });
+
+  const catalogoExistenteSet = new Set(
+    catalogoServicios.map((item) => buildCatalogoKey(item.servicio, item.especialidad))
+  );
+
+  const catalogoDisponiblesFiltrados = catalogoDisponibles
+    .filter((item) => !catalogoExistenteSet.has(buildCatalogoKey(item.servicio, item.especialidad)))
+    .filter((item) => {
+      const normalizedCatalogoDisponiblesSearch = normalizeSearchText(searchCatalogoDisponibles);
+      if (!normalizedCatalogoDisponiblesSearch) return true;
+      return (
+        normalizeSearchText(item.servicio).includes(normalizedCatalogoDisponiblesSearch) ||
+        normalizeSearchText(item.especialidad).includes(normalizedCatalogoDisponiblesSearch)
+      );
+    });
+
+  const editingCatalogoCurrentKey = editingCatalogoServicio
+    ? buildCatalogoKey(editingCatalogoServicio.servicio, editingCatalogoServicio.especialidad)
+    : null;
+
+  const editCatalogoBase = catalogoDisponibles.filter((item) => {
+    const itemKey = buildCatalogoKey(item.servicio, item.especialidad);
+    return itemKey === editingCatalogoCurrentKey || !catalogoExistenteSet.has(itemKey);
+  });
+
+  const currentEditingOption = editingCatalogoServicio
+    ? {
+        id: editingCatalogoServicio.id,
+        servicio: editingCatalogoServicio.servicio,
+        especialidad: editingCatalogoServicio.especialidad,
+      }
+    : null;
+
+  const hasCurrentEditingOption =
+    !!currentEditingOption &&
+    editCatalogoBase.some(
+      (item) =>
+        buildCatalogoKey(item.servicio, item.especialidad) ===
+        buildCatalogoKey(currentEditingOption.servicio, currentEditingOption.especialidad)
+    );
+
+  const editCatalogoDisponibles =
+    currentEditingOption && !hasCurrentEditingOption
+      ? [currentEditingOption, ...editCatalogoBase]
+      : editCatalogoBase;
+
+  const editCatalogoDisponiblesFiltrados = editCatalogoDisponibles.filter((item) => {
+    const normalizedEditSearch = normalizeSearchText(searchEditCatalogoDisponibles);
+    if (!normalizedEditSearch) return true;
+    return (
+      normalizeSearchText(item.servicio).includes(normalizedEditSearch) ||
+      normalizeSearchText(item.especialidad).includes(normalizedEditSearch)
+    );
+  });
+      
+
+  const totalPagesCatalogo = Math.max(1, Math.ceil(filteredCatalogo.length / itemsPerPage));
+  const startIndexCatalogo = (currentPageCatalogo - 1) * itemsPerPage;
+  const endIndexCatalogo = startIndexCatalogo + itemsPerPage;
+  const paginatedCatalogo = filteredCatalogo.slice(startIndexCatalogo, endIndexCatalogo);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCategoria]);
+
+  useEffect(() => {
+    setCurrentPageCatalogo(1);
+  }, [searchCatalogo, filterEspecialidadCatalogo]);
+
+  const loadCatalogoDisponibles = async (): Promise<ServicioCatalogoDisponible[]> => {
+    setLoadingCatalogoDisponibles(true);
+    try {
+      const data = await fetchServiciosCatalogoDisponibles();
+      setCatalogoDisponibles(data);
+      return data;
+    } finally {
+      setLoadingCatalogoDisponibles(false);
+    }
+  };
+
+  const handleCloseAddCatalogoModal = () => {
+    if (savingCatalogoServicio) return;
+    setShowAddCatalogoModal(false);
+    setErrorCatalogoDisponibles(null);
+    setSearchCatalogoDisponibles('');
+    setSelectedCatalogoDisponible(null);
+  };
+
+  const handleOpenAddCatalogoModal = async () => {
+    if (!proveedor?.rut) return;
+
+    setShowAddCatalogoModal(true);
+    setErrorCatalogoDisponibles(null);
+    setSearchCatalogoDisponibles('');
+    setSelectedCatalogoDisponible(null);
+
+    try {
+      await loadCatalogoDisponibles();
+    } catch (err) {
+      console.error('Error al cargar servicios disponibles para catalogo:', err);
+      setErrorCatalogoDisponibles('No fue posible cargar los servicios disponibles.');
+      setCatalogoDisponibles([]);
+    }
+  };
+
+  const handleCreateCatalogoServicio = async () => {
+    if (!proveedor?.rut || !selectedCatalogoDisponible) return;
+
+    try {
+      setSavingCatalogoServicio(true);
+      setErrorCatalogoDisponibles(null);
+
+      await createProveedorServicioCatalogo({
+        servicio: selectedCatalogoDisponible.servicio,
+        especialidad: selectedCatalogoDisponible.especialidad,
+        nombre_proveedor: proveedor.nombre_proveedor,
+        rut: proveedor.rut,
+      });
+
+      const refreshedCatalogo = await fetchServiciosCatalogoByRut(proveedor.rut);
+      setCatalogoServicios(refreshedCatalogo);
+      setErrorCatalogo(null);
+      setCurrentPageCatalogo(1);
+      setShowAddCatalogoModal(false);
+      setSelectedCatalogoDisponible(null);
+      setSearchCatalogoDisponibles('');
+    } catch (err) {
+      console.error('Error al crear asociacion de servicio en catalogo:', err);
+      setErrorCatalogoDisponibles('No fue posible agregar el servicio al proveedor.');
+    } finally {
+      setSavingCatalogoServicio(false);
+    }
+  };
+
+  const handleCloseEditCatalogoModal = () => {
+    if (savingEditCatalogoServicio) return;
+    setShowEditCatalogoModal(false);
+    setEditingCatalogoServicio(null);
+    setSelectedEditCatalogoDisponible(null);
+    setSearchEditCatalogoDisponibles('');
+    setErrorEditCatalogoServicio(null);
+  };
+
+  const handleOpenEditCatalogoModal = async (item: ProveedorServicioCatalogo) => {
+    if (!proveedor?.rut) return;
+
+    setEditingCatalogoServicio(item);
+    setSelectedEditCatalogoDisponible({
+      id: item.id,
+      servicio: item.servicio,
+      especialidad: item.especialidad,
+    });
+    setSearchEditCatalogoDisponibles('');
+    setErrorEditCatalogoServicio(null);
+    setShowEditCatalogoModal(true);
+
+    try {
+      await loadCatalogoDisponibles();
+    } catch (err) {
+      console.error('Error al cargar servicios disponibles para edicion:', err);
+      setErrorEditCatalogoServicio('No fue posible cargar los servicios disponibles.');
+      setCatalogoDisponibles([]);
+    }
+  };
+
+  const handleUpdateCatalogoServicio = async () => {
+    if (!proveedor?.rut || !editingCatalogoServicio || !selectedEditCatalogoDisponible) return;
+
+    try {
+      setSavingEditCatalogoServicio(true);
+      setErrorEditCatalogoServicio(null);
+
+      await updateProveedorServicioCatalogo(editingCatalogoServicio.id, {
+        servicio: selectedEditCatalogoDisponible.servicio,
+        especialidad: selectedEditCatalogoDisponible.especialidad,
+        nombre_proveedor: proveedor.nombre_proveedor,
+        rut: proveedor.rut,
+      });
+
+      const refreshedCatalogo = await fetchServiciosCatalogoByRut(proveedor.rut);
+      setCatalogoServicios(refreshedCatalogo);
+      setErrorCatalogo(null);
+      setCurrentPageCatalogo(1);
+      setShowEditCatalogoModal(false);
+      setEditingCatalogoServicio(null);
+      setSelectedEditCatalogoDisponible(null);
+      setSearchEditCatalogoDisponibles('');
+    } catch (err) {
+      console.error('Error al actualizar servicio del catalogo:', err);
+      setErrorEditCatalogoServicio('No fue posible guardar los cambios del servicio.');
+    } finally {
+      setSavingEditCatalogoServicio(false);
+    }
+  };
+
+  const handleDeleteCatalogoServicio = async (item: ProveedorServicioCatalogo) => {
+    if (!proveedor?.rut) return;
+
+    const confirmed = window.confirm(
+      'Se eliminara el registro del servicio "' + item.servicio + '" (' + item.especialidad + '). ?Deseas continuar?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingCatalogoServicioId(item.id);
+      await deleteProveedorServicioCatalogo(item.id);
+
+      const refreshedCatalogo = await fetchServiciosCatalogoByRut(proveedor.rut);
+      setCatalogoServicios(refreshedCatalogo);
+      setErrorCatalogo(null);
+
+      if (editingCatalogoServicio?.id === item.id) {
+        handleCloseEditCatalogoModal();
+      }
+    } catch (err) {
+      console.error('Error al eliminar servicio del catalogo:', err);
+      setErrorCatalogo('No fue posible eliminar el registro del catalogo.');
+    } finally {
+      setDeletingCatalogoServicioId(null);
+    }
+  };
 
   const getEstadoColor = (estado: string) => {
     switch (estado) {
@@ -358,13 +664,41 @@ const ProveedorDetalle: React.FC = () => {
           </div>
         </div>
 
-        {/* Servicios del Proveedor */}
+        {/* Selector de vista */}
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveView('ejecutados')}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                activeView === 'ejecutados'
+                  ? 'bg-green-600 text-white border-green-600'
+                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">task_alt</span>
+              <span>Servicios Ejecutados</span>
+            </button>
+            <button
+              onClick={() => setActiveView('catalogo')}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                activeView === 'catalogo'
+                  ? 'bg-green-600 text-white border-green-600'
+                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">description</span>
+              <span>Catalogo del Proveedor</span>
+            </button>
+          </div>
+        </div>
+
+        {activeView === 'ejecutados' && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-xl font-bold text-[#111318] mb-1">Servicios del Proveedor</h2>
+              <h2 className="text-xl font-bold text-[#111318] mb-1">Servicios Ejecutados</h2>
               <p className="text-sm text-gray-500">
-                Listado de servicios disponibles o contratados con este proveedor.
+                Listado de servicios evaluados y realizados por este proveedor.
               </p>
             </div>
           </div>
@@ -411,7 +745,7 @@ const ProveedorDetalle: React.FC = () => {
             {loadingServicios ? (
               <div className="p-8 text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-                <p className="text-sm text-gray-500">Cargando evaluaciones...</p>
+                <p className="text-sm text-gray-500">Cargando servicios ejecutados...</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -436,7 +770,7 @@ const ProveedorDetalle: React.FC = () => {
                     {paginatedServicios.length === 0 ? (
                       <tr>
                         <td colSpan={12} className="py-8 text-center text-gray-500">
-                          No hay evaluaciones registradas para este proveedor.
+                          No hay servicios ejecutados registrados para este proveedor.
                         </td>
                       </tr>
                     ) : (
@@ -652,6 +986,448 @@ const ProveedorDetalle: React.FC = () => {
             )}
           </div>
         </div>
+        )}
+
+        {activeView === 'catalogo' && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-[#111318] mb-1">Catalogo del Proveedor</h2>
+                <p className="text-sm text-gray-500">
+                  Listado completo de servicios asociados al proveedor (entregados o no).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddCatalogoModal}
+                disabled={!proveedor.rut}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-base">add</span>
+                <span>Nuevo servicio</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">BUSCAR SERVICIO</label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl">
+                      search
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Nombre del servicio o especialidad"
+                      value={searchCatalogo}
+                      onChange={(e) => setSearchCatalogo(e.target.value)}
+                      disabled={!proveedor.rut || loadingCatalogo}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-50 disabled:text-gray-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">ESPECIALIDAD</label>
+                  <select
+                    value={filterEspecialidadCatalogo}
+                    onChange={(e) => setFilterEspecialidadCatalogo(e.target.value)}
+                    disabled={!proveedor.rut || loadingCatalogo}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white disabled:bg-gray-50 disabled:text-gray-500"
+                  >
+                    <option value="Todas">Todas las especialidades</option>
+                    {especialidadesCatalogo.map((especialidad) => (
+                      <option key={especialidad} value={especialidad}>
+                        {especialidad}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 overflow-hidden">
+              {loadingCatalogo ? (
+                <div className="p-8 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                  <p className="text-sm text-gray-500">Cargando catalogo del proveedor...</p>
+                </div>
+              ) : !proveedor.rut ? (
+                <div className="p-8 text-center text-gray-500">
+                  No se puede consultar catalogo sin RUT.
+                </div>
+              ) : errorCatalogo ? (
+                <div className="p-6">
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {errorCatalogo}
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
+                      <tr>
+                        <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">SERVICIO</th>
+                        <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
+                        <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">ACCIONES</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedCatalogo.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-8 text-center text-gray-500">
+                            {catalogoServicios.length === 0
+                              ? 'No hay servicios asociados para este proveedor.'
+                              : 'No hay resultados para los filtros aplicados.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedCatalogo.map((item) => (
+                          <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td className="py-4 px-6">
+                              <span className="font-medium text-[#111318]">{item.servicio}</span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span
+                                className={
+                                  'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ' +
+                                  getCategoriaColor(item.especialidad)
+                                }
+                              >
+                                {item.especialidad}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditCatalogoModal(item)}
+                                  disabled={deletingCatalogoServicioId === item.id}
+                                  className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                                  title="Editar servicio"
+                                >
+                                  <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCatalogoServicio(item)}
+                                  disabled={deletingCatalogoServicioId === item.id}
+                                  className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                  title="Eliminar registro"
+                                >
+                                  <span className="material-symbols-outlined text-lg">
+                                    {deletingCatalogoServicioId === item.id ? 'hourglass_top' : 'delete'}
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {!loadingCatalogo && proveedor.rut && !errorCatalogo && filteredCatalogo.length > 0 && (
+                <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Mostrando {startIndexCatalogo + 1} a{' '}
+                    {Math.min(endIndexCatalogo, filteredCatalogo.length)} de {filteredCatalogo.length} servicios
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPageCatalogo((prev) => Math.max(1, prev - 1))}
+                      disabled={currentPageCatalogo === 1}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">chevron_left</span>
+                    </button>
+                    {Array.from({ length: Math.min(totalPagesCatalogo, 8) }, (_, i) => {
+                      const page = i + 1;
+                      if (totalPagesCatalogo > 8 && page === 8) {
+                        return (
+                          <span key="ellipsis-catalogo" className="px-2 text-gray-500">
+                            ...
+                          </span>
+                        );
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPageCatalogo(page)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                            currentPageCatalogo === page
+                              ? 'bg-primary text-white'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setCurrentPageCatalogo((prev) => Math.min(totalPagesCatalogo, prev + 1))}
+                      disabled={currentPageCatalogo === totalPagesCatalogo}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">chevron_right</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showAddCatalogoModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4"
+            onClick={handleCloseAddCatalogoModal}
+          >
+            <div
+              className="w-full max-w-3xl rounded-2xl border border-gray-200 bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#111318]">Agregar servicio al proveedor</h3>
+                  <p className="text-sm text-gray-500">
+                    Selecciona un servicio desde dim_core_proveedores_servicios.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseAddCatalogoModal}
+                  className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-100 transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">BUSCAR SERVICIO</label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl">
+                      search
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Nombre del servicio o especialidad"
+                      value={searchCatalogoDisponibles}
+                      onChange={(e) => setSearchCatalogoDisponibles(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    />
+                  </div>
+                </div>
+
+                {errorCatalogoDisponibles && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {errorCatalogoDisponibles}
+                  </div>
+                )}
+
+                <div className="border border-gray-200 rounded-xl max-h-[380px] overflow-y-auto">
+                  {loadingCatalogoDisponibles ? (
+                    <div className="p-6 text-center">
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary mb-3"></div>
+                      <p className="text-sm text-gray-500">Cargando servicios disponibles...</p>
+                    </div>
+                  ) : catalogoDisponiblesFiltrados.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      {catalogoDisponibles.length === 0
+                        ? 'No hay servicios disponibles para asociar.'
+                        : searchCatalogoDisponibles.trim()
+                        ? 'No hay resultados para tu busqueda.'
+                        : 'Este proveedor ya tiene todos los servicios del catalogo asociados.'}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {catalogoDisponiblesFiltrados.map((item) => {
+                        const isSelected =
+                          selectedCatalogoDisponible?.servicio === item.servicio &&
+                          selectedCatalogoDisponible?.especialidad === item.especialidad;
+
+                        return (
+                          <button
+                            type="button"
+                            key={'modal-' + item.id + '-' + item.servicio + '-' + item.especialidad}
+                            onClick={() => setSelectedCatalogoDisponible(item)}
+                            className={
+                              isSelected
+                                ? 'w-full text-left px-4 py-3 transition-colors bg-primary/10'
+                                : 'w-full text-left px-4 py-3 transition-colors hover:bg-gray-50'
+                            }
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-[#111318]">{item.servicio}</p>
+                                <p className="text-xs text-gray-500">{item.especialidad}</p>
+                              </div>
+                              <span
+                                className={
+                                  isSelected
+                                    ? 'mt-0.5 h-4 w-4 rounded-full border-2 border-primary bg-primary'
+                                    : 'mt-0.5 h-4 w-4 rounded-full border-2 border-gray-300'
+                                }
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={handleCloseAddCatalogoModal}
+                  disabled={savingCatalogoServicio}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateCatalogoServicio}
+                  disabled={savingCatalogoServicio || !selectedCatalogoDisponible}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingCatalogoServicio ? 'Guardando...' : 'Agregar servicio'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEditCatalogoModal && editingCatalogoServicio && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4"
+            onClick={handleCloseEditCatalogoModal}
+          >
+            <div
+              className="w-full max-w-3xl rounded-2xl border border-gray-200 bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#111318]">Editar servicio del proveedor</h3>
+                  <p className="text-sm text-gray-500">
+                    Selecciona un nuevo servicio/especialidad para actualizar este registro.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseEditCatalogoModal}
+                  className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-100 transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                  Registro actual: <span className="font-semibold text-[#111318]">{editingCatalogoServicio.servicio}</span>{' '}
+                  <span className="text-gray-500">({editingCatalogoServicio.especialidad})</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">BUSCAR SERVICIO</label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl">
+                      search
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Nombre del servicio o especialidad"
+                      value={searchEditCatalogoDisponibles}
+                      onChange={(e) => setSearchEditCatalogoDisponibles(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    />
+                  </div>
+                </div>
+
+                {errorEditCatalogoServicio && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    {errorEditCatalogoServicio}
+                  </div>
+                )}
+
+                <div className="border border-gray-200 rounded-xl max-h-[380px] overflow-y-auto">
+                  {loadingCatalogoDisponibles ? (
+                    <div className="p-6 text-center">
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary mb-3"></div>
+                      <p className="text-sm text-gray-500">Cargando servicios disponibles...</p>
+                    </div>
+                  ) : editCatalogoDisponiblesFiltrados.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      No hay resultados para tu busqueda.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {editCatalogoDisponiblesFiltrados.map((item) => {
+                        const isSelected =
+                          !!selectedEditCatalogoDisponible &&
+                          buildCatalogoKey(selectedEditCatalogoDisponible.servicio, selectedEditCatalogoDisponible.especialidad) ===
+                            buildCatalogoKey(item.servicio, item.especialidad);
+
+                        return (
+                          <button
+                            type="button"
+                            key={'edit-modal-' + item.id + '-' + item.servicio + '-' + item.especialidad}
+                            onClick={() => setSelectedEditCatalogoDisponible(item)}
+                            className={
+                              isSelected
+                                ? 'w-full text-left px-4 py-3 transition-colors bg-primary/10'
+                                : 'w-full text-left px-4 py-3 transition-colors hover:bg-gray-50'
+                            }
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-[#111318]">{item.servicio}</p>
+                                <p className="text-xs text-gray-500">{item.especialidad}</p>
+                              </div>
+                              <span
+                                className={
+                                  isSelected
+                                    ? 'mt-0.5 h-4 w-4 rounded-full border-2 border-primary bg-primary'
+                                    : 'mt-0.5 h-4 w-4 rounded-full border-2 border-gray-300'
+                                }
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={handleCloseEditCatalogoModal}
+                  disabled={savingEditCatalogoServicio}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateCatalogoServicio}
+                  disabled={savingEditCatalogoServicio || !selectedEditCatalogoDisponible}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingEditCatalogoServicio ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
@@ -663,4 +1439,5 @@ const ProveedorDetalle: React.FC = () => {
 };
 
 export default ProveedorDetalle;
+
 

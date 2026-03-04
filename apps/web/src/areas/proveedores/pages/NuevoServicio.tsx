@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchProveedorById, fetchEspecialidades, ProveedorResponse } from '../services/proveedoresService';
+import { normalizeSearchText } from '../utils/search';
 
 interface ServicioData {
   nombre: string;
@@ -124,8 +125,9 @@ const NuevoServicio: React.FC = () => {
     if (searchQueryCategoria.trim() === '') {
       setFilteredEspecialidades(especialidades);
     } else {
+      const normalizedCategoriaSearch = normalizeSearchText(searchQueryCategoria);
       const filtered = especialidades.filter((esp) =>
-        esp.nombre.toLowerCase().includes(searchQueryCategoria.toLowerCase())
+        normalizeSearchText(esp.nombre).includes(normalizedCategoriaSearch)
       );
       setFilteredEspecialidades(filtered);
     }

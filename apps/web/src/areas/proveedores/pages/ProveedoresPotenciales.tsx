@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ProveedorPotencial, Especialidad, EstadoInteres, EstadoContacto, Origen } from '../types';
 import { AreaId } from '@contracts/areas';
+import { normalizeSearchText } from '../utils/search';
 
 // Datos de ejemplo (luego se conectarán con Supabase)
 const MOCK_PROVEEDORES_POTENCIALES: ProveedorPotencial[] = [
@@ -180,12 +181,14 @@ const ProveedoresPotenciales: React.FC = () => {
   };
 
   // Filtrar proveedores potenciales
+  const normalizedSearchTerm = normalizeSearchText(searchTerm);
   const filteredProveedores = MOCK_PROVEEDORES_POTENCIALES.filter((proveedor) => {
     const matchesSearch =
-      proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proveedor.contactoPrincipal.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proveedor.contactoPrincipal.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proveedor.contactoPrincipal.telefono?.includes(searchTerm);
+      !normalizedSearchTerm ||
+      normalizeSearchText(proveedor.nombre).includes(normalizedSearchTerm) ||
+      normalizeSearchText(proveedor.contactoPrincipal.nombre).includes(normalizedSearchTerm) ||
+      normalizeSearchText(proveedor.contactoPrincipal.email).includes(normalizedSearchTerm) ||
+      normalizeSearchText(proveedor.contactoPrincipal.telefono).includes(normalizedSearchTerm);
 
     const matchesEspecialidad = filterEspecialidad === 'Todas' || proveedor.especialidad === filterEspecialidad;
     const matchesInteres = filterInteres === 'Todos' || proveedor.interes === filterInteres;

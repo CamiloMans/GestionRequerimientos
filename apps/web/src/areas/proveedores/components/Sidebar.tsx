@@ -16,7 +16,7 @@ import SidebarSettingsModal from '@shared/layout/SidebarSettingsModal';
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  activeView?: 'dashboard' | 'actuales' | 'evaluacion' | 'evaluaciones-tabla';
+  activeView?: 'dashboard' | 'actuales' | 'evaluacion' | 'evaluacion-2025' | 'evaluaciones-tabla' | 'catalogo-servicios';
   hideOnDesktop?: boolean;
 }
 
@@ -38,6 +38,7 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
   const isEvaluacionActive = activeView === 'evaluacion';
   const isEvaluacion2025Active = activeView === 'evaluacion-2025';
   const isEvaluacionesTablaActive = activeView === 'evaluaciones-tabla';
+  const isCatalogoServiciosActive = activeView === 'catalogo-servicios';
 
   // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
   // También deshabilitar mientras se cargan los permisos
@@ -155,6 +156,11 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
 
   const handleEvaluacionesTablaClick = () => {
     navigate(getAreaPath('evaluaciones-tabla'));
+    onClose();
+  };
+
+  const handleCatalogoServiciosClick = () => {
+    navigate(getAreaPath('catalogo-servicios'));
     onClose();
   };
 
@@ -290,7 +296,32 @@ const ProveedoresSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeVie
                 </span>
               </button>
 
-              {/* Evaluación de Servicios */}
+
+              {/* Catalogo de Servicios */}
+              <button
+                onClick={handleCatalogoServiciosClick}
+                className={`group flex items-center justify-center p-3 rounded-lg w-full aspect-square transition-colors relative ${
+                  isCatalogoServiciosActive
+                    ? 'bg-primary text-white hover:bg-primary-hover'
+                    : 'text-[#616f89] hover:bg-gray-100'
+                }`}
+                title="Catalogo de Servicios"
+              >
+                <span className={`material-symbols-outlined text-2xl pointer-events-none ${isCatalogoServiciosActive ? 'fill' : ''}`}>
+                  inventory_2
+                </span>
+                <span
+                  className={`absolute left-full ml-3 px-2 py-1 text-xs rounded whitespace-nowrap pointer-events-none transition-opacity duration-200 ${
+                    isCatalogoServiciosActive
+                      ? 'bg-primary text-white opacity-0 group-hover:opacity-100'
+                      : 'bg-gray-900 text-white opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  Catalogo Servicios
+                </span>
+              </button>
+
+              {/* Evaluaci�n de Servicios */}
               <button
                 onClick={handleEvaluacionClick}
                 disabled={loadingPermissions || onlyViewPermission}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchAllEvaluaciones, EvaluacionProveedor, fetchEspecialidades } from '../services/proveedoresService';
+import { normalizeSearchText } from '../utils/search';
 
 interface ServicioEvaluado {
   id: number;
@@ -124,13 +125,16 @@ const EvaluacionesTabla: React.FC = () => {
 
   // Filtrar servicios y agrupar/ordenar por proveedor (alfabético)
   const filteredServicios = useMemo(() => {
+    const normalizedSearchTerm = normalizeSearchText(searchTerm);
+
     const result = servicios.filter((servicio) => {
       const matchesSearch =
-        servicio.nombreProveedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.nombreProyecto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.codigoProyecto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.actividad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.rut?.toLowerCase().includes(searchTerm.toLowerCase());
+        !normalizedSearchTerm ||
+        normalizeSearchText(servicio.nombreProveedor).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.nombreProyecto).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.codigoProyecto).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.actividad).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.rut).includes(normalizedSearchTerm);
       
       const matchesProveedor = filterProveedor === 'Todos' || servicio.nombreProveedor === filterProveedor;
       const matchesEspecialidad = filterEspecialidad === 'Todas' || servicio.especialidad === filterEspecialidad;
@@ -139,7 +143,7 @@ const EvaluacionesTabla: React.FC = () => {
       return matchesSearch && matchesProveedor && matchesEspecialidad && matchesCategoria;
     });
 
-    // Ordenar alfabéticamente por nombre de proveedor para que queden agrupados
+    // Ordenar alfabeticamente por nombre de proveedor para que queden agrupados
     return result.sort((a, b) => a.nombreProveedor.localeCompare(b.nombreProveedor));
   }, [servicios, searchTerm, filterProveedor, filterEspecialidad, filterCategoria]);
 

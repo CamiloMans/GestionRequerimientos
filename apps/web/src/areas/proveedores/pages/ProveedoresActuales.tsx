@@ -4,6 +4,7 @@ import { Proveedor, TipoProveedor, Especialidad, Clasificacion } from '../types'
 import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
 import { usePermissions } from '@shared/rbac/usePermissions';
+import { normalizeSearchText } from '../utils/search';
 
 const ProveedoresActuales: React.FC = () => {
   const navigate = useNavigate();
@@ -176,10 +177,14 @@ const ProveedoresActuales: React.FC = () => {
     if (especialidadParam && proveedores.length > 0) {
       // Buscar si existe una especialidad que coincida con el parámetro
       const especialidadesUnicas = Array.from(new Set(proveedores.flatMap((p) => p.especialidad)));
-      const especialidadEncontrada = especialidadesUnicas.find(esp => 
-        esp.toLowerCase().includes(especialidadParam.toLowerCase()) ||
-        especialidadParam.toLowerCase().includes(esp.toLowerCase())
-      );
+      const especialidadParamNormalized = normalizeSearchText(especialidadParam);
+      const especialidadEncontrada = especialidadesUnicas.find((esp) => {
+        const especialidadNormalized = normalizeSearchText(esp);
+        return (
+          especialidadNormalized.includes(especialidadParamNormalized) ||
+          especialidadParamNormalized.includes(especialidadNormalized)
+        );
+      });
       
       if (especialidadEncontrada) {
         setFilterEspecialidad(especialidadEncontrada);
@@ -229,12 +234,14 @@ const ProveedoresActuales: React.FC = () => {
   };
 
   // Filtrar proveedores
+  const normalizedSearchTerm = normalizeSearchText(searchTerm);
   const filteredProveedores = proveedores.filter((proveedor) => {
     const matchesSearch =
-      proveedor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proveedor.razonSocial?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proveedor.rut.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proveedor.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      !normalizedSearchTerm ||
+      normalizeSearchText(proveedor.nombre).includes(normalizedSearchTerm) ||
+      normalizeSearchText(proveedor.razonSocial).includes(normalizedSearchTerm) ||
+      normalizeSearchText(proveedor.rut).includes(normalizedSearchTerm) ||
+      normalizeSearchText(proveedor.email).includes(normalizedSearchTerm);
 
     const matchesTipo = filterTipo === 'Todos' || proveedor.tipo === filterTipo;
     const matchesEspecialidad = filterEspecialidad === 'Todas' || proveedor.especialidad.includes(filterEspecialidad);

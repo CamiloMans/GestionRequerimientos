@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
 import { fetchAllEvaluaciones, EvaluacionProveedor, fetchEspecialidades } from '../services/proveedoresService';
 import { Clasificacion } from '../types';
+import { normalizeSearchText } from '../utils/search';
 
 interface ServicioEvaluado {
   id: number;
@@ -170,8 +171,9 @@ const ServiciosEvaluados: React.FC<ServiciosEvaluadosProps> = ({ onDashboardChan
 
     // Aplicar filtro de búsqueda si existe
     if (searchEspecialidad.trim()) {
-      filtered = filtered.filter(item =>
-        item.nombre.toLowerCase().includes(searchEspecialidad.toLowerCase())
+      const normalizedSearchEspecialidad = normalizeSearchText(searchEspecialidad);
+      filtered = filtered.filter((item) =>
+        normalizeSearchText(item.nombre).includes(normalizedSearchEspecialidad)
       );
     }
 
@@ -348,13 +350,16 @@ const ServiciosEvaluados: React.FC<ServiciosEvaluadosProps> = ({ onDashboardChan
 
   // Filtrar servicios
   const filteredServicios = useMemo(() => {
+    const normalizedSearchTerm = normalizeSearchText(searchTerm);
+
     return servicios.filter((servicio) => {
       const matchesSearch =
-        servicio.nombreProveedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.nombreProyecto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.codigoProyecto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.actividad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        servicio.rut?.toLowerCase().includes(searchTerm.toLowerCase());
+        !normalizedSearchTerm ||
+        normalizeSearchText(servicio.nombreProveedor).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.nombreProyecto).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.codigoProyecto).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.actividad).includes(normalizedSearchTerm) ||
+        normalizeSearchText(servicio.rut).includes(normalizedSearchTerm);
       
       const matchesEspecialidad = filterEspecialidad === 'Todas' || servicio.especialidad === filterEspecialidad;
       const matchesCategoria = filterCategoria === 'Todas' || servicio.categoria === filterCategoria;

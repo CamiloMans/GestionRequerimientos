@@ -144,6 +144,247 @@ export const fetchProveedorById = async (id: number): Promise<ProveedorResponse 
   return data;
 };
 
+export interface ProveedorServicioCatalogo {
+  id: number;
+  servicio: string;
+  especialidad: string;
+  nombre_proveedor: string;
+  rut: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServicioCatalogoDisponible {
+  id: number;
+  servicio: string;
+  especialidad: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/**
+ * Obtener catalogo base de servicios disponibles para asociar a proveedores
+ */
+export const fetchServiciosCatalogoDisponibles = async (): Promise<ServicioCatalogoDisponible[]> => {
+  const { data, error } = await supabase
+    .from('dim_core_proveedores_servicios')
+    .select('id, servicio, especialidad, created_at, updated_at')
+    .order('servicio', { ascending: true })
+    .order('especialidad', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching catalogo base de servicios:', error);
+    throw error;
+  }
+
+  return (data || []) as ServicioCatalogoDisponible[];
+};
+/**
+ * Crear un servicio en el catalogo base de proveedores
+ */
+export const createServicioCatalogoDisponible = async (params: {
+  servicio: string;
+  especialidad: string;
+}): Promise<ServicioCatalogoDisponible> => {
+  const servicio = params.servicio.trim();
+  const especialidad = params.especialidad.trim();
+
+  if (!servicio || !especialidad) {
+    throw new Error('Debes ingresar servicio y especialidad.');
+  }
+
+  const { data, error } = await supabase
+    .from('dim_core_proveedores_servicios')
+    .insert([
+      {
+        servicio,
+        especialidad,
+      },
+    ])
+    .select('id, servicio, especialidad, created_at, updated_at')
+    .single();
+
+  if (error) {
+    console.error('Error creando servicio en catalogo base:', error);
+    throw error;
+  }
+
+  return data as ServicioCatalogoDisponible;
+};
+
+/**
+ * Actualizar un servicio del catalogo base de proveedores
+ */
+export const updateServicioCatalogoDisponible = async (
+  id: number,
+  params: {
+    servicio: string;
+    especialidad: string;
+  }
+): Promise<ServicioCatalogoDisponible> => {
+  const servicio = params.servicio.trim();
+  const especialidad = params.especialidad.trim();
+
+  if (!id || !servicio || !especialidad) {
+    throw new Error('Datos incompletos para actualizar el servicio del catalogo.');
+  }
+
+  const { data, error } = await supabase
+    .from('dim_core_proveedores_servicios')
+    .update({
+      servicio,
+      especialidad,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id, servicio, especialidad, created_at, updated_at')
+    .single();
+
+  if (error) {
+    console.error('Error actualizando servicio en catalogo base:', error);
+    throw error;
+  }
+
+  return data as ServicioCatalogoDisponible;
+};
+
+/**
+ * Eliminar un servicio del catalogo base de proveedores
+ */
+export const deleteServicioCatalogoDisponible = async (id: number): Promise<void> => {
+  if (!id) {
+    throw new Error('ID invalido para eliminar servicio del catalogo.');
+  }
+
+  const { error } = await supabase
+    .from('dim_core_proveedores_servicios')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error eliminando servicio del catalogo base:', error);
+    throw error;
+  }
+};
+
+/**
+ * Asociar un servicio del catalogo base a un proveedor
+ */
+export const createProveedorServicioCatalogo = async (params: {
+  servicio: string;
+  especialidad: string;
+  nombre_proveedor: string;
+  rut: string;
+}): Promise<void> => {
+  const servicio = params.servicio.trim();
+  const especialidad = params.especialidad.trim();
+  const nombreProveedor = params.nombre_proveedor.trim();
+  const rut = params.rut.trim();
+
+  if (!servicio || !especialidad || !nombreProveedor || !rut) {
+    throw new Error('Datos incompletos para asociar servicio al proveedor.');
+  }
+
+  const { error } = await supabase
+    .from('brg_proveedores_servicios')
+    .upsert(
+      [
+        {
+          servicio,
+          especialidad,
+          nombre_proveedor: nombreProveedor,
+          rut,
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      { onConflict: 'servicio,especialidad,rut', ignoreDuplicates: true }
+    );
+
+  if (error) {
+    console.error('Error creando asociacion proveedor-servicio:', error);
+    throw error;
+  }
+};
+
+/**
+ * Actualizar una asociacion proveedor-servicio del catalogo
+ */
+export const updateProveedorServicioCatalogo = async (
+  id: number,
+  params: {
+    servicio: string;
+    especialidad: string;
+    nombre_proveedor: string;
+    rut: string;
+  }
+): Promise<void> => {
+  const servicio = params.servicio.trim();
+  const especialidad = params.especialidad.trim();
+  const nombreProveedor = params.nombre_proveedor.trim();
+  const rut = params.rut.trim();
+
+  if (!id || !servicio || !especialidad || !nombreProveedor || !rut) {
+    throw new Error('Datos incompletos para actualizar servicio del proveedor.');
+  }
+
+  const { error } = await supabase
+    .from('brg_proveedores_servicios')
+    .update({
+      servicio,
+      especialidad,
+      nombre_proveedor: nombreProveedor,
+      rut,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error actualizando asociacion proveedor-servicio:', error);
+    throw error;
+  }
+};
+
+/**
+ * Eliminar una asociacion proveedor-servicio del catalogo
+ */
+export const deleteProveedorServicioCatalogo = async (id: number): Promise<void> => {
+  if (!id) {
+    throw new Error('ID invalido para eliminar servicio del proveedor.');
+  }
+
+  const { error } = await supabase.from('brg_proveedores_servicios').delete().eq('id', id);
+
+  if (error) {
+    console.error('Error eliminando asociacion proveedor-servicio:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtener catalogo de servicios asociados a un proveedor por RUT
+ */
+export const fetchServiciosCatalogoByRut = async (rut: string): Promise<ProveedorServicioCatalogo[]> => {
+  const rutTrimmed = rut.trim();
+
+  if (!rutTrimmed) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('brg_proveedores_servicios')
+    .select('id, servicio, especialidad, nombre_proveedor, rut, created_at, updated_at')
+    .eq('rut', rutTrimmed)
+    .order('especialidad', { ascending: true })
+    .order('servicio', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching catalogo de servicios por RUT:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
 /**
  * Eliminar un proveedor
  */
@@ -607,4 +848,5 @@ export const fetchAllEvaluaciones = async (): Promise<EvaluacionProveedor[]> => 
 
   return data || [];
 };
+
 

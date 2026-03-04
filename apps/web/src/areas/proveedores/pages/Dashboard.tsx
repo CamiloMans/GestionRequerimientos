@@ -5,6 +5,7 @@ import { AreaId } from '@contracts/areas';
 import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
 import { Proveedor, Clasificacion, TipoProveedor } from '../types';
 import ServiciosEvaluados from './ServiciosEvaluados';
+import { normalizeSearchText } from '../utils/search';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -176,8 +177,9 @@ const Dashboard: React.FC = () => {
 
     // Aplicar filtro de búsqueda si existe
     if (searchEspecialidad.trim()) {
-      filtered = filtered.filter(item =>
-        item.nombre.toLowerCase().includes(searchEspecialidad.toLowerCase())
+      const normalizedSearchEspecialidad = normalizeSearchText(searchEspecialidad);
+      filtered = filtered.filter((item) =>
+        normalizeSearchText(item.nombre).includes(normalizedSearchEspecialidad)
       );
     }
 
