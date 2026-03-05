@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Proveedor, TipoProveedor, Especialidad, Clasificacion } from '../types';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, fetchEspecialidadesPriorizadasByRuts, fetchEspecialidades } from '../services/proveedoresService';
 import { usePermissions } from '@shared/rbac/usePermissions';
 import { normalizeSearchText } from '../utils/search';
 
@@ -34,7 +34,10 @@ const ProveedoresActuales: React.FC = () => {
   const isProveedoresAdmin = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:admin`);
 
   // Mapear ProveedorResponse a Proveedor
-  const mapProveedorResponseToProveedor = async (response: ProveedorResponse): Promise<Proveedor> => {
+  const mapProveedorResponseToProveedor = (
+    response: ProveedorResponse,
+    especialidadesPorRut: Record<string, string[]>
+  ): Proveedor => {
     // Mapear tipo_proveedor a TipoProveedor enum
     let tipo: TipoProveedor = TipoProveedor.EMPRESA;
     if (response.tipo_proveedor === 'Persona natural') {
@@ -63,9 +66,9 @@ const ProveedoresActuales: React.FC = () => {
           clasificacion = Clasificacion.A;
       }
     }
-
-    // Obtener especialidades desde brg_core_proveedor_especialidad
-    const especialidades = await fetchEspecialidadesByNombreProveedor(response.nombre_proveedor);
+    // Obtener especialidades priorizadas por RUT
+    const rut = response.rut?.trim() || '';
+    const especialidades = rut ? (especialidadesPorRut[rut] ?? []) : [];
 
     // Usar promedio_nota_total_ponderada si está disponible, sino usar evaluacion
     // El promedio_nota_total_ponderada viene en formato decimal (0-1), SIEMPRE multiplicar por 100 para porcentaje
@@ -113,7 +116,7 @@ const ProveedoresActuales: React.FC = () => {
       id: response.id,
       nombre: response.nombre_proveedor,
       razonSocial: response.razon_social || undefined,
-      rut: response.rut || '',
+      rut,
       tipo,
       especialidad: especialidades.length > 0 ? especialidades : [], // Array de especialidades
       email: response.correo_contacto || undefined,
@@ -156,9 +159,16 @@ const ProveedoresActuales: React.FC = () => {
         setLoading(true);
         setError(null);
         const data = await fetchProveedores();
-        // Mapear proveedores de forma asíncrona para cargar especialidades
-        const mappedProveedores = await Promise.all(
-          data.map((proveedor) => mapProveedorResponseToProveedor(proveedor))
+        const ruts = Array.from(
+          new Set(
+            data
+              .map((proveedor) => proveedor.rut?.trim() || '')
+              .filter((rut) => rut.length > 0)
+          )
+        );
+        const especialidadesPorRut = await fetchEspecialidadesPriorizadasByRuts(ruts);
+        const mappedProveedores = data.map((proveedor) =>
+          mapProveedorResponseToProveedor(proveedor, especialidadesPorRut)
         );
         setProveedores(mappedProveedores);
       } catch (err: any) {

@@ -1,4 +1,5 @@
 import { supabase } from '@shared/api-client/supabase';
+import { normalizeSearchText } from '../utils/search';
 
 type ProveedorJsonb = Record<string, unknown> | unknown[] | string | number | boolean | null;
 
@@ -644,6 +645,182 @@ export const fetchEspecialidadesByNombreProveedor = async (nombreProveedor: stri
 /**
  * Obtener las especialidades de un proveedor
  */
+
+const extractEspecialidadesFromJsonb = (value: unknown): string[] => {
+  const values: string[] = [];
+  const visited = new WeakSet<object>();
+  const priorityKeys = ['especialidad', 'especialidades', 'values', 'value', 'items', 'lista'];
+
+  const collect = (input: unknown): void => {
+    if (input === null || input === undefined) {
+      return;
+    }
+
+    if (typeof input === 'string') {
+      const trimmed = input.trim();
+      if (!trimmed) {
+        return;
+      }
+
+      const looksLikeJson =
+        (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+        (trimmed.startsWith('{') && trimmed.endsWith('}'));
+
+      if (looksLikeJson) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          collect(parsed);
+          return;
+        } catch {
+          // Si no es JSON valido, se considera texto plano.
+        }
+      }
+
+      values.push(trimmed);
+      return;
+    }
+
+    if (Array.isArray(input)) {
+      input.forEach(collect);
+      return;
+    }
+
+    if (typeof input === 'object') {
+      const record = input as Record<string, unknown>;
+      if (visited.has(record)) {
+        return;
+      }
+
+      visited.add(record);
+
+      const priorityValues = priorityKeys
+        .filter((key) => key in record)
+        .map((key) => record[key]);
+
+      if (priorityValues.length > 0) {
+        priorityValues.forEach(collect);
+        return;
+      }
+
+      Object.values(record).forEach(collect);
+      return;
+    }
+  };
+
+  collect(value);
+  return values;
+};
+
+const dedupeEspecialidades = (especialidades: string[]): string[] => {
+  const byNormalized = new Map<string, string>();
+
+  especialidades.forEach((especialidad) => {
+    const visibleValue = especialidad.trim();
+    if (!visibleValue) {
+      return;
+    }
+
+    const normalized = normalizeSearchText(visibleValue);
+    if (!normalized) {
+      return;
+    }
+
+    if (!byNormalized.has(normalized)) {
+      byNormalized.set(normalized, visibleValue);
+    }
+  });
+
+  return Array.from(byNormalized.values());
+};
+
+export const fetchEspecialidadesPriorizadasByRuts = async (
+  ruts: string[]
+): Promise<Record<string, string[]>> => {
+  const normalizedRuts = Array.from(
+    new Set(ruts.map((rut) => rut?.trim()).filter((rut): rut is string => Boolean(rut)))
+  );
+
+  if (normalizedRuts.length === 0) {
+    return {};
+  }
+
+  const especialidadesPorRut: Record<string, string[]> = normalizedRuts.reduce<Record<string, string[]>>(
+    (acc, rut) => {
+      acc[rut] = [];
+      return acc;
+    },
+    {}
+  );
+
+  const { data: catalogoData, error: catalogoError } = await supabase
+    .from('brg_proveedores_servicios')
+    .select('rut, especialidad')
+    .in('rut', normalizedRuts);
+
+  if (catalogoError) {
+    console.error('Error fetching especialidades priorizadas desde brg_proveedores_servicios:', catalogoError);
+    throw catalogoError;
+  }
+
+  const catalogoPorRut = new Map<string, string[]>();
+
+  (catalogoData || []).forEach((item) => {
+    const rut = typeof item.rut === 'string' ? item.rut.trim() : '';
+    if (!rut) {
+      return;
+    }
+
+    if (!catalogoPorRut.has(rut)) {
+      catalogoPorRut.set(rut, []);
+    }
+
+    catalogoPorRut.get(rut)?.push(...extractEspecialidadesFromJsonb(item.especialidad));
+  });
+
+  const rutsConCatalogo = new Set<string>();
+  catalogoPorRut.forEach((especialidades, rut) => {
+    rutsConCatalogo.add(rut);
+    especialidadesPorRut[rut] = dedupeEspecialidades(especialidades);
+  });
+
+  const rutsFallback = normalizedRuts.filter((rut) => !rutsConCatalogo.has(rut));
+
+  if (rutsFallback.length > 0) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('brg_core_proveedor_especialidad')
+      .select('rut, especialidad')
+      .in('rut', rutsFallback);
+
+    if (fallbackError) {
+      console.error('Error fetching especialidades fallback desde brg_core_proveedor_especialidad:', fallbackError);
+      throw fallbackError;
+    }
+
+    const fallbackPorRut = new Map<string, string[]>();
+
+    (fallbackData || []).forEach((item) => {
+      const rut = typeof item.rut === 'string' ? item.rut.trim() : '';
+      const especialidad = typeof item.especialidad === 'string' ? item.especialidad.trim() : '';
+
+      if (!rut || !especialidad) {
+        return;
+      }
+
+      if (!fallbackPorRut.has(rut)) {
+        fallbackPorRut.set(rut, []);
+      }
+
+      fallbackPorRut.get(rut)?.push(especialidad);
+    });
+
+    fallbackPorRut.forEach((especialidades, rut) => {
+      especialidadesPorRut[rut] = dedupeEspecialidades(especialidades);
+    });
+  }
+
+  return especialidadesPorRut;
+};
+
 export const fetchEspecialidadesByProveedorId = async (proveedorId: number): Promise<number[]> => {
   try {
     const { data, error } = await supabase
