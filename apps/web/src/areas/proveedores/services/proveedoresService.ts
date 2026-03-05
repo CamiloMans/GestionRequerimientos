@@ -33,6 +33,7 @@ export interface ProveedorResponse {
   cantidad_b?: number | null;
   cantidad_c?: number | null;
   total_evaluaciones?: number | null;
+  cruce?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -126,6 +126,7 @@ const ProveedoresActuales: React.FC = () => {
       cantidad_b: response.cantidad_b ?? 0,
       cantidad_c: response.cantidad_c ?? 0,
       total_evaluaciones: response.total_evaluaciones ?? 0,
+      cruce: (response as any).cruce ?? (response as any).Cruce ?? null,
       created_at: response.created_at,
       updated_at: response.updated_at,
     };
@@ -312,6 +313,11 @@ const ProveedoresActuales: React.FC = () => {
     return 'bg-red-500';
   };
 
+  const isInformacionActualizada = (cruce: string | null | undefined): boolean => {
+    const normalizedCruce = normalizeSearchText(cruce).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    return normalizedCruce.includes('informacion actualizada');
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -460,8 +466,11 @@ const ProveedoresActuales: React.FC = () => {
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
                   <tr>
-                    <th className="sticky left-0 z-20 text-left py-4 px-6 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50">
-                      NOMBRE / RAZÓN SOCIAL
+                    <th className="sticky left-0 z-20 text-left py-4 px-4 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50 w-[132px] min-w-[132px]">
+                      INFO ACTUALIZADA
+                    </th>
+                    <th className="sticky left-[132px] z-20 text-left py-4 px-6 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50">
+                      NOMBRE / RAZON SOCIAL
                     </th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">RUT / TIPO</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
@@ -483,7 +492,20 @@ const ProveedoresActuales: React.FC = () => {
                       onClick={() => navigate(getAreaPath(`actuales/${proveedor.id}`))}
                       className="group border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors"
                     >
-                      <td className="sticky left-0 z-10 py-4 px-6 bg-white group-hover:bg-blue-50">
+                      <td className="sticky left-0 z-20 py-4 px-4 bg-white group-hover:bg-blue-50 w-[132px] min-w-[132px]">
+                        <div className="flex items-center justify-center">
+                          {isInformacionActualizada(proveedor.cruce) ? (
+                            <span className="material-symbols-outlined text-xl text-green-600" title="Informacion actualizada">
+                              check_circle
+                            </span>
+                          ) : (
+                            <span className="material-symbols-outlined text-xl text-amber-500" title="Informacion no actualizada">
+                              warning
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="sticky left-[132px] z-10 py-4 px-6 bg-white group-hover:bg-blue-50">
                         <div className="flex flex-col">
                           <span className="font-medium text-[#111318]">{proveedor.nombre}</span>
                           {proveedor.razonSocial && proveedor.razonSocial !== proveedor.nombre && (

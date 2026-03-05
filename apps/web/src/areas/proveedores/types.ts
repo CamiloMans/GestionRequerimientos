@@ -44,6 +44,7 @@ export interface Proveedor {
   cantidad_b?: number; // Cantidad de evaluaciones con clasificación B
   cantidad_c?: number; // Cantidad de evaluaciones con clasificación C
   total_evaluaciones?: number; // Total de evaluaciones del proveedor
+  cruce?: string | null; // Estado de cruce de informacion
   created_at?: string;
   updated_at?: string;
 }
