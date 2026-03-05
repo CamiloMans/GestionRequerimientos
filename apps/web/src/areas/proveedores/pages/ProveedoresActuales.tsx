@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Proveedor, TipoProveedor, Especialidad, Clasificacion } from '../types';
 import { AreaId } from '@contracts/areas';
@@ -6,11 +6,82 @@ import { fetchProveedores, ProveedorResponse, fetchEspecialidadesPriorizadasByRu
 import { usePermissions } from '@shared/rbac/usePermissions';
 import { normalizeSearchText } from '../utils/search';
 
+
+interface ContactoDetalleProveedor {
+  nombre: string;
+  correo: string;
+  telefono: string;
+  cargo: string;
+}
+
+interface InformacionContactoProveedor {
+  contacto_comercial: ContactoDetalleProveedor;
+  contacto_adicional_1: ContactoDetalleProveedor;
+  contacto_adicional_2: ContactoDetalleProveedor;
+}
+
+interface ProveedorConContacto extends Proveedor {
+  contactoCorreo: string;
+  contactoCargo: string;
+  contactoSinValidar: boolean;
+  informacionContacto: InformacionContactoProveedor;
+}
+
+const toPlainObject = (value: unknown): Record<string, unknown> => {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Si no es JSON valido, retorna objeto vacio.
+      }
+    }
+  }
+
+  return {};
+};
+
+const toText = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value).trim();
+};
+
+const toContactoDetalleProveedor = (value: unknown): ContactoDetalleProveedor => {
+  const obj = toPlainObject(value);
+
+  return {
+    nombre: toText(obj.nombre),
+    correo: toText(obj.correo),
+    telefono: toText(obj.telefono),
+    cargo: toText(obj.cargo),
+  };
+};
+
+const hasContactoDetalleData = (value: ContactoDetalleProveedor): boolean => {
+  return Object.values(value).some((item) => item.trim() !== '');
+};
+
+const displayOrPlaceholder = (value: string): string => {
+  const trimmed = value.trim();
+  return trimmed === '' ? 'Sin definir' : trimmed;
+};
+
 const ProveedoresActuales: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission, loading: loadingPermissions } = usePermissions(AreaId.PROVEEDORES);
-  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [proveedores, setProveedores] = useState<ProveedorConContacto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -19,12 +90,13 @@ const ProveedoresActuales: React.FC = () => {
   const [filterClasificacion, setFilterClasificacion] = useState<string>('Todas');
   const [categorias, setCategorias] = useState<{ id: number; nombre: string }[]>([]);
   const [loadingCategorias, setLoadingCategorias] = useState(true);
+  const [contactoDetalleProveedor, setContactoDetalleProveedor] = useState<ProveedorConContacto | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Verificar si solo tiene permiso de view (no tiene create, edit, delete)
-  // También deshabilitar mientras se cargan los permisos
+  // TambiAn deshabilitar mientras se cargan los permisos
   const onlyViewPermission = !loadingPermissions && hasPermission(`${AreaId.PROVEEDORES}:view`) &&
     !hasPermission(`${AreaId.PROVEEDORES}:create`) &&
     !hasPermission(`${AreaId.PROVEEDORES}:edit`) &&
@@ -37,7 +109,7 @@ const ProveedoresActuales: React.FC = () => {
   const mapProveedorResponseToProveedor = (
     response: ProveedorResponse,
     especialidadesPorRut: Record<string, string[]>
-  ): Proveedor => {
+  ): ProveedorConContacto => {
     // Mapear tipo_proveedor a TipoProveedor enum
     let tipo: TipoProveedor = TipoProveedor.EMPRESA;
     if (response.tipo_proveedor === 'Persona natural') {
@@ -69,15 +141,31 @@ const ProveedoresActuales: React.FC = () => {
     // Obtener especialidades priorizadas por RUT
     const rut = response.rut?.trim() || '';
     const especialidades = rut ? (especialidadesPorRut[rut] ?? []) : [];
+    const informacionContactoObj = toPlainObject(response.informacion_contacto);
+    const contactoComercial = toContactoDetalleProveedor(informacionContactoObj.contacto_comercial);
+    const contactoAdicional1 = toContactoDetalleProveedor(informacionContactoObj.contacto_adicional_1);
+    const contactoAdicional2 = toContactoDetalleProveedor(informacionContactoObj.contacto_adicional_2);
 
-    // Usar promedio_nota_total_ponderada si está disponible, sino usar evaluacion
+    const correoContactoFallback = toText(response.correo_contacto);
+    const tieneInformacionContacto =
+      hasContactoDetalleData(contactoComercial) ||
+      hasContactoDetalleData(contactoAdicional1) ||
+      hasContactoDetalleData(contactoAdicional2);
+
+    const contactoCorreo = tieneInformacionContacto
+      ? contactoComercial.correo
+      : correoContactoFallback;
+    const contactoCargo = tieneInformacionContacto ? contactoComercial.cargo : '';
+    const contactoSinValidar = !tieneInformacionContacto && correoContactoFallback.length > 0;
+
+    // Usar promedio_nota_total_ponderada si estA disponible, sino usar evaluacion
     // El promedio_nota_total_ponderada viene en formato decimal (0-1), SIEMPRE multiplicar por 100 para porcentaje
     let evaluacionPromedio: number | null = null;
     if (response.promedio_nota_total_ponderada !== null && response.promedio_nota_total_ponderada !== undefined) {
       // Siempre multiplicar por 100 porque viene en formato decimal (0-1)
       // Ejemplo: 1.0 en decimal = 100%, 0.01 en decimal = 1%
       evaluacionPromedio = response.promedio_nota_total_ponderada * 100;
-      console.log('📊 Evaluación promedio:', {
+      console.log('Evaluacion promedio:', {
         valorOriginal: response.promedio_nota_total_ponderada,
         valorConvertido: evaluacionPromedio,
         proveedor: response.nombre_proveedor,
@@ -88,22 +176,22 @@ const ProveedoresActuales: React.FC = () => {
     }
     
     // Generar dato dummy para tieneServiciosEjecutados
-    // Si tiene evaluación promedio, asumimos que tiene servicios ejecutados
+    // Si tiene evaluaciAn promedio, asumimos que tiene servicios ejecutados
     const tieneEvaluacion = evaluacionPromedio !== null && evaluacionPromedio !== undefined && evaluacionPromedio > 0;
     const tieneServiciosEjecutados = tieneEvaluacion 
       ? true 
       : (response.id % 10 < 7); // 70% de probabilidad basado en el ID
 
-    // Si no tiene servicios ejecutados, no debería tener evaluación ni clasificación
-    // evaluacionPromedio ya está en formato porcentaje (0-100) después de multiplicar por 100
+    // Si no tiene servicios ejecutados, no deberAa tener evaluaciAn ni clasificaciAn
+    // evaluacionPromedio ya estA en formato porcentaje (0-100) despuAs de multiplicar por 100
     const evaluacionFinal = tieneServiciosEjecutados 
       ? (evaluacionPromedio !== null && evaluacionPromedio !== undefined 
           ? Math.round(evaluacionPromedio) // Redondear a entero para mostrar como porcentaje
           : 0)
       : 0;
-    const clasificacionFinal = tieneServiciosEjecutados ? clasificacion : Clasificacion.A; // Mantener tipo pero no se mostrará
+    const clasificacionFinal = tieneServiciosEjecutados ? clasificacion : Clasificacion.A; // Mantener tipo pero no se mostrarA
     
-    console.log('📊 Evaluación final para mostrar:', {
+    console.log('Evaluacion final para mostrar:', {
       proveedor: response.nombre_proveedor,
       rut: response.rut,
       promedioOriginal: response.promedio_nota_total_ponderada,
@@ -119,8 +207,16 @@ const ProveedoresActuales: React.FC = () => {
       rut,
       tipo,
       especialidad: especialidades.length > 0 ? especialidades : [], // Array de especialidades
-      email: response.correo_contacto || undefined,
-      contacto: response.correo_contacto || undefined,
+      email: contactoCorreo || undefined,
+      contacto: contactoCorreo || undefined,
+      contactoCorreo,
+      contactoCargo,
+      contactoSinValidar,
+      informacionContacto: {
+        contacto_comercial: contactoComercial,
+        contacto_adicional_1: contactoAdicional1,
+        contacto_adicional_2: contactoAdicional2,
+      },
       evaluacion: evaluacionFinal,
       clasificacion: clasificacionFinal,
       activo: true,
@@ -135,7 +231,7 @@ const ProveedoresActuales: React.FC = () => {
     };
   };
 
-  // Cargar categorías desde Supabase
+  // Cargar categorAas desde Supabase
   useEffect(() => {
     const loadCategorias = async () => {
       try {
@@ -143,7 +239,7 @@ const ProveedoresActuales: React.FC = () => {
         const data = await fetchEspecialidades();
         setCategorias(data);
       } catch (err) {
-        console.error('Error al cargar categorías:', err);
+        console.error('Error al cargar categorAas:', err);
       } finally {
         setLoadingCategorias(false);
       }
@@ -182,24 +278,20 @@ const ProveedoresActuales: React.FC = () => {
     loadProveedores();
   }, []);
 
-  // Leer parámetro de especialidad de la URL y aplicar filtro
+  // Leer parAmetro de especialidad de la URL y aplicar filtro
   useEffect(() => {
     const especialidadParam = searchParams.get('especialidad');
     if (especialidadParam && proveedores.length > 0) {
-      // Buscar si existe una especialidad que coincida con el parámetro
+      // Buscar si existe una especialidad que coincida con el parAmetro
       const especialidadesUnicas = Array.from(new Set(proveedores.flatMap((p) => p.especialidad)));
       const especialidadParamNormalized = normalizeSearchText(especialidadParam);
-      const especialidadEncontrada = especialidadesUnicas.find((esp) => {
-        const especialidadNormalized = normalizeSearchText(esp);
-        return (
-          especialidadNormalized.includes(especialidadParamNormalized) ||
-          especialidadParamNormalized.includes(especialidadNormalized)
-        );
-      });
+      const especialidadEncontrada = especialidadesUnicas.find(
+        (esp) => normalizeSearchText(esp) === especialidadParamNormalized
+      );
       
       if (especialidadEncontrada) {
         setFilterEspecialidad(especialidadEncontrada);
-        // Limpiar el parámetro de la URL después de aplicarlo
+        // Limpiar el parAmetro de la URL despuAs de aplicarlo
         searchParams.delete('especialidad');
         setSearchParams(searchParams, { replace: true });
       }
@@ -221,7 +313,7 @@ const ProveedoresActuales: React.FC = () => {
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  // Leer parámetro de clasificación de la URL
+  // Leer parAmetro de clasificaciAn de la URL
   useEffect(() => {
     const clasificacionParam = searchParams.get('clasificacion');
     if (clasificacionParam && (clasificacionParam === 'A' || clasificacionParam === 'B' || clasificacionParam === 'C')) {
@@ -229,12 +321,12 @@ const ProveedoresActuales: React.FC = () => {
     }
   }, [searchParams]);
 
-  // Leer parámetro de evaluación menor a 60% y aplicar filtro de clasificación C
+  // Leer parAmetro de evaluaciAn menor a 60% y aplicar filtro de clasificaciAn C
   useEffect(() => {
     const evaluacionMenor60 = searchParams.get('evaluacionMenor60');
     if (evaluacionMenor60 === 'true') {
       setFilterClasificacion(Clasificacion.C);
-      // Limpiar el parámetro de la URL después de aplicarlo
+      // Limpiar el parAmetro de la URL despuAs de aplicarlo
       searchParams.delete('evaluacionMenor60');
       setSearchParams(searchParams, { replace: true });
     }
@@ -261,7 +353,7 @@ const ProveedoresActuales: React.FC = () => {
     return matchesSearch && matchesTipo && matchesEspecialidad && matchesClasificacion;
   });
 
-  // Paginación
+  // PaginaciAn
   const totalPages = Math.ceil(filteredProveedores.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -288,7 +380,7 @@ const ProveedoresActuales: React.FC = () => {
       'bg-stone-100 text-stone-700 border-stone-200',
     ];
 
-    // Función hash simple para asignar color de forma consistente
+    // FunciAn hash simple para asignar color de forma consistente
     const hashString = (str: string): number => {
       let hash = 0;
       for (let i = 0; i < str.length; i++) {
@@ -316,7 +408,7 @@ const ProveedoresActuales: React.FC = () => {
   };
 
   const getEvaluacionColor = (evaluacion: number) => {
-    // Nueva lógica: convertir porcentaje a decimal (0-1) y aplicar umbrales
+    // Nueva lAgica: convertir porcentaje a decimal (0-1) y aplicar umbrales
     const cumplimiento = evaluacion / 100;
     if (cumplimiento > 0.764) return 'bg-green-500';
     if (cumplimiento >= 0.5 && cumplimiento <= 0.764) return 'bg-yellow-500';
@@ -327,6 +419,29 @@ const ProveedoresActuales: React.FC = () => {
     const normalizedCruce = normalizeSearchText(cruce).replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
     return normalizedCruce.includes('informacion actualizada');
   };
+
+  const showContactoAdicional1 = contactoDetalleProveedor
+    ? hasContactoDetalleData(contactoDetalleProveedor.informacionContacto.contacto_adicional_1)
+    : false;
+  const showContactoAdicional2 = contactoDetalleProveedor
+    ? hasContactoDetalleData(contactoDetalleProveedor.informacionContacto.contacto_adicional_2)
+    : false;
+
+  const contactosVisiblesCount = 1 + (showContactoAdicional1 ? 1 : 0) + (showContactoAdicional2 ? 1 : 0);
+
+  const contactoModalMaxWidthClass =
+    contactosVisiblesCount === 1
+      ? 'max-w-2xl'
+      : contactosVisiblesCount === 2
+      ? 'max-w-4xl'
+      : 'max-w-5xl';
+
+  const contactoModalGridClass =
+    contactosVisiblesCount === 1
+      ? 'grid-cols-1'
+      : contactosVisiblesCount === 2
+      ? 'grid-cols-1 md:grid-cols-2'
+      : 'grid-cols-1 md:grid-cols-3';
 
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
@@ -339,7 +454,7 @@ const ProveedoresActuales: React.FC = () => {
                 Proveedores Actuales
               </h1>
               <p className="text-sm text-gray-500">
-                Gestión y control de la base de datos de proveedores activos y vigentes.
+                Gestion y control de la base de datos de proveedores activos y vigentes.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -358,7 +473,7 @@ const ProveedoresActuales: React.FC = () => {
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/40 p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Búsqueda */}
+            {/* BAsqueda */}
             <div className="lg:col-span-1">
               <label className="block text-xs font-medium text-gray-700 mb-2">
                 BUSCAR
@@ -414,10 +529,10 @@ const ProveedoresActuales: React.FC = () => {
               </select>
             </div>
 
-            {/* Clasificación */}
+            {/* ClasificaciAn */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-2">
-                CLASIFICACIÓN
+                CLASIFICACION
               </label>
               <select
                 value={filterClasificacion}
@@ -476,18 +591,18 @@ const ProveedoresActuales: React.FC = () => {
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-gray-200">
                   <tr>
-                    <th className="sticky left-0 z-20 text-left py-4 px-4 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50 w-[132px] min-w-[132px]">
+                    <th className="text-left py-4 px-4 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50 w-[132px] min-w-[132px]">
                       INFO ACTUALIZADA
                     </th>
-                    <th className="sticky left-[132px] z-20 text-left py-4 px-6 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50">
+                    <th className="sticky left-0 z-20 text-left py-4 px-6 text-sm font-semibold text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50">
                       NOMBRE / RAZON SOCIAL
                     </th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">RUT / TIPO</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESPECIALIDAD</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CONTACTO</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">ESTADO</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACIÓN</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CLASIFICACIÓN</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">EVALUACION</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">CLASIFICACION</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># EVALUACIONES</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># A</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700"># B</th>
@@ -502,7 +617,7 @@ const ProveedoresActuales: React.FC = () => {
                       onClick={() => navigate(getAreaPath(`actuales/${proveedor.id}`))}
                       className="group border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors"
                     >
-                      <td className="sticky left-0 z-20 py-4 px-4 bg-white group-hover:bg-blue-50 w-[132px] min-w-[132px]">
+                      <td className="py-4 px-4 bg-white group-hover:bg-blue-50 w-[132px] min-w-[132px]">
                         <div className="flex items-center justify-center">
                           {isInformacionActualizada(proveedor.cruce) ? (
                             <span className="material-symbols-outlined text-xl text-green-600" title="Informacion actualizada">
@@ -515,7 +630,7 @@ const ProveedoresActuales: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="sticky left-[132px] z-10 py-4 px-6 bg-white group-hover:bg-blue-50">
+                      <td className="sticky left-0 z-10 py-4 px-6 bg-white group-hover:bg-blue-50">
                         <div className="flex flex-col">
                           <span className="font-medium text-[#111318]">{proveedor.nombre}</span>
                           {proveedor.razonSocial && proveedor.razonSocial !== proveedor.nombre && (
@@ -542,16 +657,44 @@ const ProveedoresActuales: React.FC = () => {
                             ))}
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
-                        {proveedor.contacto && (
+                        <div className="flex flex-col gap-1.5">
+                          {proveedor.contactoCorreo ? (
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-gray-400 text-sm">email</span>
+                              <span className="text-sm text-[#111318] truncate max-w-[200px]">{proveedor.contactoCorreo}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">Sin correo comercial</span>
+                          )}
+
                           <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-gray-400 text-sm">email</span>
-                            <span className="text-sm text-[#111318] truncate max-w-[200px]">{proveedor.contacto}</span>
+                            <span className="material-symbols-outlined text-gray-400 text-sm">badge</span>
+                            <span className={`text-xs ${proveedor.contactoCargo ? 'text-gray-600' : 'text-gray-400'}`}>
+                              {proveedor.contactoCargo || 'Sin cargo comercial'}
+                            </span>
                           </div>
-                        )}
+
+                          {proveedor.contactoSinValidar && (
+                            <span className="inline-flex w-fit items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                              Sin validar
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContactoDetalleProveedor(proveedor);
+                            }}
+                            className="self-start text-xs font-medium text-primary hover:text-primary-hover transition-colors"
+                          >
+                            Ver detalle
+                          </button>
+                        </div>
                       </td>
                       <td className="py-4 px-6">
                         <span
@@ -578,7 +721,7 @@ const ProveedoresActuales: React.FC = () => {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -591,7 +734,7 @@ const ProveedoresActuales: React.FC = () => {
                             {proveedor.clasificacion}
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">—</span>
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6">
@@ -651,7 +794,7 @@ const ProveedoresActuales: React.FC = () => {
           </div>
           )}
 
-          {/* Paginación */}
+          {/* PaginaciAn */}
           {!loading && !error && filteredProveedores.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
             <p className="text-sm text-gray-600">
@@ -701,9 +844,73 @@ const ProveedoresActuales: React.FC = () => {
           )}
         </div>
 
+
+        {contactoDetalleProveedor && (
+          <div
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+            onClick={() => setContactoDetalleProveedor(null)}
+          >
+            <div
+              className={`w-full ${contactoModalMaxWidthClass} max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-gray-200`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+                <div>
+                  <h3 className="text-lg font-bold text-[#111318]">Detalle de Informacion de Contacto</h3>
+                  <p className="text-sm text-gray-500">{contactoDetalleProveedor.nombre}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContactoDetalleProveedor(null)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  aria-label="Cerrar detalle de contacto"
+                >
+                  <span className="material-symbols-outlined text-gray-600">close</span>
+                </button>
+              </div>
+
+              <div className={`p-6 grid ${contactoModalGridClass} gap-4`}>
+                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <p className="text-sm font-semibold text-gray-800 mb-3">Contacto Comercial</p>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium text-gray-700">Nombre:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_comercial.nombre)}</p>
+                    <p><span className="font-medium text-gray-700">Correo:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_comercial.correo)}</p>
+                    <p><span className="font-medium text-gray-700">Telefono:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_comercial.telefono)}</p>
+                    <p><span className="font-medium text-gray-700">Cargo:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_comercial.cargo)}</p>
+                  </div>
+                </div>
+
+                {showContactoAdicional1 && (
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <p className="text-sm font-semibold text-gray-800 mb-3">Contacto Adicional 1</p>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-medium text-gray-700">Nombre:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_1.nombre)}</p>
+                      <p><span className="font-medium text-gray-700">Correo:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_1.correo)}</p>
+                      <p><span className="font-medium text-gray-700">Telefono:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_1.telefono)}</p>
+                      <p><span className="font-medium text-gray-700">Cargo:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_1.cargo)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {showContactoAdicional2 && (
+                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <p className="text-sm font-semibold text-gray-800 mb-3">Contacto Adicional 2</p>
+                    <div className="space-y-2 text-sm">
+                      <p><span className="font-medium text-gray-700">Nombre:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_2.nombre)}</p>
+                      <p><span className="font-medium text-gray-700">Correo:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_2.correo)}</p>
+                      <p><span className="font-medium text-gray-700">Telefono:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_2.telefono)}</p>
+                      <p><span className="font-medium text-gray-700">Cargo:</span> {displayOrPlaceholder(contactoDetalleProveedor.informacionContacto.contacto_adicional_2.cargo)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>© {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
+          <p>&copy; {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>
@@ -711,5 +918,9 @@ const ProveedoresActuales: React.FC = () => {
 };
 
 export default ProveedoresActuales;
+
+
+
+
 
 

@@ -325,6 +325,20 @@ const normalizeEspecialidadInput = (value: unknown): string | string[] => {
 
   return uniqueValues;
 };
+const isMissingCruceColumnError = (error: unknown): boolean => {
+  const code = String((error as any)?.code ?? '');
+  const message = normalizeSearchText(String((error as any)?.message ?? ''));
+  const details = normalizeSearchText(String((error as any)?.details ?? ''));
+  const hint = normalizeSearchText(String((error as any)?.hint ?? ''));
+  const fullText = [message, details, hint].join(' ');
+
+  if (code === '42703' || code === 'PGRST204') {
+    return true;
+  }
+
+  return fullText.includes('column') && fullText.includes('cruce');
+};
+
 /**
  * Marcar cruce del proveedor como "Informacion actualizada"
  */
@@ -335,17 +349,38 @@ export const markProveedorCruceInformacionActualizadaByRut = async (rut: string)
     throw new Error('RUT invalido para actualizar estado de cruce del proveedor.');
   }
 
-  const { error } = await supabase
+  const updatePayloadLower = {
+    cruce: 'Información actualizada',
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error: lowerError } = await supabase
     .from('dim_core_proveedor')
-    .update({
-      cruce: 'Informaci\u00f3n actualizada',
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayloadLower)
     .eq('rut', rutTrimmed);
 
-  if (error) {
-    console.error('Error actualizando estado de cruce del proveedor:', error);
-    throw error;
+  if (!lowerError) {
+    return;
+  }
+
+  if (!isMissingCruceColumnError(lowerError)) {
+    console.error('Error actualizando estado de cruce del proveedor (cruce):', lowerError);
+    throw lowerError;
+  }
+
+  const updatePayloadUpper: Record<string, unknown> = {
+    Cruce: 'Información actualizada',
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error: upperError } = await supabase
+    .from('dim_core_proveedor')
+    .update(updatePayloadUpper)
+    .eq('rut', rutTrimmed);
+
+  if (upperError) {
+    console.error('Error actualizando estado de cruce del proveedor (Cruce):', upperError);
+    throw upperError;
   }
 };
 
@@ -613,33 +648,46 @@ export const fetchPersonas = async (): Promise<Persona[]> => {
 };
 
 /**
- * Obtener las especialidades de un proveedor desde brg_core_proveedor_especialidad
+ * Obtener las especialidades de un proveedor desde brg_core_proveedor_especialidad por RUT
  */
-export const fetchEspecialidadesByNombreProveedor = async (nombreProveedor: string): Promise<string[]> => {
+export const fetchEspecialidadesByRut = async (rutProveedor: string): Promise<string[]> => {
+  const rutTrimmed = rutProveedor.trim();
+
+  if (!rutTrimmed) {
+    return [];
+  }
+
   try {
     const { data, error } = await supabase
       .from('brg_core_proveedor_especialidad')
       .select('especialidad')
-      .eq('nombre_proveedor', nombreProveedor);
+      .eq('rut', rutTrimmed);
 
     if (error) {
-      // Si la tabla no existe, retornar array vacío
+      // Si la tabla no existe, retornar array vacio
       if (error.code === '42P01') {
-        console.warn('Tabla brg_core_proveedor_especialidad no existe aún');
+        console.warn('Tabla brg_core_proveedor_especialidad no existe aun');
         return [];
       }
-      console.error('Error fetching especialidades del proveedor:', error);
+      console.error('Error fetching especialidades del proveedor por RUT:', error);
       throw error;
     }
 
-    // Extraer los valores únicos de especialidad
+    // Extraer los valores unicos de especialidad
     const especialidades = (data || []).map((item) => item.especialidad).filter(Boolean);
-    return [...new Set(especialidades)]; // Eliminar duplicados
+    return dedupeEspecialidades(especialidades);
   } catch (err: any) {
-    // Si hay cualquier error, retornar array vacío
-    console.warn('No se pudieron cargar las especialidades del proveedor:', err);
+    // Si hay cualquier error, retornar array vacio
+    console.warn('No se pudieron cargar las especialidades del proveedor por RUT:', err);
     return [];
   }
+};
+
+/**
+ * @deprecated Usar fetchEspecialidadesByRut. Se mantiene por compatibilidad.
+ */
+export const fetchEspecialidadesByNombreProveedor = async (rutProveedor: string): Promise<string[]> => {
+  return fetchEspecialidadesByRut(rutProveedor);
 };
 
 /**
@@ -857,16 +905,17 @@ export const saveProveedorEspecialidades = async (
   especialidades: string[]
 ): Promise<void> => {
   try {
-    // Eliminar todas las relaciones existentes del proveedor
-    // Preferimos usar rut si está disponible; si no, usamos nombre_proveedor
-    let deleteQuery = supabase.from('brg_core_proveedor_especialidad').delete();
-    if (rut && rut.trim() !== '') {
-      deleteQuery = deleteQuery.eq('rut', rut.trim());
-    } else {
-      deleteQuery = deleteQuery.eq('nombre_proveedor', nombreProveedor);
+    // Eliminar todas las relaciones existentes del proveedor por RUT
+    const rutTrimmed = rut?.trim() || '';
+    if (!rutTrimmed) {
+      console.warn('No se puede guardar especialidades sin RUT. Operacion omitida.');
+      return;
     }
 
-    const { error: deleteError } = await deleteQuery;
+    const { error: deleteError } = await supabase
+      .from('brg_core_proveedor_especialidad')
+      .delete()
+      .eq('rut', rutTrimmed);
 
     if (deleteError && deleteError.code !== '42P01') {
       // Si el error no es "tabla no existe", lanzar el error
@@ -882,7 +931,7 @@ export const saveProveedorEspecialidades = async (
     // Crear los nuevos registros
     const registros = especialidades.map((especialidad) => ({
       nombre_proveedor: nombreProveedor,
-      rut: rut?.trim() || null,
+      rut: rutTrimmed,
       especialidad,
     }));
 
@@ -1083,27 +1132,27 @@ export interface EvaluacionProveedor {
 }
 
 /**
- * Obtener todas las evaluaciones de un proveedor por nombre
+ * @deprecated Usar fetchEvaluacionesByRutProveedor. Se mantiene por compatibilidad.
  */
 export const fetchEvaluacionesByNombreProveedor = async (
-  nombreProveedor: string
+  rutProveedor: string
 ): Promise<EvaluacionProveedor[]> => {
-  console.log('[DEBUG] Buscando evaluaciones por nombre:', nombreProveedor);
-  
+  const rutTrimmed = rutProveedor.trim();
+  if (!rutTrimmed) {
+    return [];
+  }
+
+  console.log('[DEBUG] Buscando evaluaciones por RUT (compat):', rutTrimmed);
+
   const { data, error } = await supabase
     .from('fct_proveedores_evaluacion_evt')
     .select('*, profiles:created_by ( full_name )')
-    .or(`nombre_proveedor.eq.${nombreProveedor},nombre.eq.${nombreProveedor}`)
+    .eq('rut', rutTrimmed)
     .order('fecha_evaluacion', { ascending: false });
 
   if (error) {
-    console.error('Error fetching evaluaciones del proveedor:', error);
+    console.error('Error fetching evaluaciones del proveedor por RUT (compat):', error);
     throw error;
-  }
-
-  console.log(`[DEBUG] Encontradas ${data?.length || 0} evaluaciones para nombre ${nombreProveedor}`);
-  if (data && data.length > 0) {
-    console.log('[DEBUG] Evaluaciones encontradas:', data);
   }
 
   return data || [];

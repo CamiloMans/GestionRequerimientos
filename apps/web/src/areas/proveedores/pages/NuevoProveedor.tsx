@@ -8,7 +8,7 @@ import {
   ProveedorData,
   calcularClasificacion,
   fetchEspecialidades,
-  fetchEspecialidadesByNombreProveedor,
+  fetchEspecialidadesByRut,
   saveProveedorEspecialidades,
 } from '../services/proveedoresService';
 
@@ -278,8 +278,8 @@ const NuevoProveedor: React.FC = () => {
 
         // Cargar especialidades del proveedor desde brg_core_proveedor_especialidad
         try {
-          const especialidadesProveedor = await fetchEspecialidadesByNombreProveedor(
-            proveedor.nombre_proveedor || ''
+          const especialidadesProveedor = await fetchEspecialidadesByRut(
+            proveedor.rut || ''
           );
 
           // Convertir los nombres de especialidad a IDs según el catálogo cargado
@@ -916,7 +916,7 @@ const NuevoProveedor: React.FC = () => {
         )}
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-500">
-          <p>� {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} MyMALAB. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>

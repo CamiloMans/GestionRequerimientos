@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedores, ProveedorResponse, fetchEspecialidadesByNombreProveedor, fetchEspecialidades } from '../services/proveedoresService';
+import { fetchProveedores, ProveedorResponse, fetchEspecialidadesPriorizadasByRuts, fetchEspecialidades } from '../services/proveedoresService';
 import { Proveedor, Clasificacion, TipoProveedor } from '../types';
 import ServiciosEvaluados from './ServiciosEvaluados';
 import { normalizeSearchText } from '../utils/search';
@@ -26,7 +26,10 @@ const Dashboard: React.FC = () => {
   };
 
   // Mapear ProveedorResponse a Proveedor
-  const mapProveedorResponseToProveedor = async (response: ProveedorResponse): Promise<Proveedor> => {
+  const mapProveedorResponseToProveedor = (
+    response: ProveedorResponse,
+    especialidadesPorRut: Record<string, string[]>
+  ): Proveedor => {
     const tipo = response.tipo_proveedor === 'Persona natural' ? TipoProveedor.PERSONA : TipoProveedor.EMPRESA;
     
     // Usar categoria_proveedor directamente de la base de datos
@@ -47,8 +50,8 @@ const Dashboard: React.FC = () => {
       else if (cumplimiento >= 0.5 && cumplimiento <= 0.764) clasificacion = Clasificacion.B;
       else clasificacion = Clasificacion.C;
     }
-
-    const especialidades = await fetchEspecialidadesByNombreProveedor(response.nombre_proveedor);
+    const rut = response.rut?.trim() || '';
+    const especialidades = rut ? (especialidadesPorRut[rut] ?? []) : [];
     const tieneEvaluacion = response.evaluacion !== null && response.evaluacion !== undefined && response.evaluacion > 0;
     const tieneServiciosEjecutados = tieneEvaluacion || (response.id % 10 < 7);
 
@@ -56,7 +59,7 @@ const Dashboard: React.FC = () => {
       id: response.id,
       nombre: response.nombre_proveedor,
       razonSocial: response.razon_social || undefined,
-      rut: response.rut || '',
+      rut,
       tipo,
       especialidad: especialidades.length > 0 ? especialidades : [],
       email: response.correo_contacto || undefined,
@@ -92,8 +95,16 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
         const data = await fetchProveedores();
-        const mappedProveedores = await Promise.all(
-          data.map((proveedor) => mapProveedorResponseToProveedor(proveedor))
+        const ruts = Array.from(
+          new Set(
+            data
+              .map((proveedor) => proveedor.rut?.trim() || '')
+              .filter((rut) => rut.length > 0)
+          )
+        );
+        const especialidadesPorRut = await fetchEspecialidadesPriorizadasByRuts(ruts);
+        const mappedProveedores = data.map((proveedor) =>
+          mapProveedorResponseToProveedor(proveedor, especialidadesPorRut)
         );
         setProveedores(mappedProveedores);
       } catch (err) {
@@ -158,22 +169,23 @@ const Dashboard: React.FC = () => {
   // Proveedores por componente (usando nombres reales de la tabla especialidad)
   const proveedoresPorComponente = useMemo(() => {
     // Usar las especialidades reales de la base de datos
-    const componentes = especialidades.map(especialidad => {
-      const cantidad = proveedores.filter(proveedor => 
-        proveedor.especialidad.includes(especialidad.nombre)
-      ).length;
+    const componentes = especialidades.map((especialidad) => {
+      const especialidadNormalizada = normalizeSearchText(especialidad.nombre);
+      const cantidad = proveedores.filter((proveedor) => {
+        const especialidadesProveedor = new Set(
+          proveedor.especialidad
+            .map((item) => normalizeSearchText(item))
+            .filter((item) => item.length > 0)
+        );
+
+        return especialidadesProveedor.has(especialidadNormalizada);
+      }).length;
+
       return { nombre: especialidad.nombre, cantidad };
     });
-
-    // Filtrar solo las que tienen proveedores y ordenar por cantidad (mayor a menor) y luego por nombre alfabéticamente
+    // Mostrar todas las especialidades en orden alfabetico
     let filtered = componentes
-      .filter(item => item.cantidad > 0)
-      .sort((a, b) => {
-        if (b.cantidad !== a.cantidad) {
-          return b.cantidad - a.cantidad;
-        }
-        return a.nombre.localeCompare(b.nombre);
-      });
+      .sort((a, b) => normalizeSearchText(a.nombre).localeCompare(normalizeSearchText(b.nombre), 'es'));
 
     // Aplicar filtro de búsqueda si existe
     if (searchEspecialidad.trim()) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, fetchEvaluacionesByRutProveedor, EvaluacionProveedor, fetchServiciosCatalogoByRut, ProveedorServicioCatalogo, fetchServiciosCatalogoDisponibles, ServicioCatalogoDisponible, createProveedorServicioCatalogo, updateProveedorServicioCatalogo, deleteProveedorServicioCatalogo, markProveedorCruceInformacionActualizadaByRut } from '../services/proveedoresService';
+import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByRutProveedor, EvaluacionProveedor, fetchServiciosCatalogoByRut, ProveedorServicioCatalogo, fetchServiciosCatalogoDisponibles, ServicioCatalogoDisponible, createProveedorServicioCatalogo, updateProveedorServicioCatalogo, deleteProveedorServicioCatalogo, markProveedorCruceInformacionActualizadaByRut } from '../services/proveedoresService';
 import { Clasificacion } from '../types';
 import { normalizeSearchText } from '../utils/search';
 
@@ -185,20 +185,17 @@ const ProveedorDetalle: React.FC = () => {
           rut: proveedor.rut,
         });
         
-        // Intentar buscar por RUT primero, luego por nombre, y finalmente por ambos
+        // Buscar evaluaciones solo por RUT
         let evaluaciones: EvaluacionProveedor[] = [];
-        
-        if (proveedor.rut) {
-          console.log('[DEBUG] Buscando por RUT:', proveedor.rut);
-          evaluaciones = await fetchEvaluacionesByRutProveedor(proveedor.rut);
+        const rutProveedor = proveedor.rut?.trim() || '';
+
+        if (rutProveedor) {
+          console.log('[DEBUG] Buscando por RUT:', rutProveedor);
+          evaluaciones = await fetchEvaluacionesByRutProveedor(rutProveedor);
+        } else {
+          console.log('[DEBUG] Proveedor sin RUT, no se consultan evaluaciones.');
         }
-        
-        // Si no se encontraron por RUT, buscar por nombre
-        if (evaluaciones.length === 0) {
-          console.log('[DEBUG] No se encontraron por RUT, buscando por nombre:', proveedor.nombre_proveedor);
-          evaluaciones = await fetchEvaluacionesByNombreProveedor(proveedor.nombre_proveedor);
-        }
-        
+
         console.log(`[DEBUG] Total de evaluaciones encontradas: ${evaluaciones.length}`);
         
         // Guardar las evaluaciones originales para poder pasarlas al formulario de edición
@@ -456,7 +453,13 @@ const ProveedorDetalle: React.FC = () => {
         rut: proveedor.rut,
       });
 
-      await markProveedorCruceInformacionActualizadaByRut(proveedor.rut);
+      let cruceWarning = false;
+      try {
+        await markProveedorCruceInformacionActualizadaByRut(proveedor.rut);
+      } catch (cruceError) {
+        cruceWarning = true;
+        console.error('Error al actualizar estado de cruce tras agregar servicio:', cruceError);
+      }
 
       const refreshedCatalogo = await fetchServiciosCatalogoByRut(proveedor.rut);
       setCatalogoServicios(refreshedCatalogo);
@@ -465,14 +468,23 @@ const ProveedorDetalle: React.FC = () => {
       setShowAddCatalogoModal(false);
       setSelectedCatalogoDisponible(null);
       setSearchCatalogoDisponibles('');
-    } catch (err) {
+
+      if (cruceWarning) {
+        setErrorCatalogo('Servicio agregado, pero no fue posible actualizar el estado de cruce.');
+      }
+    } catch (err: any) {
       console.error('Error al crear asociacion de servicio en catalogo:', err);
-      setErrorCatalogoDisponibles('No fue posible agregar el servicio al proveedor o actualizar su estado de cruce.');
+      const errorMessage = typeof err?.message === 'string' ? normalizeSearchText(err.message) : '';
+
+      if (errorMessage.includes('duplicate') || errorMessage.includes('unique')) {
+        setErrorCatalogoDisponibles('Ese servicio ya esta asociado a este proveedor.');
+      } else {
+        setErrorCatalogoDisponibles('No fue posible agregar el servicio al proveedor.');
+      }
     } finally {
       setSavingCatalogoServicio(false);
     }
   };
-
   const handleCloseEditCatalogoModal = () => {
     if (savingEditCatalogoServicio) return;
     setShowEditCatalogoModal(false);
