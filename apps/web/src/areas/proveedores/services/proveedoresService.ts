@@ -325,6 +325,30 @@ const normalizeEspecialidadInput = (value: unknown): string | string[] => {
   return uniqueValues;
 };
 /**
+ * Marcar cruce del proveedor como "Informacion actualizada"
+ */
+export const markProveedorCruceInformacionActualizadaByRut = async (rut: string): Promise<void> => {
+  const rutTrimmed = rut.trim();
+
+  if (!rutTrimmed) {
+    throw new Error('RUT invalido para actualizar estado de cruce del proveedor.');
+  }
+
+  const { error } = await supabase
+    .from('dim_core_proveedor')
+    .update({
+      cruce: 'Informaci\u00f3n actualizada',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('rut', rutTrimmed);
+
+  if (error) {
+    console.error('Error actualizando estado de cruce del proveedor:', error);
+    throw error;
+  }
+};
+
+/**
  * Asociar un servicio del catalogo base a un proveedor
  */
 export const createProveedorServicioCatalogo = async (params: {

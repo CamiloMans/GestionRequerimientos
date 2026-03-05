@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AreaId } from '@contracts/areas';
-import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, fetchEvaluacionesByRutProveedor, EvaluacionProveedor, fetchServiciosCatalogoByRut, ProveedorServicioCatalogo, fetchServiciosCatalogoDisponibles, ServicioCatalogoDisponible, createProveedorServicioCatalogo, updateProveedorServicioCatalogo, deleteProveedorServicioCatalogo } from '../services/proveedoresService';
+import { fetchProveedorById, ProveedorResponse, fetchEspecialidades, fetchEvaluacionesByNombreProveedor, fetchEvaluacionesByRutProveedor, EvaluacionProveedor, fetchServiciosCatalogoByRut, ProveedorServicioCatalogo, fetchServiciosCatalogoDisponibles, ServicioCatalogoDisponible, createProveedorServicioCatalogo, updateProveedorServicioCatalogo, deleteProveedorServicioCatalogo, markProveedorCruceInformacionActualizadaByRut } from '../services/proveedoresService';
 import { Clasificacion } from '../types';
 import { normalizeSearchText } from '../utils/search';
 
@@ -456,6 +456,8 @@ const ProveedorDetalle: React.FC = () => {
         rut: proveedor.rut,
       });
 
+      await markProveedorCruceInformacionActualizadaByRut(proveedor.rut);
+
       const refreshedCatalogo = await fetchServiciosCatalogoByRut(proveedor.rut);
       setCatalogoServicios(refreshedCatalogo);
       setErrorCatalogo(null);
@@ -465,7 +467,7 @@ const ProveedorDetalle: React.FC = () => {
       setSearchCatalogoDisponibles('');
     } catch (err) {
       console.error('Error al crear asociacion de servicio en catalogo:', err);
-      setErrorCatalogoDisponibles('No fue posible agregar el servicio al proveedor.');
+      setErrorCatalogoDisponibles('No fue posible agregar el servicio al proveedor o actualizar su estado de cruce.');
     } finally {
       setSavingCatalogoServicio(false);
     }
