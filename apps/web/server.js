@@ -10,6 +10,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ACREDITACION_LEGACY_API_BASE_URL =
   process.env.ACREDITACION_LEGACY_API_BASE_URL || 'http://34.74.6.124';
+const ICSARA_API_BASE_URL =
+  process.env.ICSARA_API_BASE_URL || 'http://34.74.6.124';
+const ICSARA_API_PREFIX =
+  process.env.ICSARA_API_PREFIX || '/api/icsara/v1';
+const ICSARA_API_KEY = process.env.ICSARA_API_KEY || '';
 const parsedTimeoutMs = Number.parseInt(
   process.env.ACREDITACION_UPSTREAM_TIMEOUT_MS ?? '',
   10,
@@ -61,6 +66,76 @@ const proxyLegacyAcreditacionPost = async (req, res, upstreamPath) => {
   }
 };
 
+const proxyIcsaraRequest = async (
+  req,
+  res,
+  { upstreamPath, method = 'GET', streamBody = false },
+) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  const endpoint = `${ICSARA_API_BASE_URL}${ICSARA_API_PREFIX}${upstreamPath}`;
+  const requestStartedAt = Date.now();
+
+  try {
+    console.log(`[proxy] ${method} ${upstreamPath} -> ${endpoint}`);
+
+    const headers = {};
+    if (ICSARA_API_KEY) {
+      headers['x-api-key'] = ICSARA_API_KEY;
+    }
+
+    if (streamBody) {
+      if (req.headers['content-type']) {
+        headers['content-type'] = req.headers['content-type'];
+      }
+      if (req.headers['content-length']) {
+        headers['content-length'] = req.headers['content-length'];
+      }
+    } else if (method !== 'GET' && method !== 'HEAD') {
+      headers['content-type'] = 'application/json';
+    }
+
+    const fetchOptions = {
+      method,
+      headers,
+      signal: controller.signal,
+    };
+
+    if (streamBody) {
+      fetchOptions.body = req;
+      fetchOptions.duplex = 'half';
+    } else if (method !== 'GET' && method !== 'HEAD') {
+      fetchOptions.body = JSON.stringify(req.body ?? {});
+    }
+
+    const upstreamResponse = await fetch(endpoint, fetchOptions);
+
+    const contentType = upstreamResponse.headers.get('content-type');
+    const contentDisposition = upstreamResponse.headers.get('content-disposition');
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    }
+    if (contentDisposition) {
+      res.setHeader('Content-Disposition', contentDisposition);
+    }
+
+    const responseBody = Buffer.from(await upstreamResponse.arrayBuffer());
+    res.status(upstreamResponse.status).send(responseBody);
+  } catch (error) {
+    const isTimeout = error?.name === 'AbortError';
+    console.error(`[proxy] Error calling ${endpoint}:`, error);
+    res.status(502).json({
+      error: 'Upstream API unavailable',
+      endpoint: upstreamPath,
+      timeout: isTimeout,
+      timeoutMs: UPSTREAM_TIMEOUT_MS,
+      elapsedMs: Date.now() - requestStartedAt,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 app.post('/api/acreditacion/carpetas/crear', async (req, res) => {
   await proxyLegacyAcreditacionPost(req, res, '/carpetas/crear');
 });
@@ -71,6 +146,35 @@ app.post('/api/acreditacion/asignar-folder', async (req, res) => {
 
 app.post('/api/acreditacion/documentos/subir', async (req, res) => {
   await proxyLegacyAcreditacionPost(req, res, '/api/acreditacion/documentos/subir');
+});
+
+app.post('/api/acreditacion/adendas/jobs', async (req, res) => {
+  await proxyIcsaraRequest(req, res, {
+    upstreamPath: '/jobs',
+    method: 'POST',
+    streamBody: true,
+  });
+});
+
+app.get('/api/acreditacion/adendas/jobs/:jobId', async (req, res) => {
+  await proxyIcsaraRequest(req, res, {
+    upstreamPath: `/jobs/${encodeURIComponent(req.params.jobId)}`,
+    method: 'GET',
+  });
+});
+
+app.get('/api/acreditacion/adendas/jobs/:jobId/result', async (req, res) => {
+  await proxyIcsaraRequest(req, res, {
+    upstreamPath: `/jobs/${encodeURIComponent(req.params.jobId)}/result`,
+    method: 'GET',
+  });
+});
+
+app.get('/api/acreditacion/adendas/jobs/:jobId/preguntas_clasificadas', async (req, res) => {
+  await proxyIcsaraRequest(req, res, {
+    upstreamPath: `/jobs/${encodeURIComponent(req.params.jobId)}/result/preguntas_clasificadas.json`,
+    method: 'GET',
+  });
 });
 
 // Serve static files from the dist folder

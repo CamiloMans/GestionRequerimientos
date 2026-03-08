@@ -6,8 +6,7 @@ import { Adenda, NewAdendaPayload } from '../types';
 import { fetchAdendaById, createAdenda, updateAdenda } from '../services/adendasService';
 import { adendasList } from '../utils/routes';
 
-const API_BASE = "http://34.74.6.124:8080/v1";
-const API_KEY = import.meta.env.VITE_ICSARA_API_KEY || "change-this-key"; // API key desde variable de entorno
+const ADENDAS_PROXY_BASE = '/api/acreditacion/adendas';
 
 /**
  * Verifica si el servidor de la API está disponible usando el endpoint de health check
@@ -18,9 +17,10 @@ export async function verificarConexionApi(): Promise<{ disponible: boolean; err
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5 segundos
 
-    console.log(`Verificando conexión con: ${API_BASE}/health/live`);
-    
-    const res = await fetch(`${API_BASE}/health/live`, {
+    const healthUrl = `${ADENDAS_PROXY_BASE}/jobs/health-check`;
+    console.log(`Verificando conexión con: ${healthUrl}`);
+
+    const res = await fetch(healthUrl, {
       method: "GET",
       signal: controller.signal,
     });
@@ -46,7 +46,7 @@ export async function verificarConexionApi(): Promise<{ disponible: boolean; err
       if (error.message === 'Failed to fetch') {
         return { 
           disponible: false, 
-          error: 'No se pudo conectar con el servidor. Posibles causas: servidor no está corriendo, problema de CORS, o la URL es incorrecta.' 
+          error: 'No se pudo conectar con el servidor proxy de adendas. Posibles causas: servidor no está corriendo o la ruta es incorrecta.' 
         };
       }
       return { 
@@ -74,20 +74,18 @@ export async function verificarConexionApi(): Promise<{ disponible: boolean; err
 
 export async function subirPdfAApi(pdfFile: File, idAdenda: number) {
   try {
-    console.log(`Intentando subir PDF a: ${API_BASE}/jobs`);
+    const uploadUrl = `${ADENDAS_PROXY_BASE}/jobs`;
+    console.log(`Intentando subir PDF a: ${uploadUrl}`);
     console.log(`Tamaño del archivo: ${(pdfFile.size / 1024 / 1024).toFixed(2)} MB`);
     
     const formData = new FormData();
     formData.append("file", pdfFile);
+    formData.append("id_adenda", String(idAdenda));
     formData.append("classify", "true");
     formData.append("include_png", "true");
-    formData.append("id_adenda", String(idAdenda));
 
-    const res = await fetch(`${API_BASE}/jobs`, {
+    const res = await fetch(uploadUrl, {
       method: "POST",
-      headers: {
-        "X-API-Key": API_KEY,
-      },
       body: formData,
     });
 
@@ -107,11 +105,10 @@ export async function subirPdfAApi(pdfFile: File, idAdenda: number) {
     
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
       throw new Error(
-        `No se pudo conectar con el servidor en ${API_BASE}/jobs. ` +
+        `No se pudo conectar con el servidor en ${ADENDAS_PROXY_BASE}/jobs. ` +
         `Posibles causas:\n` +
-        `- El servidor no está corriendo en ${API_BASE}\n` +
-        `- Problema de CORS (el servidor debe permitir solicitudes desde tu dominio)\n` +
-        `- La URL de la API es incorrecta\n\n` +
+        `- El servidor no está corriendo\n` +
+        `- La ruta del proxy no está disponible\n\n` +
         `Verifica la consola del navegador (F12) para más detalles.`
       );
     }
@@ -122,9 +119,7 @@ export async function subirPdfAApi(pdfFile: File, idAdenda: number) {
 export async function esperarResultado(jobId: string) {
   while (true) {
     try {
-      const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
-        headers: { "X-API-Key": API_KEY },
-      });
+      const res = await fetch(`${ADENDAS_PROXY_BASE}/jobs/${jobId}`);
 
       if (!res.ok) {
         throw new Error(`Error al consultar el estado del job: ${res.status} ${res.statusText}`);
@@ -133,9 +128,7 @@ export async function esperarResultado(jobId: string) {
       const s = await res.json();
 
       if (s.status === "done") {
-        const resultRes = await fetch(`${API_BASE}/jobs/${jobId}/result`, {
-          headers: { "X-API-Key": API_KEY },
-        });
+        const resultRes = await fetch(`${ADENDAS_PROXY_BASE}/jobs/${jobId}/result`);
 
         if (!resultRes.ok) {
           throw new Error(`Error al obtener el resultado: ${resultRes.status} ${resultRes.statusText}`);
@@ -151,7 +144,7 @@ export async function esperarResultado(jobId: string) {
       await new Promise(r => setTimeout(r, 2000));
     } catch (error) {
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new Error(`No se pudo conectar con el servidor. Verifica que la API esté corriendo en ${API_BASE}`);
+        throw new Error(`No se pudo conectar con el servidor. Verifica que el proxy de adendas esté disponible.`);
       }
       throw error;
     }
@@ -163,14 +156,11 @@ export async function esperarResultado(jobId: string) {
  */
 export async function obtenerPreguntasClasificadas(jobId: string) {
   try {
-    const url = `${API_BASE}/jobs/${jobId}/result/preguntas_clasificadas.json`;
+    const url = `${ADENDAS_PROXY_BASE}/jobs/${jobId}/preguntas_clasificadas`;
     console.log(`Obteniendo preguntas clasificadas de: ${url}`);
 
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        "X-API-Key": API_KEY,
-      },
     });
 
     if (!res.ok) {
@@ -184,7 +174,7 @@ export async function obtenerPreguntasClasificadas(jobId: string) {
   } catch (error) {
     console.error('Error al obtener preguntas clasificadas:', error);
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      throw new Error(`No se pudo conectar con el servidor. Verifica que la API esté corriendo en ${API_BASE}`);
+      throw new Error(`No se pudo conectar con el servidor. Verifica que el proxy de adendas esté disponible.`);
     }
     throw error;
   }
