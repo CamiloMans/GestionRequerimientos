@@ -2,6 +2,8 @@
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readFileSync } from 'fs';
+import http from 'http';
+import https from 'https';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,6 +26,9 @@ const UPSTREAM_TIMEOUT_MS = Number.isFinite(parsedTimeoutMs) && parsedTimeoutMs 
   : 120000;
 
 app.use(express.json({ limit: '300mb' }));
+console.log(
+  `[icsara] base=${ICSARA_API_BASE_URL} prefix=${ICSARA_API_PREFIX} apiKeyConfigured=${Boolean(ICSARA_API_KEY)}`,
+);
 
 const proxyLegacyAcreditacionPost = async (req, res, upstreamPath) => {
   const controller = new AbortController();
@@ -148,49 +153,65 @@ app.post('/api/acreditacion/documentos/subir', async (req, res) => {
   await proxyLegacyAcreditacionPost(req, res, '/api/acreditacion/documentos/subir');
 });
 
-app.post('/api/acreditacion/adendas/jobs', async (req, res) => {
+app.post('/api/acreditacion/adendas/jobs', (req, res) => {
   const endpoint = `${ICSARA_API_BASE_URL}${ICSARA_API_PREFIX}/jobs`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  const target = new URL(endpoint);
+  const client = target.protocol === 'https:' ? https : http;
 
-  try {
-    const upstreamResponse = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'x-api-key': ICSARA_API_KEY,
-        ...(req.headers['content-type'] ? { 'content-type': req.headers['content-type'] } : {}),
-        ...(req.headers['content-length'] ? { 'content-length': req.headers['content-length'] } : {}),
-      },
-      body: req,
-      duplex: 'half',
-      signal: controller.signal,
-    });
-
-    const contentType = upstreamResponse.headers.get('content-type');
-    if (contentType) {
-      res.setHeader('Content-Type', contentType);
-    }
-
-    const body = Buffer.from(await upstreamResponse.arrayBuffer());
-    if (!upstreamResponse.ok) {
-      const preview = body.toString('utf8').slice(0, 1000);
-      console.error(
-        `[proxy] ICSARA jobs upstream status=${upstreamResponse.status} endpoint=${endpoint} body=${preview}`,
-      );
-    }
-    res.status(upstreamResponse.status).send(body);
-  } catch (error) {
-    console.error(`[proxy] Error calling ${endpoint}:`, error);
-    res.status(502).json({ error: 'Upstream API unavailable', endpoint });
-  } finally {
-    clearTimeout(timeout);
+  const headers = { ...req.headers };
+  delete headers.host;
+  delete headers.connection;
+  if (ICSARA_API_KEY) {
+    headers['x-api-key'] = ICSARA_API_KEY;
   }
+
+  const upstreamReq = client.request(
+    {
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      method: 'POST',
+      path: `${target.pathname}${target.search}`,
+      headers,
+    },
+    (upstreamRes) => {
+      if (upstreamRes.headers['content-type']) {
+        res.setHeader('Content-Type', upstreamRes.headers['content-type']);
+      }
+      if (upstreamRes.headers['content-disposition']) {
+        res.setHeader('Content-Disposition', upstreamRes.headers['content-disposition']);
+      }
+      res.status(upstreamRes.statusCode || 502);
+      upstreamRes.pipe(res);
+    },
+  );
+
+  upstreamReq.setTimeout(UPSTREAM_TIMEOUT_MS, () => {
+    upstreamReq.destroy(new Error('Upstream timeout'));
+  });
+
+  upstreamReq.on('error', (error) => {
+    console.error(`[proxy] Error calling ${endpoint}:`, error);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Upstream API unavailable', endpoint });
+    }
+  });
+
+  req.pipe(upstreamReq);
 });
 
 app.get('/api/acreditacion/adendas/health/live', async (req, res) => {
   await proxyIcsaraRequest(req, res, {
     upstreamPath: '/health/live',
     method: 'GET',
+  });
+});
+
+app.get('/api/acreditacion/adendas/debug/config', (req, res) => {
+  res.json({
+    base: ICSARA_API_BASE_URL,
+    prefix: ICSARA_API_PREFIX,
+    apiKeyConfigured: Boolean(ICSARA_API_KEY),
   });
 });
 
