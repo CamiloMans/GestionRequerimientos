@@ -96,9 +96,9 @@ const ACREDITACION_LEGACY_API_BASE_URL =
   process.env.ACREDITACION_LEGACY_API_BASE_URL || 'http://34.74.6.124';
 
 const ICSARA_API_BASE_URL =
-  process.env.ICSARA_API_BASE_URL || 'http://34.74.6.124';
+  process.env.ICSARA_API_BASE_URL || 'http://34.74.6.124:8080';
 const ICSARA_API_PREFIX =
-  process.env.ICSARA_API_PREFIX || '/api/icsara/v1';
+  process.env.ICSARA_API_PREFIX || '/v1';
 const ICSARA_API_KEY = process.env.ICSARA_API_KEY || '';
 
 const parsedTimeoutMs = Number.parseInt(
@@ -170,6 +170,16 @@ app.post('/api/acreditacion/adendas/jobs', async (req, res) => {
     endpoint,
     method: 'POST',
     streamBody: true, // multipart/form-data
+    extraHeaders: { 'x-api-key': ICSARA_API_KEY },
+  });
+});
+
+app.get('/api/acreditacion/adendas/health/live', async (req, res) => {
+  const endpoint = `${ICSARA_API_BASE_URL}${ICSARA_API_PREFIX}/health/live`;
+  return proxyRequest(req, res, {
+    endpoint,
+    method: 'GET',
+    streamBody: false,
     extraHeaders: { 'x-api-key': ICSARA_API_KEY },
   });
 });

@@ -17,7 +17,7 @@ export async function verificarConexionApi(): Promise<{ disponible: boolean; err
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5 segundos
 
-    const healthUrl = `${ADENDAS_PROXY_BASE}/jobs/health-check`;
+    const healthUrl = `${ADENDAS_PROXY_BASE}/health/live`;
     console.log(`Verificando conexión con: ${healthUrl}`);
 
     const res = await fetch(healthUrl, {
