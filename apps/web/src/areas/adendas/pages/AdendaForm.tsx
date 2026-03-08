@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import TipoAdendaSelector from '../components/TipoAdendaSelector';
 import { TipoAdenda } from '../constants';
-import { NewAdendaPayload } from '../types';
+import { Adenda, NewAdendaPayload } from '../types';
 import { fetchAdendaById, createAdenda, updateAdenda } from '../services/adendasService';
 import { adendasList } from '../utils/routes';
 
@@ -72,7 +72,7 @@ export async function verificarConexionApi(): Promise<{ disponible: boolean; err
   }
 }
 
-export async function subirPdfAApi(pdfFile: File) {
+export async function subirPdfAApi(pdfFile: File, idAdenda: number) {
   try {
     console.log(`Intentando subir PDF a: ${API_BASE}/jobs`);
     console.log(`Tamaño del archivo: ${(pdfFile.size / 1024 / 1024).toFixed(2)} MB`);
@@ -81,6 +81,7 @@ export async function subirPdfAApi(pdfFile: File) {
     formData.append("file", pdfFile);
     formData.append("classify", "true");
     formData.append("include_png", "true");
+    formData.append("id_adenda", String(idAdenda));
 
     const res = await fetch(`${API_BASE}/jobs`, {
       method: "POST",
@@ -238,7 +239,15 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
     }
   };
 
-  const guardarAdenda = async () => {
+  const finalizarGuardado = () => {
+    if (onSave) {
+      onSave();
+    } else {
+      navigate(adendasList());
+    }
+  };
+
+  const guardarAdenda = async (redirect = true): Promise<Adenda> => {
     try {
       setSaving(true);
       setError(null);
@@ -251,20 +260,22 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
         estado: estado || undefined,
       };
 
+      let adendaGuardada: Adenda;
       if (isEditing && id) {
-        await updateAdenda(parseInt(id), payload);
+        adendaGuardada = await updateAdenda(parseInt(id), payload);
       } else {
-        await createAdenda(payload);
+        adendaGuardada = await createAdenda(payload);
       }
 
-      if (onSave) {
-        onSave();
-      } else {
-        navigate(adendasList());
+      if (redirect) {
+        finalizarGuardado();
       }
+
+      return adendaGuardada;
     } catch (error) {
       console.error('Error saving adenda:', error);
       setError('Error al guardar la adenda. Por favor, intente nuevamente.');
+      throw error;
     } finally {
       setSaving(false);
     }
@@ -274,8 +285,7 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
     setMostrarPopup(false);
     // Esperar un momento para que el popup se cierre visualmente
     await new Promise(resolve => setTimeout(resolve, 100));
-    // Continuar con el guardado de la adenda
-    await guardarAdenda();
+    finalizarGuardado();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -311,8 +321,9 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
             console.log('Conexión verificada exitosamente.');
           }
           
+          const adendaGuardada = await guardarAdenda(false);
           console.log('Subiendo PDF a la API...');
-          const jobResponse = await subirPdfAApi(archivo);
+          const jobResponse = await subirPdfAApi(archivo, adendaGuardada.id);
           console.log('PDF subido exitosamente, respuesta:', jobResponse);
           
           // Obtener el jobId del response (puede ser jobResponse.id, jobResponse.job_id, etc.)
@@ -669,7 +680,7 @@ const AdendaForm: React.FC<AdendaFormProps> = ({ onBack, onSave }) => {
                 className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={saving}
               >
-                {saving ? 'Guardando...' : 'Continuar y Guardar'}
+                {saving ? 'Guardando...' : 'Continuar'}
               </button>
             </div>
           </div>

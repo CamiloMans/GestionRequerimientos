@@ -1,152 +1,205 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  fetchPreguntaById,
+  fetchPreguntasCatalogos,
+  getAdjuntosDescripcion,
+  normalizeComplejidadPregunta,
+  normalizeEstadoPregunta,
+  updatePreguntaById,
+} from '../services/preguntasService';
+import type {
+  CatalogoEspecialidad,
+  CatalogoPersona,
+  ComplejidadPregunta,
+  EstadoPregunta,
+  PreguntaAdjunto,
+  PreguntaGestion,
+  UpdatePreguntaPayload,
+} from '../types';
 import { adendasGestion, adendasList } from '../utils/routes';
 
-type EstadoPregunta = 'En revisión' | 'Pendientes' | 'Completadas';
-type ComplejidadPregunta = 'Baja' | 'Media' | 'Alta';
-
-interface PreguntaDetail {
-  id: string;
+interface DraftPregunta {
   estado: EstadoPregunta;
   complejidad: ComplejidadPregunta;
-  avance: number;
-  informacion_faltante: string[];
-  pregunta: string;
-  adjuntos: number;
-  encargado: {
-    nombre: string;
-    avatar?: string;
-  };
-  especialidad: string;
-  estrategia: string[];
+  encargado_persona_id: number | null;
+  especialidad_id: number | null;
+  estrategia: string;
   respuesta_ia: string;
 }
 
-const getDummyPreguntaDetail = (id: string): PreguntaDetail | null => {
-  const dummyData: Record<string, PreguntaDetail> = {
-    '018': {
-      id: '018',
-      estado: 'En revisión',
-      complejidad: 'Media',
-      avance: 50,
-      informacion_faltante: ['Cuadro consolidado único que integre actividad por fase.', 'Desagregación clara: Parte/obras.'],
-      pregunta:
-        'Respecto a las partes, obras y acciones del Proyecto, se solicita adjuntar un cuadro consolidado que detalle claramente las partes, obras y acciones del Proyecto, identificando la fase en la que se ejecuta cada una de ellas.',
-      adjuntos: 2,
-      encargado: { nombre: 'PT Paula Olivares' },
-      especialidad: 'Descripción proyecto',
-      estrategia: ['Consolidar en una tabla maestra POA-Fase.', 'Definir Parte/Obra, Acción, Fase.'],
-      respuesta_ia:
-        'BORRADOR IA Se adjunta un cuadro consolidado que detalla las acciones por fase y parte de obra.',
-    },
-    '016': {
-      id: '016',
-      estado: 'En revisión',
-      complejidad: 'Alta',
-      avance: 30,
-      informacion_faltante: ['Fundamentación técnica y cuantitativa de la configuración geométrica.', 'Análisis estructural del Depósito de Relaves.'],
-      pregunta:
-        'Se solicita al Titular fundamentar técnica y cuantitativamente que la configuración geométrica y estructural del Depósito de Relaves asegura la estabilidad en el costado poniente.',
-      adjuntos: 1,
-      encargado: { nombre: 'EG Eduardo G.' },
-      especialidad: 'Permisos sectoriales',
-      estrategia: ['Delimitar sector poniente con referencia a figura.', 'Presentar paquete técnico trazable.'],
-      respuesta_ia:
-        'BORRADOR IA Se fundamenta técnicamente la configuración geométrica para asegurar estabilidad en el costado poniente.',
-    },
-    '015': {
-      id: '015',
-      estado: 'Pendientes',
-      complejidad: 'Baja',
-      avance: 20,
-      informacion_faltante: ['Datos de estudios previos de impacto ambiental.', 'Informe consolidado de impactos.'],
-      pregunta:
-        'Se requiere información adicional sobre el impacto ambiental del proyecto en la zona de influencia.',
-      adjuntos: 0,
-      encargado: { nombre: 'PT Paula Olivares' },
-      especialidad: 'Impacto ambiental',
-      estrategia: ['Recopilar datos de estudios previos.', 'Preparar informe consolidado.'],
-      respuesta_ia:
-        'BORRADOR IA Se requiere información adicional sobre impacto ambiental en zona de influencia.',
-    },
-    '014': {
-      id: '014',
-      estado: 'Completadas',
-      complejidad: 'Media',
-      avance: 100,
-      informacion_faltante: [],
-      pregunta:
-        'Solicitud de aclaración sobre los plazos de ejecución del proyecto y las fases de implementación.',
-      adjuntos: 1,
-      encargado: { nombre: 'EG Eduardo G.' },
-      especialidad: 'Planificación',
-      estrategia: ['Revisar cronograma detallado.', 'Actualizar documentación.'],
-      respuesta_ia:
-        'BORRADOR IA Los plazos de ejecución se actualizaron según el cronograma detallado.',
-    },
-  };
-
-  return dummyData[id] || null;
-};
-
-const clonePregunta = (pregunta: PreguntaDetail): PreguntaDetail => ({
-  ...pregunta,
-  informacion_faltante: [...pregunta.informacion_faltante],
-  estrategia: [...pregunta.estrategia],
-  encargado: { ...pregunta.encargado },
+const buildDraftFromPregunta = (pregunta: PreguntaGestion): DraftPregunta => ({
+  estado: normalizeEstadoPregunta(pregunta.estado),
+  complejidad: normalizeComplejidadPregunta(pregunta.complejidad),
+  encargado_persona_id: pregunta.encargado_persona_id,
+  especialidad_id: pregunta.especialidad_id,
+  estrategia: pregunta.estrategia || '',
+  respuesta_ia: pregunta.respuesta_ia || '',
 });
 
 const PreguntaDetailView: React.FC = () => {
   const navigate = useNavigate();
   const { codigoMyma, preguntaId } = useParams<{ codigoMyma?: string; preguntaId: string }>();
+
   const [loading, setLoading] = useState(true);
-  const [pregunta, setPregunta] = useState<PreguntaDetail | null>(null);
-  const [draftPregunta, setDraftPregunta] = useState<PreguntaDetail | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [pregunta, setPregunta] = useState<PreguntaGestion | null>(null);
+  const [personas, setPersonas] = useState<CatalogoPersona[]>([]);
+  const [especialidades, setEspecialidades] = useState<CatalogoEspecialidad[]>([]);
   const [isEditing, setIsEditing] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [selectedAdjunto, setSelectedAdjunto] = useState<number | null>(null);
+  const [draft, setDraft] = useState<DraftPregunta | null>(null);
+  const [selectedAdjunto, setSelectedAdjunto] = useState<PreguntaAdjunto | null>(null);
+
+  const preguntaIdNumber = useMemo(() => {
+    const parsed = Number(preguntaId);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [preguntaId]);
 
   useEffect(() => {
-    if (!preguntaId) return;
-    const data = getDummyPreguntaDetail(preguntaId);
-    if (data) {
-      setPregunta(clonePregunta(data));
-      setDraftPregunta(clonePregunta(data));
-    } else {
-      setPregunta(null);
-      setDraftPregunta(null);
-    }
-    setLoading(false);
-  }, [preguntaId]);
+    let isMounted = true;
+
+    const loadPregunta = async () => {
+      if (!preguntaIdNumber) {
+        if (isMounted) {
+          setError('El identificador de la pregunta no es válido.');
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const catalogos = await fetchPreguntasCatalogos();
+        const { pregunta: data } = await fetchPreguntaById(preguntaIdNumber, catalogos);
+
+        if (!isMounted) return;
+
+        setPersonas(catalogos.personas);
+        setEspecialidades(catalogos.especialidades);
+
+        if (!data) {
+          setPregunta(null);
+          setDraft(null);
+          setError('No se encontró la pregunta solicitada.');
+          return;
+        }
+
+        setPregunta(data);
+        setDraft(buildDraftFromPregunta(data));
+      } catch (err: any) {
+        if (!isMounted) return;
+
+        console.error('Error loading pregunta detail:', err);
+        setError(err?.message || 'No fue posible cargar la pregunta.');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadPregunta();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [preguntaIdNumber]);
 
   const handleBack = () => {
     if (codigoMyma) {
       navigate(adendasGestion(codigoMyma));
       return;
     }
+
     navigate(adendasList());
   };
 
-  const handleToggleEdit = () => {
+  const handleStartEdit = () => {
     if (!pregunta) return;
-    if (!isEditing) {
-      setDraftPregunta(clonePregunta(pregunta));
-      setIsEditing(true);
-      return;
-    }
-    if (draftPregunta) {
-      setPregunta(clonePregunta(draftPregunta));
-    }
-    setIsEditing(false);
+    setDraft(buildDraftFromPregunta(pregunta));
+    setIsEditing(true);
+    setSuccessMessage(null);
   };
 
   const handleCancelEdit = () => {
     if (!pregunta) return;
-    setDraftPregunta(clonePregunta(pregunta));
+    setDraft(buildDraftFromPregunta(pregunta));
     setIsEditing(false);
   };
 
-  const getEstadoColor = (estado: string) => {
+  const handleSave = async () => {
+    if (!pregunta || !draft) return;
+
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const payload: UpdatePreguntaPayload = {};
+      const originalEstado = normalizeEstadoPregunta(pregunta.estado);
+      const originalComplejidad = normalizeComplejidadPregunta(pregunta.complejidad);
+
+      if (draft.estado !== originalEstado) {
+        payload.estado = draft.estado;
+      }
+
+      if (draft.complejidad !== originalComplejidad) {
+        payload.complejidad = draft.complejidad;
+      }
+
+      if (draft.encargado_persona_id !== pregunta.encargado_persona_id) {
+        payload.encargado_persona_id = draft.encargado_persona_id;
+      }
+
+      if (draft.especialidad_id !== pregunta.especialidad_id) {
+        payload.especialidad_id = draft.especialidad_id;
+      }
+
+      const originalEstrategia = (pregunta.estrategia || '').trim();
+      const originalRespuestaIa = (pregunta.respuesta_ia || '').trim();
+      const draftEstrategia = draft.estrategia.trim();
+      const draftRespuestaIa = draft.respuesta_ia.trim();
+
+      if (draftEstrategia !== originalEstrategia) {
+        payload.estrategia = draftEstrategia || null;
+      }
+
+      if (draftRespuestaIa !== originalRespuestaIa) {
+        payload.respuesta_ia = draftRespuestaIa || null;
+      }
+
+      if (Object.keys(payload).length > 0) {
+        await updatePreguntaById(pregunta.id, payload);
+      }
+
+      const { pregunta: refreshed } = await fetchPreguntaById(pregunta.id, {
+        personas,
+        especialidades,
+      });
+
+      if (!refreshed) {
+        setError('La pregunta fue actualizada, pero no se pudo recargar el detalle.');
+        setIsEditing(false);
+        return;
+      }
+
+      setPregunta(refreshed);
+      setDraft(buildDraftFromPregunta(refreshed));
+      setIsEditing(false);
+      setSuccessMessage('Cambios guardados correctamente.');
+    } catch (err: any) {
+      console.error('Error saving pregunta:', err);
+      setError(err?.message || 'No fue posible guardar los cambios.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getEstadoColor = (estado: EstadoPregunta) => {
     switch (estado) {
       case 'En revisión':
         return 'bg-gray-100 text-gray-800';
@@ -159,7 +212,7 @@ const PreguntaDetailView: React.FC = () => {
     }
   };
 
-  const getComplejidadColor = (complejidad: string) => {
+  const getComplejidadColor = (complejidad: ComplejidadPregunta) => {
     switch (complejidad) {
       case 'Baja':
         return 'bg-green-100 text-green-800';
@@ -172,6 +225,64 @@ const PreguntaDetailView: React.FC = () => {
     }
   };
 
+  const getTipoAdjuntoLabel = (tipo: string | null): string => {
+    const normalized = (tipo || '').toLowerCase();
+    if (normalized === 'figura') return 'Figura';
+    if (normalized === 'tabla') return 'Tabla';
+    return tipo || 'Adjunto';
+  };
+
+  const extractDriveFileId = (url: string): string | null => {
+    try {
+      const parsedUrl = new URL(url);
+      const pathnameMatch = parsedUrl.pathname.match(/\/d\/([^/]+)/);
+      if (pathnameMatch?.[1]) {
+        return pathnameMatch[1];
+      }
+
+      const idParam = parsedUrl.searchParams.get('id');
+      if (idParam) {
+        return idParam;
+      }
+    } catch {
+      const rawMatch = url.match(/\/d\/([^/]+)/);
+      if (rawMatch?.[1]) {
+        return rawMatch[1];
+      }
+    }
+
+    return null;
+  };
+
+  const getEmbeddedAdjuntoUrl = (adjunto: PreguntaAdjunto): string | null => {
+    const rawUrl = adjunto.drive_preview_url || adjunto.drive_web_view_url;
+    if (!rawUrl) {
+      return null;
+    }
+
+    if (!rawUrl.includes('drive.google.com')) {
+      return rawUrl;
+    }
+
+    if (rawUrl.includes('/preview')) {
+      return rawUrl;
+    }
+
+    const fileId = extractDriveFileId(rawUrl);
+    if (!fileId) {
+      return rawUrl;
+    }
+
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  };
+
+  const selectedAdjuntoUrl = useMemo(() => {
+    if (!selectedAdjunto) {
+      return null;
+    }
+    return getEmbeddedAdjuntoUrl(selectedAdjunto);
+  }, [selectedAdjunto]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen">
@@ -183,137 +294,230 @@ const PreguntaDetailView: React.FC = () => {
     );
   }
 
-  if (!pregunta || !draftPregunta) {
+  if (!pregunta || !draft) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">No se encontró la pregunta</p>
-          <button onClick={handleBack} className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors">Volver</button>
+          <p className="text-gray-600 mb-4">{error || 'No se encontró la pregunta'}</p>
+          <button
+            onClick={handleBack}
+            className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors"
+          >
+            Volver
+          </button>
         </div>
       </div>
     );
   }
 
+  const estadoUi = normalizeEstadoPregunta(pregunta.estado);
+  const complejidadUi = normalizeComplejidadPregunta(pregunta.complejidad);
+  const encargadoUi = pregunta.encargado_nombre || 'Sin encargado';
+  const especialidadUi = pregunta.especialidad_nombre || 'Sin especialidad';
+
   return (
     <div className="w-full p-6 bg-[#f8fafc] min-h-screen">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="mb-6">
-          <button onClick={handleBack} className="flex items-center gap-2 text-gray-600 hover:text-[#111318] mb-4 transition-colors">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-gray-600 hover:text-[#111318] mb-4 transition-colors"
+          >
             <span className="material-symbols-outlined">arrow_back</span>
             <span>Volver a preguntas</span>
           </button>
 
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-4xl font-bold text-[#111318]">{pregunta.id}</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-4xl font-bold text-[#111318]">{pregunta.numero_formateado}</h1>
+              <p className="text-sm text-gray-500">ID interno: {pregunta.id}</p>
+            </div>
             <div className="flex items-center gap-2">
-              {isEditing && (
-                <button onClick={handleCancelEdit} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
+                    disabled={saving}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    className="px-3 py-1.5 rounded-lg text-sm bg-[#059669] text-white hover:bg-[#047857] disabled:opacity-60"
+                    disabled={saving}
+                  >
+                    {saving ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleStartEdit}
+                  className="px-3 py-1.5 rounded-lg text-sm bg-[#059669] text-white hover:bg-[#047857]"
+                >
+                  Editar
+                </button>
               )}
-              <button onClick={handleToggleEdit} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-[#059669] text-white hover:bg-[#047857]">
-                <span className="material-symbols-outlined text-sm">{isEditing ? 'save' : 'edit'}</span>
-                <span>{isEditing ? 'Guardar' : 'Editar'}</span>
-              </button>
             </div>
           </div>
         </div>
 
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {successMessage}
+          </div>
+        )}
+
         <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-gray-400">info</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Estado pregunta</label>
+              <label className="block text-sm font-medium text-gray-500 mb-2">Estado</label>
               {isEditing ? (
-                <select value={draftPregunta.estado} onChange={(event) => setDraftPregunta((prev) => prev ? { ...prev, estado: event.target.value as EstadoPregunta } : prev)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">
+                <select
+                  value={draft.estado}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            estado: event.target.value as EstadoPregunta,
+                          }
+                        : prev
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
                   <option value="En revisión">En revisión</option>
                   <option value="Pendientes">Pendientes</option>
                   <option value="Completadas">Completadas</option>
                 </select>
               ) : (
-                <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${getEstadoColor(pregunta.estado)}`}>{pregunta.estado}</span>
+                <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${getEstadoColor(estadoUi)}`}>
+                  {estadoUi}
+                </span>
               )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-yellow-500">warning</span>
             <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Complejidad</label>
+              <label className="block text-sm font-medium text-gray-500 mb-2">Complejidad</label>
               {isEditing ? (
-                <select value={draftPregunta.complejidad} onChange={(event) => setDraftPregunta((prev) => prev ? { ...prev, complejidad: event.target.value as ComplejidadPregunta } : prev)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm">
+                <select
+                  value={draft.complejidad}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            complejidad: event.target.value as ComplejidadPregunta,
+                          }
+                        : prev
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
                   <option value="Baja">Baja</option>
                   <option value="Media">Media</option>
                   <option value="Alta">Alta</option>
                 </select>
               ) : (
-                <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${getComplejidadColor(pregunta.complejidad)}`}>{pregunta.complejidad}</span>
+                <span
+                  className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${getComplejidadColor(
+                    complejidadUi
+                  )}`}
+                >
+                  {complejidadUi}
+                </span>
               )}
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-500 mb-2">% de avance</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-2">Encargado</label>
               {isEditing ? (
-                <div className="flex items-center gap-3">
-                  <input type="range" min={0} max={100} value={draftPregunta.avance} onChange={(event) => setDraftPregunta((prev) => prev ? { ...prev, avance: Number(event.target.value) } : prev)} className="flex-1" />
-                  <input type="number" min={0} max={100} value={draftPregunta.avance} onChange={(event) => setDraftPregunta((prev) => prev ? { ...prev, avance: Number(event.target.value) } : prev)} className="w-20 px-2 py-1 border border-gray-200 rounded-lg text-sm" />
-                </div>
+                <select
+                  value={draft.encargado_persona_id ?? ''}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            encargado_persona_id: event.target.value
+                              ? Number(event.target.value)
+                              : null,
+                          }
+                        : prev
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  <option value="">Sin encargado</option>
+                  {personas.map((persona) => (
+                    <option key={persona.id} value={persona.id}>
+                      {persona.nombre_completo}
+                    </option>
+                  ))}
+                </select>
               ) : (
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-semibold text-[#111318]">{pregunta.avance}%</span>
-                  <div className="flex-1 bg-gray-200 rounded-full h-2.5">
-                    <div className="bg-green-500 h-2.5 rounded-full transition-all duration-300" style={{ width: `${pregunta.avance}%` }}></div>
-                  </div>
-                </div>
+                <p className="text-sm text-[#111318]">{encargadoUi}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-2">Especialidad</label>
+              {isEditing ? (
+                <select
+                  value={draft.especialidad_id ?? ''}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            especialidad_id: event.target.value
+                              ? Number(event.target.value)
+                              : null,
+                          }
+                        : prev
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  <option value="">Sin especialidad</option>
+                  {especialidades.map((especialidad) => (
+                    <option key={especialidad.id} value={especialidad.id}>
+                      {especialidad.nombre_especialidad}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-sm text-[#111318]">{especialidadUi}</p>
               )}
             </div>
           </div>
 
-          {pregunta.informacion_faltante.length > 0 && (
-            <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined text-orange-500 mt-1">error</span>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-500 mb-2">Información faltante</label>
-                <ul className="list-disc list-inside space-y-1">
-                  {pregunta.informacion_faltante.map((item, idx) => (
-                    <li key={idx} className="text-sm text-[#111318]">{item}</li>
-                  ))}
-                </ul>
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-500 mb-2">Capítulo</label>
+            <p className="text-sm text-[#111318]">{pregunta.capitulo}</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-2">Temas principales</label>
+              <p className="text-sm text-[#111318]">{pregunta.temas_principales_texto}</p>
             </div>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-2">Temas secundarios</label>
+              <p className="text-sm text-[#111318]">{pregunta.temas_secundarios_texto}</p>
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-500 mb-2">Pregunta</label>
-            <p className="text-sm text-[#111318] leading-relaxed">{pregunta.pregunta}</p>
-          </div>
-
-          {pregunta.adjuntos > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-2">Adjuntos</label>
-              <div className="flex items-center gap-2">
-                {Array.from({ length: pregunta.adjuntos }).map((_, idx) => (
-                  <button key={idx} onClick={() => setSelectedAdjunto(idx + 1)} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer" type="button">
-                    <span className="material-symbols-outlined text-gray-400">{idx === 0 ? 'description' : 'image'}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 mb-2">Encargado</label>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center text-white text-sm font-semibold">
-                {pregunta.encargado.nombre.split(' ').map((n) => n[0]).join('').substring(0, 2)}
-              </div>
-              <span className="text-sm text-[#111318]">{pregunta.encargado.nombre}</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-500 mb-2">Especialidad</label>
-            <span className="inline-block px-3 py-1 text-sm font-medium rounded-full bg-orange-100 text-orange-800">{pregunta.especialidad}</span>
+            <p className="text-sm text-[#111318] leading-relaxed whitespace-pre-wrap">{pregunta.texto}</p>
           </div>
 
           <div>
@@ -321,16 +525,24 @@ const PreguntaDetailView: React.FC = () => {
             {isEditing ? (
               <textarea
                 rows={4}
-                value={draftPregunta.estrategia.join('\n')}
-                onChange={(event) => setDraftPregunta((prev) => prev ? { ...prev, estrategia: event.target.value.split('\n').map((line) => line.trim()).filter(Boolean) } : prev)}
+                value={draft.estrategia}
+                onChange={(event) =>
+                  setDraft((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          estrategia: event.target.value,
+                        }
+                      : prev
+                  )
+                }
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                placeholder="Define la estrategia para abordar esta observación"
               />
             ) : (
-              <ul className="list-disc list-inside space-y-1">
-                {pregunta.estrategia.map((estrategia, idx) => (
-                  <li key={idx} className="text-sm text-[#111318]">{estrategia}</li>
-                ))}
-              </ul>
+              <p className="text-sm text-[#111318] leading-relaxed whitespace-pre-wrap">
+                {pregunta.estrategia || 'Sin estrategia registrada.'}
+              </p>
             )}
           </div>
 
@@ -339,39 +551,119 @@ const PreguntaDetailView: React.FC = () => {
             {isEditing ? (
               <textarea
                 rows={5}
-                value={draftPregunta.respuesta_ia}
-                onChange={(event) => setDraftPregunta((prev) => prev ? { ...prev, respuesta_ia: event.target.value } : prev)}
+                value={draft.respuesta_ia}
+                onChange={(event) =>
+                  setDraft((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          respuesta_ia: event.target.value,
+                        }
+                      : prev
+                  )
+                }
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                placeholder="Escribe o ajusta la respuesta IA para esta observación"
               />
             ) : (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <p className="text-sm text-[#111318] leading-relaxed">{pregunta.respuesta_ia}</p>
+              <p className="text-sm text-[#111318] leading-relaxed whitespace-pre-wrap">
+                {pregunta.respuesta_ia || 'Sin respuesta IA registrada.'}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-500 mb-2">Adjuntos</label>
+            <p className="text-xs text-gray-500 mb-3">{getAdjuntosDescripcion(pregunta.adjuntos_resumen)}</p>
+
+            {pregunta.adjuntos.length === 0 ? (
+              <p className="text-sm text-gray-600">No hay adjuntos para esta pregunta.</p>
+            ) : (
+              <div className="space-y-2">
+                {pregunta.adjuntos.map((adjunto) => {
+                  const label = getTipoAdjuntoLabel(adjunto.tipo);
+                  const hasViewer = Boolean(getEmbeddedAdjuntoUrl(adjunto));
+
+                  return (
+                    <div
+                      key={adjunto.id}
+                      className="flex flex-wrap items-center justify-between gap-3 border border-gray-200 rounded-lg px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            label === 'Figura'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {label}
+                        </span>
+                        <span className="text-sm text-[#111318]">{adjunto.filename || `Adjunto #${adjunto.id}`}</span>
+                      </div>
+
+                      {hasViewer ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAdjunto(adjunto)}
+                          className="text-sm text-primary hover:underline"
+                        >
+                          Ver adjunto
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-500">Sin enlace de vista previa</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
-
-        <button onClick={() => setShowHelpModal(true)} className="fixed bottom-6 right-6 w-12 h-12 bg-primary text-white rounded-full shadow-lg hover:bg-[#047857] transition-colors flex items-center justify-center" type="button">
-          <span className="material-symbols-outlined">help</span>
-        </button>
       </div>
 
-      {selectedAdjunto !== null && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setSelectedAdjunto(null)}>
-          <div className="bg-white rounded-xl w-full max-w-md border border-gray-200 shadow-xl p-6" onClick={(event) => event.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-[#111318] mb-2">Adjunto #{selectedAdjunto}</h3>
-            <p className="text-sm text-gray-700 mb-4">Vista previa local de adjunto. Aquí puedes conectar descarga/visor cuando exista backend de archivos.</p>
-            <div className="flex justify-end"><button onClick={() => setSelectedAdjunto(null)} className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857]" type="button">Cerrar</button></div>
-          </div>
-        </div>
-      )}
+      {selectedAdjunto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setSelectedAdjunto(null)}
+        >
+          <div
+            className="bg-white rounded-xl w-full max-w-6xl border border-gray-200 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-[#111318]">
+                  {selectedAdjunto.filename || `Adjunto #${selectedAdjunto.id}`}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Tipo: {getTipoAdjuntoLabel(selectedAdjunto.tipo)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAdjunto(null)}
+                className="p-1 rounded hover:bg-gray-100"
+                aria-label="Cerrar visor"
+              >
+                <span className="material-symbols-outlined text-gray-500">close</span>
+              </button>
+            </div>
 
-      {showHelpModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowHelpModal(false)}>
-          <div className="bg-white rounded-xl w-full max-w-lg border border-gray-200 shadow-xl p-6" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-3"><span className="material-symbols-outlined text-primary">help</span><h3 className="text-lg font-semibold text-[#111318]">Ayuda de detalle</h3></div>
-            <p className="text-sm text-gray-700 mb-4">Usa Editar para modificar estado, complejidad, avance, estrategia y respuesta IA localmente. Los adjuntos abren una ficha local para evitar clics sin efecto.</p>
-            <div className="flex justify-end"><button onClick={() => setShowHelpModal(false)} className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857]" type="button">Entendido</button></div>
+            <div className="p-4">
+              {selectedAdjuntoUrl ? (
+                <iframe
+                  src={selectedAdjuntoUrl}
+                  title={selectedAdjunto.filename || `Adjunto ${selectedAdjunto.id}`}
+                  className="w-full h-[75vh] border border-gray-200 rounded-lg"
+                  allow="autoplay"
+                />
+              ) : (
+                <div className="h-[40vh] flex items-center justify-center text-sm text-gray-600">
+                  No se pudo generar una vista previa para este adjunto.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

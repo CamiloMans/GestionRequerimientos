@@ -1,26 +1,20 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  fetchPreguntasByCodigoMyma,
+  getAdjuntosDescripcion,
+  normalizeComplejidadPregunta,
+  normalizeEstadoPregunta,
+} from '../services/preguntasService';
+import type {
+  ComplejidadPregunta,
+  EstadoPregunta,
+  PreguntaGestion,
+} from '../types';
 import { adendasList, adendasPregunta } from '../utils/routes';
 
-type EstadoPregunta = 'En revisión' | 'Pendientes' | 'Completadas';
-type ComplejidadPregunta = 'Baja' | 'Media' | 'Alta';
-type SortField = 'id' | 'estado' | 'complejidad';
+type SortField = 'numero' | 'estado' | 'complejidad';
 type SortDirection = 'asc' | 'desc';
-
-interface Pregunta {
-  id: string;
-  estado: EstadoPregunta;
-  complejidad: ComplejidadPregunta;
-  pregunta: string;
-  adjuntos: number;
-  encargado: {
-    nombre: string;
-    avatar?: string;
-  };
-  especialidad: string;
-  estrategia: string[];
-  respuesta_ia: string;
-}
 
 interface FiltrosPregunta {
   estado: 'Todos' | EstadoPregunta;
@@ -28,121 +22,113 @@ interface FiltrosPregunta {
   especialidad: 'Todas' | string;
 }
 
-interface NuevaPreguntaForm {
-  id: string;
-  estado: EstadoPregunta;
-  complejidad: ComplejidadPregunta;
-  pregunta: string;
-  adjuntos: number;
-  encargadoNombre: string;
-  especialidad: string;
-  estrategia: string;
-  respuestaIA: string;
-}
+const SORT_SEQUENCE: SortField[] = ['numero', 'estado', 'complejidad'];
 
-const DUMMY_PREGUNTAS: Pregunta[] = [
-  {
-    id: '018',
-    estado: 'En revisión',
-    complejidad: 'Media',
-    pregunta:
-      'Respecto a las partes, obras y acciones del Proyecto, se solicita adjuntar un cuadro consolidado que detalle claramente las... Ver completo',
-    adjuntos: 2,
-    encargado: { nombre: 'PT Paula Olivares' },
-    especialidad: 'Descripción proyecto',
-    estrategia: ['Consolidar en una tabla maestra POA-Fase.', 'Definir Parte/Obra, Acción, Fase.'],
-    respuesta_ia: 'BORRADOR IA Se adjunta un cuadro de acciones por fase con trazabilidad del proyecto.',
-  },
-  {
-    id: '016',
-    estado: 'En revisión',
-    complejidad: 'Alta',
-    pregunta:
-      'Se solicita al Titular fundamentar técnica y cuantitativamente que la configuración geométrica y estructural del Depósito de... Ver completo',
-    adjuntos: 1,
-    encargado: { nombre: 'EG Eduardo G.' },
-    especialidad: 'Permisos sectoriales',
-    estrategia: ['Delimitar sector poniente con referencia a figura.', 'Presentar paquete técnico trazable.'],
-    respuesta_ia: 'BORRADOR IA Se fundamenta técnicamente la configuración geométrica para asegurar estabilidad.',
-  },
-  {
-    id: '015',
-    estado: 'Pendientes',
-    complejidad: 'Baja',
-    pregunta:
-      'Se requiere información adicional sobre el impacto ambiental del proyecto... Ver completo',
-    adjuntos: 0,
-    encargado: { nombre: 'PT Paula Olivares' },
-    especialidad: 'Impacto ambiental',
-    estrategia: ['Recopilar datos de estudios previos.', 'Preparar informe consolidado.'],
-    respuesta_ia: 'BORRADOR IA Se requiere información adicional sobre el impacto ambiental.',
-  },
-  {
-    id: '014',
-    estado: 'Completadas',
-    complejidad: 'Media',
-    pregunta: 'Solicitud de aclaración sobre los plazos de ejecución del proyecto... Ver completo',
-    adjuntos: 1,
-    encargado: { nombre: 'EG Eduardo G.' },
-    especialidad: 'Planificación',
-    estrategia: ['Revisar cronograma detallado.', 'Actualizar documentación.'],
-    respuesta_ia: 'BORRADOR IA Los plazos de ejecución se actualizaron según cronograma.',
-  },
-];
-
-const SORT_SEQUENCE: SortField[] = ['id', 'estado', 'complejidad'];
-
-const emptyNuevaPregunta: NuevaPreguntaForm = {
-  id: '',
-  estado: 'Pendientes',
-  complejidad: 'Media',
-  pregunta: '',
-  adjuntos: 0,
-  encargadoNombre: '',
-  especialidad: '',
-  estrategia: '',
-  respuestaIA: '',
+const COMPLEJIDAD_RANK: Record<ComplejidadPregunta, number> = {
+  Baja: 1,
+  Media: 2,
+  Alta: 3,
 };
 
 const GestionAdendaView: React.FC = () => {
   const navigate = useNavigate();
   const { codigoMyma } = useParams<{ codigoMyma: string }>();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [preguntas, setPreguntas] = useState<PreguntaGestion[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [preguntas, setPreguntas] = useState<Pregunta[]>(DUMMY_PREGUNTAS);
   const [filtros, setFiltros] = useState<FiltrosPregunta>({
     estado: 'Todos',
     complejidad: 'Todas',
     especialidad: 'Todas',
   });
-  const [sortField, setSortField] = useState<SortField>('id');
+  const [sortField, setSortField] = useState<SortField>('numero');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showFilters, setShowFilters] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showNewPreguntaModal, setShowNewPreguntaModal] = useState(false);
-  const [newPreguntaForm, setNewPreguntaForm] = useState<NuevaPreguntaForm>(emptyNuevaPregunta);
-  const [newPreguntaError, setNewPreguntaError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 5;
+
+  const pageSize = 10;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPreguntas = async () => {
+      if (!codigoMyma) {
+        if (isMounted) {
+          setError('No se recibió el identificador de adenda.');
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const { preguntas: data } = await fetchPreguntasByCodigoMyma(codigoMyma);
+
+        if (!isMounted) return;
+
+        setPreguntas(data);
+      } catch (err: any) {
+        if (!isMounted) return;
+
+        console.error('Error loading preguntas:', err);
+        setError(err?.message || 'No fue posible cargar las preguntas.');
+        setPreguntas([]);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadPreguntas();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [codigoMyma]);
 
   const especialidadesDisponibles = useMemo(() => {
-    return Array.from(new Set(preguntas.map((pregunta) => pregunta.especialidad)));
+    const all = preguntas
+      .map((pregunta) => pregunta.especialidad_nombre || 'Sin especialidad')
+      .filter(Boolean);
+
+    return Array.from(new Set(all)).sort((a, b) => a.localeCompare(b));
   }, [preguntas]);
 
   const filteredPreguntas = useMemo(() => {
     const searchLower = searchTerm.trim().toLowerCase();
+
     return preguntas.filter((pregunta) => {
+      const estadoUi = normalizeEstadoPregunta(pregunta.estado);
+      const complejidadUi = normalizeComplejidadPregunta(pregunta.complejidad);
+      const especialidadUi = pregunta.especialidad_nombre || 'Sin especialidad';
+      const encargadoUi = pregunta.encargado_nombre || 'Sin encargado';
+      const estrategiaUi = (pregunta.estrategia || '').trim();
+      const respuestaIaUi = (pregunta.respuesta_ia || '').trim();
+
       const matchSearch =
         !searchLower ||
-        pregunta.id.toLowerCase().includes(searchLower) ||
-        pregunta.pregunta.toLowerCase().includes(searchLower) ||
-        pregunta.encargado.nombre.toLowerCase().includes(searchLower) ||
-        pregunta.especialidad.toLowerCase().includes(searchLower);
+        pregunta.numero_formateado.toLowerCase().includes(searchLower) ||
+        pregunta.texto.toLowerCase().includes(searchLower) ||
+        pregunta.capitulo.toLowerCase().includes(searchLower) ||
+        pregunta.temas_principales_texto.toLowerCase().includes(searchLower) ||
+        pregunta.temas_secundarios_texto.toLowerCase().includes(searchLower) ||
+        estadoUi.toLowerCase().includes(searchLower) ||
+        complejidadUi.toLowerCase().includes(searchLower) ||
+        encargadoUi.toLowerCase().includes(searchLower) ||
+        especialidadUi.toLowerCase().includes(searchLower) ||
+        estrategiaUi.toLowerCase().includes(searchLower) ||
+        respuestaIaUi.toLowerCase().includes(searchLower);
 
-      const matchEstado = filtros.estado === 'Todos' || pregunta.estado === filtros.estado;
+      const matchEstado = filtros.estado === 'Todos' || estadoUi === filtros.estado;
       const matchComplejidad =
-        filtros.complejidad === 'Todas' || pregunta.complejidad === filtros.complejidad;
+        filtros.complejidad === 'Todas' || complejidadUi === filtros.complejidad;
       const matchEspecialidad =
-        filtros.especialidad === 'Todas' || pregunta.especialidad === filtros.especialidad;
+        filtros.especialidad === 'Todas' || especialidadUi === filtros.especialidad;
 
       return matchSearch && matchEstado && matchComplejidad && matchEspecialidad;
     });
@@ -150,23 +136,38 @@ const GestionAdendaView: React.FC = () => {
 
   const sortedPreguntas = useMemo(() => {
     const items = [...filteredPreguntas];
+
     items.sort((a, b) => {
       let comparison = 0;
-      if (sortField === 'id') comparison = a.id.localeCompare(b.id, undefined, { numeric: true });
-      if (sortField === 'estado') comparison = a.estado.localeCompare(b.estado);
-      if (sortField === 'complejidad') {
-        const rank: Record<ComplejidadPregunta, number> = { Baja: 1, Media: 2, Alta: 3 };
-        comparison = rank[a.complejidad] - rank[b.complejidad];
+
+      if (sortField === 'numero') {
+        comparison = (a.numero || 0) - (b.numero || 0);
       }
+
+      if (sortField === 'estado') {
+        comparison = normalizeEstadoPregunta(a.estado).localeCompare(
+          normalizeEstadoPregunta(b.estado)
+        );
+      }
+
+      if (sortField === 'complejidad') {
+        comparison =
+          COMPLEJIDAD_RANK[normalizeComplejidadPregunta(a.complejidad)] -
+          COMPLEJIDAD_RANK[normalizeComplejidadPregunta(b.complejidad)];
+      }
+
       return sortDirection === 'asc' ? comparison : -comparison;
     });
+
     return items;
   }, [filteredPreguntas, sortField, sortDirection]);
 
   const totalPages = Math.max(1, Math.ceil(sortedPreguntas.length / pageSize));
 
   useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
   }, [currentPage, totalPages]);
 
   useEffect(() => {
@@ -190,23 +191,19 @@ const GestionAdendaView: React.FC = () => {
     navigate(adendasList());
   };
 
-  const handleNuevaPregunta = () => {
-    setNewPreguntaForm(emptyNuevaPregunta);
-    setNewPreguntaError(null);
-    setShowNewPreguntaModal(true);
-  };
-
-  const handlePreguntaClick = (preguntaId: string) => {
+  const handlePreguntaClick = (preguntaId: number) => {
     if (!codigoMyma) {
       navigate(adendasList());
       return;
     }
-    navigate(adendasPregunta(codigoMyma, preguntaId));
+
+    navigate(adendasPregunta(codigoMyma, String(preguntaId)));
   };
 
   const handleSortClick = () => {
     const currentFieldIndex = SORT_SEQUENCE.indexOf(sortField);
     const nextField = SORT_SEQUENCE[(currentFieldIndex + 1) % SORT_SEQUENCE.length];
+
     setSortField(nextField);
     setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
   };
@@ -214,62 +211,6 @@ const GestionAdendaView: React.FC = () => {
   const handleClearFilters = () => {
     setFiltros({ estado: 'Todos', complejidad: 'Todas', especialidad: 'Todas' });
   };
-
-  const handleSaveNuevaPregunta = (event: React.FormEvent) => {
-    event.preventDefault();
-    setNewPreguntaError(null);
-
-    const trimmedId = newPreguntaForm.id.trim();
-    const trimmedPregunta = newPreguntaForm.pregunta.trim();
-    const trimmedEncargado = newPreguntaForm.encargadoNombre.trim();
-    const trimmedEspecialidad = newPreguntaForm.especialidad.trim();
-
-    if (!trimmedId || !trimmedPregunta || !trimmedEncargado || !trimmedEspecialidad) {
-      setNewPreguntaError('Completa ID, pregunta, encargado y especialidad.');
-      return;
-    }
-
-    if (preguntas.some((pregunta) => pregunta.id === trimmedId)) {
-      setNewPreguntaError('El ID ya existe. Usa un ID distinto.');
-      return;
-    }
-
-    const estrategia = newPreguntaForm.estrategia
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const nuevaPregunta: Pregunta = {
-      id: trimmedId,
-      estado: newPreguntaForm.estado,
-      complejidad: newPreguntaForm.complejidad,
-      pregunta: trimmedPregunta,
-      adjuntos: Number.isFinite(newPreguntaForm.adjuntos)
-        ? Math.max(0, newPreguntaForm.adjuntos)
-        : 0,
-      encargado: { nombre: trimmedEncargado },
-      especialidad: trimmedEspecialidad,
-      estrategia: estrategia.length > 0 ? estrategia : ['Sin estrategia registrada en esta pregunta.'],
-      respuesta_ia:
-        newPreguntaForm.respuestaIA.trim() ||
-        'BORRADOR IA pendiente de redacción para esta pregunta.',
-    };
-
-    setPreguntas((prev) => [nuevaPregunta, ...prev]);
-    setShowNewPreguntaModal(false);
-    setNewPreguntaForm(emptyNuevaPregunta);
-    setCurrentPage(1);
-  };
-
-  const enRevision = preguntas.filter((pregunta) => pregunta.estado === 'En revisión').length;
-  const pendientes = preguntas.filter((pregunta) => pregunta.estado === 'Pendientes').length;
-  const completadas = preguntas.filter((pregunta) => pregunta.estado === 'Completadas').length;
-  const total = preguntas.length;
-  const avanceGlobal = total > 0 ? Math.round((completadas / total) * 100) : 0;
-
-  const baja = preguntas.filter((pregunta) => pregunta.complejidad === 'Baja').length;
-  const media = preguntas.filter((pregunta) => pregunta.complejidad === 'Media').length;
-  const alta = preguntas.filter((pregunta) => pregunta.complejidad === 'Alta').length;
 
   const getEstadoColor = (estado: EstadoPregunta) => {
     switch (estado) {
@@ -298,19 +239,55 @@ const GestionAdendaView: React.FC = () => {
   };
 
   const getEspecialidadColor = (especialidad: string) => {
-    if (especialidad.toLowerCase().includes('proyecto')) return 'bg-orange-100 text-orange-800';
-    if (especialidad.toLowerCase().includes('sectoriales')) return 'bg-blue-100 text-blue-800';
-    if (especialidad.toLowerCase().includes('ambiental')) return 'bg-green-100 text-green-800';
-    if (especialidad.toLowerCase().includes('planificación')) return 'bg-indigo-100 text-indigo-800';
+    const normalized = especialidad.toLowerCase();
+
+    if (normalized.includes('proyecto')) return 'bg-orange-100 text-orange-800';
+    if (normalized.includes('sectoriales')) return 'bg-blue-100 text-blue-800';
+    if (normalized.includes('ambiental')) return 'bg-green-100 text-green-800';
+    if (normalized.includes('planific')) return 'bg-indigo-100 text-indigo-800';
+
     return 'bg-gray-100 text-gray-800';
   };
+
+  const enRevision = preguntas.filter(
+    (pregunta) => normalizeEstadoPregunta(pregunta.estado) === 'En revisión'
+  ).length;
+  const pendientes = preguntas.filter(
+    (pregunta) => normalizeEstadoPregunta(pregunta.estado) === 'Pendientes'
+  ).length;
+  const completadas = preguntas.filter(
+    (pregunta) => normalizeEstadoPregunta(pregunta.estado) === 'Completadas'
+  ).length;
+  const total = preguntas.length;
+  const avanceGlobal = total > 0 ? Math.round((completadas / total) * 100) : 0;
+
+  const baja = preguntas.filter(
+    (pregunta) => normalizeComplejidadPregunta(pregunta.complejidad) === 'Baja'
+  ).length;
+  const media = preguntas.filter(
+    (pregunta) => normalizeComplejidadPregunta(pregunta.complejidad) === 'Media'
+  ).length;
+  const alta = preguntas.filter(
+    (pregunta) => normalizeComplejidadPregunta(pregunta.complejidad) === 'Alta'
+  ).length;
 
   const resultStart = sortedPreguntas.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const resultEnd = Math.min(currentPage * pageSize, sortedPreguntas.length);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+          <p className="text-gray-600">Cargando preguntas...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full p-6 bg-[#f8fafc] min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[95rem] mx-auto">
         <div className="mb-6">
           <button
             onClick={handleBack}
@@ -325,6 +302,12 @@ const GestionAdendaView: React.FC = () => {
           </div>
         </div>
 
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div className="flex-1 max-w-md w-full">
@@ -334,25 +317,15 @@ const GestionAdendaView: React.FC = () => {
                 </span>
                 <input
                   type="text"
-                  placeholder="Buscar en Adenda..."
+                  placeholder="Buscar en preguntas..."
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="material-symbols-outlined text-sm">refresh</span>
-                <span>Última actualización: Hoy, 10:45 AM</span>
-              </div>
-              <button
-                onClick={handleNuevaPregunta}
-                className="flex items-center gap-2 px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857] transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">add</span>
-                <span>Nueva Pregunta</span>
-              </button>
+            <div className="text-sm text-gray-500">
+              Total de preguntas: <span className="font-semibold text-[#111318]">{preguntas.length}</span>
             </div>
           </div>
         </div>
@@ -391,7 +364,6 @@ const GestionAdendaView: React.FC = () => {
               <div>
                 <p className="text-2xl font-bold text-[#111318] mb-1">{avanceGlobal}%</p>
                 <p className="text-xs text-gray-500">Avance global</p>
-                <p className="text-xs text-green-600 mt-1">+12% esta semana</p>
               </div>
               <div className="relative w-20 h-20">
                 <svg className="transform -rotate-90 w-20 h-20">
@@ -416,18 +388,20 @@ const GestionAdendaView: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-gray-700">Complejidad de Preguntas</h3>
-              <div className="text-xs text-gray-500">
-                <span className="font-medium">Fecha de Ingreso</span>
-                <br />
-                <span>18/02/2026</span>
-              </div>
-            </div>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">Complejidad de Preguntas</h3>
             <div className="space-y-2">
-              <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Baja</span><span className="text-sm font-semibold text-[#111318]">{baja}</span></div>
-              <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Media</span><span className="text-sm font-semibold text-[#111318]">{media}</span></div>
-              <div className="flex items-center justify-between"><span className="text-sm text-gray-600">Alta</span><span className="text-sm font-semibold text-[#111318]">{alta}</span></div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Baja</span>
+                <span className="text-sm font-semibold text-[#111318]">{baja}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Media</span>
+                <span className="text-sm font-semibold text-[#111318]">{media}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Alta</span>
+                <span className="text-sm font-semibold text-[#111318]">{alta}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -436,26 +410,33 @@ const GestionAdendaView: React.FC = () => {
           <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <button onClick={() => setShowFilters((prev) => !prev)} className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                <button
+                  onClick={() => setShowFilters((prev) => !prev)}
+                  className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                >
                   <span className="material-symbols-outlined text-sm">filter_list</span>
                   <span>Filtros</span>
                 </button>
-                <button onClick={handleSortClick} className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                <button
+                  onClick={handleSortClick}
+                  className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                >
                   <span className="material-symbols-outlined text-sm">sort</span>
                   <span>Ordenar: {sortField}</span>
                   <span className="text-xs text-gray-500 uppercase">{sortDirection}</span>
                 </button>
               </div>
-              <button onClick={() => setShowHelpModal(true)} className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
-                <span className="material-symbols-outlined text-sm">help</span>
-              </button>
             </div>
+
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2">
                 <select
                   value={filtros.estado}
                   onChange={(event) =>
-                    setFiltros((prev) => ({ ...prev, estado: event.target.value as FiltrosPregunta['estado'] }))
+                    setFiltros((prev) => ({
+                      ...prev,
+                      estado: event.target.value as FiltrosPregunta['estado'],
+                    }))
                   }
                   className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
                 >
@@ -496,7 +477,10 @@ const GestionAdendaView: React.FC = () => {
                   ))}
                 </select>
 
-                <button onClick={handleClearFilters} className="px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+                <button
+                  onClick={handleClearFilters}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
+                >
                   Limpiar filtros
                 </button>
               </div>
@@ -504,37 +488,143 @@ const GestionAdendaView: React.FC = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[1800px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Complejidad</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pregunta</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adjuntos</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Encargado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Especialidad</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estrategia</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Respuesta IA</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Número
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Complejidad
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Pregunta
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Capítulo
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Temas principales
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Temas secundarios
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Adjuntos
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Encargado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Especialidad
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estrategia
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Respuesta IA
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedPreguntas.map((pregunta) => (
-                  <tr key={pregunta.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handlePreguntaClick(pregunta.id)}>
-                    <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-[#111318]">{pregunta.id}</div></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 py-1 text-xs font-medium rounded-full ${getEstadoColor(pregunta.estado)}`}>{pregunta.estado}</span></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 py-1 text-xs font-medium rounded-full ${getComplejidadColor(pregunta.complejidad)}`}>{pregunta.complejidad}</span></td>
-                    <td className="px-6 py-4 max-w-xs"><div className="text-sm text-[#111318] truncate" title={pregunta.pregunta}>{pregunta.pregunta}</div></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center gap-2">{pregunta.adjuntos > 0 && (<><span className="material-symbols-outlined text-gray-400 text-sm">description</span>{pregunta.adjuntos > 1 && <span className="material-symbols-outlined text-gray-400 text-sm">image</span>}</>)}</div></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center gap-2"><div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">{pregunta.encargado.nombre.split(' ').map((name) => name[0]).join('').substring(0, 2)}</div><span className="text-sm text-[#111318]">{pregunta.encargado.nombre}</span></div></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 py-1 text-xs font-medium rounded-full ${getEspecialidadColor(pregunta.especialidad)}`}>{pregunta.especialidad}</span></td>
-                    <td className="px-6 py-4"><div className="text-sm text-[#111318] max-w-xs"><ul className="list-disc list-inside space-y-1">{pregunta.estrategia.map((estrategia, index) => (<li key={index} className="text-xs">{estrategia}</li>))}</ul></div></td>
-                    <td className="px-6 py-4"><div className="text-xs text-gray-600 max-w-xs">{pregunta.respuesta_ia}</div></td>
-                  </tr>
-                ))}
+                {paginatedPreguntas.map((pregunta) => {
+                  const estadoUi = normalizeEstadoPregunta(pregunta.estado);
+                  const complejidadUi = normalizeComplejidadPregunta(pregunta.complejidad);
+                  const especialidadUi = pregunta.especialidad_nombre || 'Sin especialidad';
+                  const encargadoUi = pregunta.encargado_nombre || 'Sin encargado';
+                  const estrategiaUi = pregunta.estrategia || 'Sin estrategia registrada.';
+                  const respuestaIaUi = pregunta.respuesta_ia || 'Sin respuesta IA registrada.';
+
+                  return (
+                    <tr
+                      key={pregunta.id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handlePreguntaClick(pregunta.id)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-[#111318]">
+                          {pregunta.numero_formateado}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getEstadoColor(estadoUi)}`}
+                        >
+                          {estadoUi}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getComplejidadColor(
+                            complejidadUi
+                          )}`}
+                        >
+                          {complejidadUi}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 max-w-md">
+                        <div className="text-sm text-[#111318] line-clamp-3" title={pregunta.texto}>
+                          {pregunta.texto}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 max-w-xs">
+                        <div className="text-xs text-gray-700">{pregunta.capitulo}</div>
+                      </td>
+                      <td className="px-6 py-4 max-w-xs">
+                        <div className="text-xs text-gray-700">{pregunta.temas_principales_texto}</div>
+                      </td>
+                      <td className="px-6 py-4 max-w-xs">
+                        <div className="text-xs text-gray-700">{pregunta.temas_secundarios_texto}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-gray-700">
+                            {getAdjuntosDescripcion(pregunta.adjuntos_resumen)}
+                          </span>
+                          {pregunta.adjuntos_resumen.total > 0 && (
+                            <div className="flex gap-1">
+                              {pregunta.adjuntos_resumen.tabla > 0 && (
+                                <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800">
+                                  Tabla
+                                </span>
+                              )}
+                              {pregunta.adjuntos_resumen.figura > 0 && (
+                                <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800">
+                                  Figura
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-[#111318]">{encargadoUi}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getEspecialidadColor(
+                            especialidadUi
+                          )}`}
+                        >
+                          {especialidadUi}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 max-w-md">
+                        <div className="text-xs text-gray-700 line-clamp-3">{estrategiaUi}</div>
+                      </td>
+                      <td className="px-6 py-4 max-w-md">
+                        <div className="text-xs text-gray-700 line-clamp-3">{respuestaIaUi}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
                 {paginatedPreguntas.length === 0 && (
                   <tr>
-                    <td className="px-6 py-8 text-sm text-gray-500 text-center" colSpan={9}>
+                    <td className="px-6 py-8 text-sm text-gray-500 text-center" colSpan={12}>
                       No hay preguntas para los filtros seleccionados.
                     </td>
                   </tr>
@@ -544,74 +634,41 @@ const GestionAdendaView: React.FC = () => {
           </div>
 
           <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-            <div className="text-sm text-gray-600">Mostrando {resultStart} a {resultEnd} de {sortedPreguntas.length} resultados</div>
+            <div className="text-sm text-gray-600">
+              Mostrando {resultStart} a {resultEnd} de {sortedPreguntas.length} resultados
+            </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">&lt;</button>
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                &lt;
+              </button>
               {visiblePages.map((page) => (
-                <button key={page} onClick={() => setCurrentPage(page)} className={`px-3 py-1 rounded-lg text-sm ${currentPage === page ? 'bg-primary text-white' : 'border border-gray-200 hover:bg-gray-50'}`}>
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1 rounded-lg text-sm ${
+                    currentPage === page
+                      ? 'bg-primary text-white'
+                      : 'border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
                   {page}
                 </button>
               ))}
-              <button onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">&gt;</button>
-              <button onClick={() => setShowHelpModal(true)} className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm"><span className="material-symbols-outlined text-sm">help</span></button>
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                &gt;
+              </button>
             </div>
           </div>
         </div>
       </div>
-
-      {showNewPreguntaModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowNewPreguntaModal(false)}>
-          <div className="bg-white rounded-xl w-full max-w-2xl border border-gray-200 shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <form onSubmit={handleSaveNuevaPregunta} className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-[#111318]">Nueva Pregunta</h2>
-                <button type="button" onClick={() => setShowNewPreguntaModal(false)} className="p-1 rounded hover:bg-gray-100">
-                  <span className="material-symbols-outlined text-gray-500">close</span>
-                </button>
-              </div>
-
-              {newPreguntaError && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{newPreguntaError}</div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="text" placeholder="ID" value={newPreguntaForm.id} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, id: event.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg" />
-                <input type="text" placeholder="Encargado" value={newPreguntaForm.encargadoNombre} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, encargadoNombre: event.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg" />
-                <select value={newPreguntaForm.estado} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, estado: event.target.value as EstadoPregunta }))} className="px-3 py-2 border border-gray-200 rounded-lg"><option value="En revisión">En revisión</option><option value="Pendientes">Pendientes</option><option value="Completadas">Completadas</option></select>
-                <select value={newPreguntaForm.complejidad} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, complejidad: event.target.value as ComplejidadPregunta }))} className="px-3 py-2 border border-gray-200 rounded-lg"><option value="Baja">Baja</option><option value="Media">Media</option><option value="Alta">Alta</option></select>
-                <input type="text" placeholder="Especialidad" value={newPreguntaForm.especialidad} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, especialidad: event.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg" />
-                <input type="number" min={0} placeholder="Adjuntos" value={newPreguntaForm.adjuntos} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, adjuntos: Number(event.target.value || 0) }))} className="px-3 py-2 border border-gray-200 rounded-lg" />
-              </div>
-
-              <textarea rows={3} placeholder="Pregunta" value={newPreguntaForm.pregunta} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, pregunta: event.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-              <textarea rows={3} placeholder="Estrategia (una línea por punto)" value={newPreguntaForm.estrategia} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, estrategia: event.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-              <textarea rows={3} placeholder="Respuesta IA" value={newPreguntaForm.respuestaIA} onChange={(event) => setNewPreguntaForm((prev) => ({ ...prev, respuestaIA: event.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-lg" />
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowNewPreguntaModal(false)} className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-                <button type="submit" className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857]">Guardar pregunta</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showHelpModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowHelpModal(false)}>
-          <div className="bg-white rounded-xl w-full max-w-lg border border-gray-200 shadow-xl p-6" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-primary">help</span>
-              <h3 className="text-lg font-semibold text-[#111318]">Ayuda de gestión</h3>
-            </div>
-            <p className="text-sm text-gray-700 mb-4">
-              Usa filtros para acotar preguntas, el botón ordenar para alternar criterio y la paginación para revisar resultados. El botón Nueva Pregunta agrega registros en memoria local.
-            </p>
-            <div className="flex justify-end">
-              <button onClick={() => setShowHelpModal(false)} className="px-4 py-2 bg-[#059669] text-white rounded-lg hover:bg-[#047857]">Entendido</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

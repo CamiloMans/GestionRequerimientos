@@ -34,8 +34,14 @@ const AdendasSidebar: React.FC<SidebarProps> = ({ isOpen, onClose, activeView, h
   const [isAdmin, setIsAdmin] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isListActive = activeView === 'list' || (!activeView && location.pathname.includes('/adendas') && !location.pathname.includes('/create') && !location.pathname.includes('/edit') && !location.pathname.includes('/reporte'));
-  const isReporteActive = activeView === 'reporte' || location.pathname.includes('/reporte');
+  const isReporteRoute = location.pathname.includes('/reporte');
+  const isListRoute =
+    location.pathname.includes('/adendas') &&
+    !location.pathname.includes('/create') &&
+    !location.pathname.includes('/edit') &&
+    !isReporteRoute;
+  const isListActive = !isReporteRoute && (activeView === 'list' || (!activeView && isListRoute));
+  const isReporteActive = isReporteRoute;
 
   // Obtener información del usuario y verificar si es admin del módulo de Adendas
   useEffect(() => {
