@@ -166,12 +166,39 @@ app.post('/api/acreditacion/documentos/subir', async (req, res) => {
 /* ---------- NUEVO proxy ICSARA ---------- */
 app.post('/api/acreditacion/adendas/jobs', async (req, res) => {
   const endpoint = `${ICSARA_API_BASE_URL}${ICSARA_API_PREFIX}/jobs`;
-  return proxyRequest(req, res, {
-    endpoint,
-    method: 'POST',
-    streamBody: true, // multipart/form-data
-    extraHeaders: { 'x-api-key': ICSARA_API_KEY },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
+  try {
+    const upstreamResponse = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'x-api-key': ICSARA_API_KEY,
+        ...(req.headers['content-type'] ? { 'content-type': req.headers['content-type'] } : {}),
+        ...(req.headers['content-length'] ? { 'content-length': req.headers['content-length'] } : {}),
+      },
+      body: req,
+      duplex: 'half',
+      signal: controller.signal,
+    });
+
+    const contentType = upstreamResponse.headers.get('content-type');
+    if (contentType) res.setHeader('Content-Type', contentType);
+
+    const body = Buffer.from(await upstreamResponse.arrayBuffer());
+    if (!upstreamResponse.ok) {
+      const preview = body.toString('utf8').slice(0, 1000);
+      console.error(
+        `[proxy] ICSARA jobs upstream status=${upstreamResponse.status} endpoint=${endpoint} body=${preview}`,
+      );
+    }
+    res.status(upstreamResponse.status).send(body);
+  } catch (error) {
+    console.error(`[proxy] Error calling ${endpoint}:`, error);
+    res.status(502).json({ error: 'Upstream API unavailable', endpoint });
+  } finally {
+    clearTimeout(timeout);
+  }
 });
 
 app.get('/api/acreditacion/adendas/health/live', async (req, res) => {
