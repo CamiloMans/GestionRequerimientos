@@ -1,11 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WorkerList } from './WorkerList';
-import { Worker, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES } from '../types';
-import { createSolicitudAcreditacion } from '../services/supabaseService';
+import { Worker, WorkerType, RequestFormData, PROJECT_MANAGERS, MOCK_COMPANIES, Persona } from '../types';
+import { createSolicitudAcreditacion, createProyectoTrabajadores, createProyectoHorarios, createProyectoConductores, fetchProveedores, fetchPersonas } from '../services/supabaseService';
 
 interface Horario {
   dias: string;
   horario: string;
+}
+
+interface VehiculoMyma {
+  placa: string;
+  conductor: string;
+}
+
+interface VehiculoContratista {
+  placa: string;
+  conductor: string;
 }
 
 interface FieldRequestFormProps {
@@ -26,7 +36,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     accreditationFollowUp: '',
     fieldStartDate: '',
     riskPreventionNotice: '',
-    companyAccreditationRequired: '',
+    companyAccreditationRequired: '', // Iniciar sin selección
     contractAdmin: '',
     // Información del Contrato
     nombreContrato: '',
@@ -39,7 +49,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     cantidadVehiculos: '',
     placaPatente: '',
     // Pregunta sobre Contratista
-    requiereAcreditarContratista: '',
+    requiereAcreditarContratista: '', // Iniciar sin selección
     // Información del Contrato (Contratista)
     modalidadContrato: '',
     razonSocialContratista: '',
@@ -50,47 +60,178 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     cantidadVehiculosContratista: '',
     placasVehiculosContratista: '',
     // SST
-    registroSstTerreo: '',
+    registroSstTerreo: '', // Iniciar sin selección
   });
 
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [workersContratista, setWorkersContratista] = useState<Worker[]>([]);
+  const [targetWorkerCountMyma, setTargetWorkerCountMyma] = useState(0);
+  const [targetWorkerCountContratista, setTargetWorkerCountContratista] = useState(0);
   const [horarios, setHorarios] = useState<Horario[]>([]);
-  const [placasPatente, setPlacasPatente] = useState<string[]>([]);
-  const [placasPatenteContratista, setPlacasPatenteContratista] = useState<string[]>([]);
+  const [vehiculosMyma, setVehiculosMyma] = useState<VehiculoMyma[]>([]);
+  const [vehiculosContratista, setVehiculosContratista] = useState<VehiculoContratista[]>([]);
+  const [proveedores, setProveedores] = useState<string[]>([]);
+  
+  // Estados para el buscador de solicitante
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [filteredPersonasSolicitante, setFilteredPersonasSolicitante] = useState<Persona[]>([]);
+  const [searchQuerySolicitante, setSearchQuerySolicitante] = useState('');
+  const [selectedPersonaSolicitante, setSelectedPersonaSolicitante] = useState<Persona | null>(null);
+  const [showDropdownSolicitante, setShowDropdownSolicitante] = useState(false);
+
+  // Limpiar todos los campos cuando se monta el componente
+  useEffect(() => {
+    // Limpiar sessionStorage para evitar cargar borradores previos
+    const STORAGE_KEY = 'field_request_form_draft';
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      console.log('🧹 Formulario limpiado: sessionStorage eliminado');
+    } catch (error) {
+      console.error('Error limpiando sessionStorage:', error);
+    }
+
+    // Resetear todos los campos del formulario a valores vacíos
+    setFormData({
+      requestDate: '',
+      requesterName: '',
+      kickoffDate: '',
+      projectCode: '',
+      requirement: '',
+      clientName: '',
+      clientContactName: '',
+      clientContactEmail: '',
+      projectManager: '',
+      accreditationFollowUp: '',
+      fieldStartDate: '',
+      riskPreventionNotice: '',
+      companyAccreditationRequired: '', // Limpiar campo de radio (ninguno seleccionado)
+      contractAdmin: '',
+      nombreContrato: '',
+      numeroContrato: '',
+      administradorContrato: '',
+      jornadaTrabajo: '',
+      horarioTrabajo: '',
+      cantidadVehiculos: '',
+      placaPatente: '',
+      requiereAcreditarContratista: '', // Limpiar campo de radio (ninguno seleccionado)
+      modalidadContrato: '',
+      razonSocialContratista: '',
+      nombreResponsableContratista: '',
+      telefonoResponsableContratista: '',
+      emailResponsableContratista: '',
+      cantidadVehiculosContratista: '',
+      placasVehiculosContratista: '',
+      registroSstTerreo: '', // Limpiar campo de radio (ninguno seleccionado)
+    });
+    
+    // Limpiar otros estados
+    setWorkers([]);
+    setWorkersContratista([]);
+    setTargetWorkerCountMyma(0);
+    setTargetWorkerCountContratista(0);
+    setHorarios([]);
+    setVehiculosMyma([]);
+    setVehiculosContratista([]);
+    setSearchQuerySolicitante('');
+    setSelectedPersonaSolicitante(null);
+    setShowDropdownSolicitante(false);
+  }, []); // Solo se ejecuta al montar el componente
+
+  // Cargar proveedores desde la base de datos
+  useEffect(() => {
+    const loadProveedores = async () => {
+      try {
+        const proveedoresData = await fetchProveedores();
+        const nombresProveedores = proveedoresData.map(p => p.nombre_proveedor);
+        setProveedores(nombresProveedores);
+      } catch (error) {
+        console.error('Error cargando proveedores:', error);
+        // Si falla, usar MOCK_COMPANIES como fallback
+        setProveedores(MOCK_COMPANIES.map(c => c.name));
+      }
+    };
+
+    loadProveedores();
+  }, []);
+
+  // Cargar personas para el buscador de solicitante
+  useEffect(() => {
+    const loadPersonas = async () => {
+      try {
+        const data = await fetchPersonas();
+        setPersonas(data);
+        setFilteredPersonasSolicitante(data);
+      } catch (error) {
+        console.error('Error cargando personas:', error);
+      }
+    };
+
+    loadPersonas();
+  }, []);
+
+  // Filtrar personas cuando cambia el término de búsqueda del solicitante
+  useEffect(() => {
+    if (searchQuerySolicitante.trim() === '') {
+      setFilteredPersonasSolicitante(personas);
+    } else {
+      const filtered = personas.filter(persona =>
+        persona.nombre_completo.toLowerCase().includes(searchQuerySolicitante.toLowerCase()) ||
+        persona.rut.toLowerCase().includes(searchQuerySolicitante.toLowerCase())
+      );
+      setFilteredPersonasSolicitante(filtered);
+    }
+  }, [searchQuerySolicitante, personas]);
+
+  // Cerrar dropdown del solicitante al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('#solicitante_search') && !target.closest('.dropdown-results-solicitante')) {
+        setShowDropdownSolicitante(false);
+      }
+    };
+
+    if (showDropdownSolicitante) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdownSolicitante]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Si se cambia la cantidad de vehículos, actualizar el array de placas
+    // Si se cambia la cantidad de vehículos, actualizar el array de vehículos
     if (name === 'cantidadVehiculos') {
       const cantidad = parseInt(value) || 0;
-      setPlacasPatente(prev => {
-        const newPlacas = [...prev];
+      setVehiculosMyma(prev => {
+        const newVehiculos = [...prev];
         // Agregar o quitar elementos según la cantidad
-        if (cantidad > newPlacas.length) {
-          // Agregar elementos vacíos
-          return [...newPlacas, ...Array(cantidad - newPlacas.length).fill('')];
+        if (cantidad > newVehiculos.length) {
+          // Agregar elementos vacíos con placa y conductor
+          return [...newVehiculos, ...Array(cantidad - newVehiculos.length).fill(null).map(() => ({ placa: '', conductor: '' }))];
         } else {
           // Recortar el array
-          return newPlacas.slice(0, cantidad);
+          return newVehiculos.slice(0, cantidad);
         }
       });
     }
 
-    // Si se cambia la cantidad de vehículos del contratista, actualizar el array de placas
+    // Si se cambia la cantidad de vehículos del contratista, actualizar el array de vehículos
     if (name === 'cantidadVehiculosContratista') {
       const cantidad = parseInt(value) || 0;
-      setPlacasPatenteContratista(prev => {
-        const newPlacas = [...prev];
+      setVehiculosContratista(prev => {
+        const newVehiculos = [...prev];
         // Agregar o quitar elementos según la cantidad
-        if (cantidad > newPlacas.length) {
-          // Agregar elementos vacíos
-          return [...newPlacas, ...Array(cantidad - newPlacas.length).fill('')];
+        if (cantidad > newVehiculos.length) {
+          // Agregar elementos vacíos con placa y conductor
+          return [...newVehiculos, ...Array(cantidad - newVehiculos.length).fill(null).map(() => ({ placa: '', conductor: '' }))];
         } else {
           // Recortar el array
-          return newPlacas.slice(0, cantidad);
+          return newVehiculos.slice(0, cantidad);
         }
       });
     }
@@ -118,12 +259,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
     ));
   };
 
-  const handlePlacaChange = (index: number, value: string) => {
-    setPlacasPatente(prev => prev.map((placa, i) => i === index ? value : placa));
+  const handleVehiculoMymaChange = (index: number, field: 'placa' | 'conductor', value: string) => {
+    setVehiculosMyma(prev => prev.map((vehiculo, i) => 
+      i === index ? { ...vehiculo, [field]: value } : vehiculo
+    ));
   };
 
-  const handlePlacaContratistaChange = (index: number, value: string) => {
-    setPlacasPatenteContratista(prev => prev.map((placa, i) => i === index ? value : placa));
+  const handleVehiculoContratistaChange = (index: number, field: 'placa' | 'conductor', value: string) => {
+    setVehiculosContratista(prev => prev.map((vehiculo, i) => 
+      i === index ? { ...vehiculo, [field]: value } : vehiculo
+    ));
   };
 
   const handleAddWorkerContratista = (worker: Worker) => {
@@ -132,6 +277,126 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
   const handleRemoveWorkerContratista = (id: string) => {
     setWorkersContratista(prev => prev.filter(w => w.id !== id));
+  };
+
+  // Función para normalizar texto para correos electrónicos (eliminar tildes y caracteres especiales)
+  const normalizeEmail = (text: string): string => {
+    return text
+      .toLowerCase()
+      .normalize('NFD') // Normaliza caracteres con tildes
+      .replace(/[\u0300-\u036f]/g, '') // Elimina diacríticos (tildes)
+      .replace(/ñ/g, 'n') // Reemplaza ñ por n
+      .replace(/[^a-z0-9\s]/g, '') // Elimina caracteres especiales excepto letras, números y espacios
+      .replace(/\s+/g, '.') // Reemplaza espacios por puntos
+      .trim();
+  };
+
+  // Función para rellenar el formulario con datos aleatorios
+  const fillRandomData = () => {
+    const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const randomItem = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+    
+    // Generar fechas aleatorias
+    const today = new Date();
+    const randomDate = (daysOffset: number) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + daysOffset);
+      return date.toISOString().split('T')[0];
+    };
+
+    // Nombres y datos aleatorios
+    const nombres = ['Juan Pérez', 'María González', 'Carlos Ruiz', 'Ana Silva', 'Pedro Martínez', 'Laura Sánchez'];
+    const empresas = ['CODELCO', 'BHP', 'Antofagasta Minerals', 'KINROSS', 'LAS CENIZAS', 'AGQ'];
+    const requisitos = ['Acreditación', 'Carpeta de arranque', 'Acreditación y Carpeta de arranque', 'Pase de visita'];
+    const modalidades = ['honorarios', 'contratista'];
+    const diasSemana = ['Lunes a Viernes', 'Lunes a Jueves', 'Lunes a Sábado', 'Martes a Viernes'];
+    const horarios = ['08:00 - 18:00', '07:00 - 17:00', '09:00 - 19:00', '06:00 - 16:00'];
+    const placas = ['ABCD12', 'EFGH34', 'IJKL56', 'MNOP78', 'QRST90', 'UVWX12'];
+    const nombresConductores = ['Roberto Silva', 'Patricia Muñoz', 'Fernando Torres', 'Carmen Díaz'];
+
+    // Seleccionar una persona aleatoria para el solicitante
+    const personaAleatoria = personas.length > 0 ? randomItem(personas) : null;
+
+    // Generar correos sin tildes
+    const nombreCliente = randomItem(nombres);
+    const empresaCliente = randomItem(empresas);
+    const nombreResponsable = randomItem(nombres);
+
+    // Rellenar formData
+    setFormData({
+      requestDate: randomDate(0),
+      requesterName: personaAleatoria?.nombre_completo || randomItem(nombres),
+      kickoffDate: randomDate(randomInt(1, 7)),
+      projectCode: `PRJ-${new Date().getFullYear()}-${String(randomInt(100, 999)).padStart(3, '0')}`,
+      requirement: randomItem(requisitos),
+      clientName: empresaCliente,
+      clientContactName: nombreCliente,
+      clientContactEmail: `${normalizeEmail(nombreCliente)}@${normalizeEmail(empresaCliente)}.cl`,
+      projectManager: PROJECT_MANAGERS.length > 0 ? randomItem(PROJECT_MANAGERS) : randomItem(nombres),
+      accreditationFollowUp: randomItem(nombres),
+      fieldStartDate: randomDate(randomInt(7, 30)),
+      riskPreventionNotice: 'yes',
+      companyAccreditationRequired: 'yes',
+      contractAdmin: randomItem(nombres),
+      nombreContrato: `Contrato ${randomItem(['Servicios', 'Obra', 'Suministro'])} ${new Date().getFullYear()}`,
+      numeroContrato: `CON-${new Date().getFullYear()}-${String(randomInt(100, 999)).padStart(3, '0')}`,
+      administradorContrato: randomItem(nombres),
+      jornadaTrabajo: `${randomInt(8, 12)} horas`,
+      horarioTrabajo: randomItem(horarios),
+      cantidadVehiculos: String(randomInt(1, 5)),
+      placaPatente: '',
+      requiereAcreditarContratista: 'yes',
+      modalidadContrato: randomItem(modalidades),
+      razonSocialContratista: proveedores.length > 0 ? randomItem(proveedores) : randomItem(empresas),
+      nombreResponsableContratista: nombreResponsable,
+      telefonoResponsableContratista: `+56 9 ${randomInt(1000, 9999)} ${randomInt(1000, 9999)}`,
+      emailResponsableContratista: `${normalizeEmail(nombreResponsable)}@contratista.cl`,
+      cantidadVehiculosContratista: String(randomInt(1, 3)),
+      placasVehiculosContratista: '',
+      registroSstTerreo: 'yes',
+    });
+
+    // Rellenar solicitante si hay personas disponibles
+    if (personaAleatoria) {
+      setSelectedPersonaSolicitante(personaAleatoria);
+      setSearchQuerySolicitante(`${personaAleatoria.nombre_completo} - ${personaAleatoria.rut}`);
+    }
+
+    // Rellenar horarios
+    const numHorarios = randomInt(1, 3);
+    setHorarios(Array.from({ length: numHorarios }, () => ({
+      dias: randomItem(diasSemana),
+      horario: randomItem(horarios),
+    })));
+
+    // Rellenar vehículos MYMA
+    const numVehiculosMyma = randomInt(1, 5);
+    setVehiculosMyma(Array.from({ length: numVehiculosMyma }, () => ({
+      placa: randomItem(placas),
+      conductor: randomItem(nombresConductores),
+    })));
+    setFormData(prev => ({ ...prev, cantidadVehiculos: String(numVehiculosMyma) }));
+
+    // Rellenar vehículos Contratista
+    const numVehiculosContratista = randomInt(1, 3);
+    setVehiculosContratista(Array.from({ length: numVehiculosContratista }, () => ({
+      placa: randomItem(placas),
+      conductor: randomItem(nombresConductores),
+    })));
+    setFormData(prev => ({ ...prev, cantidadVehiculosContratista: String(numVehiculosContratista) }));
+
+    // Agregar algunos trabajadores aleatorios
+    if (personas.length > 0) {
+      const trabajadoresAleatorios = personas.slice(0, randomInt(2, 4)).map((persona, index) => ({
+        id: `worker-${Date.now()}-${index}`,
+        name: persona.nombre_completo,
+        phone: `+56 9 ${randomInt(1000, 9999)} ${randomInt(1000, 9999)}`,
+        type: WorkerType.INTERNAL,
+        personaId: persona.id,
+      }));
+      setWorkers(trabajadoresAleatorios);
+      setTargetWorkerCountMyma(trabajadoresAleatorios.length);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -152,6 +417,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         aviso_prevencion_riesgo: formData.riskPreventionNotice === 'yes', // ← Convertir a boolean
         requiere_acreditar_empresa: formData.companyAccreditationRequired === 'yes', // ← Convertir a boolean
         admin_contrato_myma: formData.contractAdmin || null,
+        estado_solicitud_acreditacion: 'Por asignar requerimientos', // ← Estado inicial del proyecto
       };
 
       // Agregar campos opcionales solo si tienen valor - Nombres corregidos
@@ -162,18 +428,18 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
         solicitudData.email_contacto_cliente = formData.clientContactEmail; // ← Nombre corregido
       }
 
+      // Cantidad de trabajadores
+      solicitudData.cantidad_trabajadores_myma = targetWorkerCountMyma || 0;
+      solicitudData.cantidad_trabajadores_contratista = targetWorkerCountContratista || 0;
+
       // Información del Contrato (solo si se requiere acreditar empresa)
       if (formData.companyAccreditationRequired === 'yes') {
         if (formData.nombreContrato) solicitudData.nombre_contrato = formData.nombreContrato;
         if (formData.numeroContrato) solicitudData.numero_contrato = formData.numeroContrato;
         if (formData.administradorContrato) solicitudData.administrador_contrato = formData.administradorContrato;
         
-        // Horarios de trabajo (como JSONB)
-        solicitudData.horarios_trabajo = horarios.length > 0 ? horarios : null;
-        
-        // Vehículos - Nombres corregidos
-        solicitudData.cantidad_vehiculos = parseInt(formData.cantidadVehiculos) || 0; // ← Nombre corregido
-        solicitudData.placas_patente = placasPatente.length > 0 ? placasPatente : null; // ← Nombre corregido (text[])
+        // Horarios de trabajo ya no se guardan aquí, se guardarán en fct_acreditacion_solicitud_horario_manual después de crear la solicitud
+        // Vehículos ya no se guardan aquí, se guardarán en fct_acreditacion_solicitud_conductor_manual después de crear la solicitud
       }
 
       // Información de Contratista
@@ -187,9 +453,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
           if (formData.telefonoResponsableContratista) solicitudData.telefono_responsable_contratista = formData.telefonoResponsableContratista; // ← Nombre corregido
           if (formData.emailResponsableContratista) solicitudData.email_responsable_contratista = formData.emailResponsableContratista; // ← Nombre corregido
           
-          // Vehículos Contratista - Nombres corregidos
-          solicitudData.cantidad_vehiculos_contratista = parseInt(formData.cantidadVehiculosContratista) || 0; // ← Nombre corregido
-          solicitudData.placas_vehiculos_contratista = placasPatenteContratista.length > 0 ? placasPatenteContratista : null; // ← Nombre corregido (text[])
+          // Vehículos Contratista ya no se guardan aquí, se guardarán en fct_acreditacion_solicitud_conductor_manual después de crear la solicitud
           
           // SST - Convertir a boolean
           solicitudData.registro_sst_terreno = formData.registroSstTerreo === 'yes'; // ← Convertir a boolean
@@ -202,6 +466,75 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
       const result = await createSolicitudAcreditacion(solicitudData);
       
       console.log('✅ Solicitud guardada exitosamente:', result);
+      
+      // Guardar trabajadores en fct_acreditacion_solicitud_trabajador_manual
+      if (result.id && result.codigo_proyecto) {
+        try {
+          console.log('👷 Guardando trabajadores del proyecto...');
+          await createProyectoTrabajadores(
+            result.id,
+            result.codigo_proyecto,
+            workers,
+            workersContratista
+          );
+          console.log('✅ Trabajadores guardados exitosamente');
+        } catch (trabajadorError) {
+          console.error('❌ Error al guardar trabajadores:', trabajadorError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los trabajadores.');
+        }
+      }
+      
+      // Guardar horarios en fct_acreditacion_solicitud_horario_manual
+      if (result.id && result.codigo_proyecto && horarios.length > 0 && formData.companyAccreditationRequired === 'yes') {
+        try {
+          console.log('⏰ Guardando horarios del proyecto...');
+          await createProyectoHorarios(
+            result.id,
+            result.codigo_proyecto,
+            horarios,
+            'MyMA' // Los horarios son de la empresa MyMA
+          );
+          console.log('✅ Horarios guardados exitosamente');
+        } catch (horarioError) {
+          console.error('❌ Error al guardar horarios:', horarioError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los horarios.');
+        }
+      }
+      
+      // Guardar vehículos MYMA en fct_acreditacion_solicitud_conductor_manual
+      if (result.id && result.codigo_proyecto && vehiculosMyma.length > 0 && formData.companyAccreditationRequired === 'yes') {
+        try {
+          console.log('🚗 Guardando vehículos MYMA del proyecto...');
+          await createProyectoConductores(
+            result.id,
+            result.codigo_proyecto,
+            vehiculosMyma,
+            'MyMA'
+          );
+          console.log('✅ Vehículos MYMA guardados exitosamente');
+        } catch (vehiculoMymaError) {
+          console.error('❌ Error al guardar vehículos MYMA:', vehiculoMymaError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los vehículos MYMA.');
+        }
+      }
+      
+      // Guardar vehículos Contratista en fct_acreditacion_solicitud_conductor_manual
+      if (result.id && result.codigo_proyecto && vehiculosContratista.length > 0 && formData.requiereAcreditarContratista === 'yes') {
+        try {
+          console.log('🚗 Guardando vehículos Contratista del proyecto...');
+          await createProyectoConductores(
+            result.id,
+            result.codigo_proyecto,
+            vehiculosContratista,
+            'Contratista'
+          );
+          console.log('✅ Vehículos Contratista guardados exitosamente');
+        } catch (vehiculoContratistaError) {
+          console.error('❌ Error al guardar vehículos Contratista:', vehiculoContratistaError);
+          alert('⚠️ La solicitud se guardó, pero hubo un error al guardar los vehículos Contratista.');
+        }
+      }
+      
       alert('¡Solicitud guardada exitosamente! ID: ' + result.id);
       
       // Opcional: Resetear el formulario o redirigir
@@ -238,7 +571,15 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               Ingrese los datos requeridos para la gestión de terreno y acreditación.
             </p>
           </div>
-          <div className="hidden lg:block">
+          <div className="hidden lg:flex items-center gap-3">
+            <button 
+              type="button"
+              onClick={fillRandomData}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all"
+            >
+              <span className="material-symbols-outlined text-[20px]">auto_fix_high</span>
+              Rellenar Datos
+            </button>
             <button 
               onClick={onBack}
               className="flex items-center gap-2 bg-white hover:bg-gray-50 text-[#616f89] border border-gray-200 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all"
@@ -262,23 +603,38 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Código de Proyecto</span>
+                <input 
+                  type="text" 
+                  name="projectCode"
+                  value={formData.projectCode}
+                  onChange={handleInputChange}
+                  placeholder="Ej: PRJ-2024-001"
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
+                />
+              </label>
+              <label className="flex flex-col gap-2">
+                <span className="text-[#111318] text-sm font-medium">Requisito</span>
+                <select 
+                  name="requirement"
+                  value={formData.requirement}
+                  onChange={handleInputChange}
+                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                >
+                  <option value="">Seleccione un requisito...</option>
+                  <option value="Acreditación">Acreditación</option>
+                  <option value="Carpeta de arranque">Carpeta de arranque</option>
+                  <option value="Acreditación y Carpeta de arranque">Acreditación y Carpeta de arranque</option>
+                  <option value="Pase de visita">Pase de visita</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Fecha de Solicitud</span>
                 <input 
                   type="date" 
                   name="requestDate"
                   value={formData.requestDate}
                   onChange={handleInputChange}
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
-              </label>
-              <label className="flex flex-col gap-2 lg:col-span-2">
-                <span className="text-[#111318] text-sm font-medium">Nombre de Solicitante</span>
-                <input 
-                  type="text" 
-                  name="requesterName"
-                  value={formData.requesterName}
-                  onChange={handleInputChange}
-                  placeholder="Nombre completo"
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>
@@ -292,16 +648,69 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-[#111318] text-sm font-medium">Código de Proyecto</span>
-                <input 
-                  type="text" 
-                  name="projectCode"
-                  value={formData.projectCode}
-                  onChange={handleInputChange}
-                  placeholder="Ej: PRJ-2024-001"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
+              <label className="flex flex-col gap-2 lg:col-span-2">
+                <span className="text-[#111318] text-sm font-medium">Nombre de Solicitante</span>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#616f89] text-base">search</span>
+                  <input 
+                    id="solicitante_search"
+                    type="text" 
+                    value={selectedPersonaSolicitante ? `${selectedPersonaSolicitante.nombre_completo} - ${selectedPersonaSolicitante.rut}` : searchQuerySolicitante}
+                    onChange={(e) => {
+                      setSearchQuerySolicitante(e.target.value);
+                      setSelectedPersonaSolicitante(null);
+                      setShowDropdownSolicitante(true);
+                      setFormData(prev => ({ ...prev, requesterName: '' }));
+                    }}
+                    onFocus={() => setShowDropdownSolicitante(true)}
+                    placeholder="Buscar por nombre o RUT..."
+                    autoComplete="off"
+                    className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 pr-10 text-sm text-[#111318] placeholder-[#616f89] focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" 
+                  />
+                  {searchQuerySolicitante && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuerySolicitante('');
+                        setSelectedPersonaSolicitante(null);
+                        setShowDropdownSolicitante(true);
+                        setFormData(prev => ({ ...prev, requesterName: '' }));
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  )}
+                  {/* Dropdown de resultados */}
+                  {showDropdownSolicitante && (
+                    <div className="dropdown-results-solicitante absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto top-full">
+                      {filteredPersonasSolicitante.length > 0 ? (
+                        filteredPersonasSolicitante.map(persona => (
+                          <button
+                            key={persona.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPersonaSolicitante(persona);
+                              setSearchQuerySolicitante(`${persona.nombre_completo} - ${persona.rut}`);
+                              setShowDropdownSolicitante(false);
+                              setFormData(prev => ({ ...prev, requesterName: persona.nombre_completo }));
+                            }}
+                            className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors ${
+                              selectedPersonaSolicitante?.id === persona.id ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <div className="text-sm font-medium text-gray-900">{persona.nombre_completo}</div>
+                            <div className="text-xs text-gray-500">{persona.rut}</div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                          No se encontraron colaboradores
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </label>
               <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Fecha de Inicio de Terreno</span>
@@ -315,17 +724,6 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                     className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none pl-10" 
                   />
                 </div>
-              </label>
-              <label className="flex flex-col gap-2 md:col-span-2 lg:col-span-4">
-                <span className="text-[#111318] text-sm font-medium">Requisito</span>
-                <textarea 
-                  name="requirement"
-                  value={formData.requirement}
-                  onChange={handleInputChange}
-                  rows={2}
-                  placeholder="Descripción breve del requisito"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" 
-                />
               </label>
             </div>
           </div>
@@ -429,47 +827,16 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Section 4: Terreno, Seguridad y Acreditación */}
+          {/* Section 4: Acreditación MyMA */}
           <div className="rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">shield</span>
-                Seguridad y Acreditación
+                Acreditación MyMA
               </h3>
             </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
-                  <span className="material-symbols-outlined text-orange-500 text-base">warning</span>
-                  ¿Se dio aviso a los encargados de Prevención de Riesgo?
-                </span>
-                <div className="flex gap-6 mt-1">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="riskPreventionNotice" 
-                      value="yes"
-                      checked={formData.riskPreventionNotice === 'yes'}
-                      onChange={handleInputChange}
-                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
-                    />
-                    <span className="text-sm">Sí</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="riskPreventionNotice" 
-                      value="no"
-                      checked={formData.riskPreventionNotice === 'no'}
-                      onChange={handleInputChange}
-                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
-                    />
-                    <span className="text-sm">No</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="p-6">
+              <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg border border-gray-100 w-full">
                 <span className="text-[#111318] text-sm font-medium flex items-center gap-2">
                   <span className="material-symbols-outlined text-blue-500 text-base">check_circle</span>
                   ¿Se requiere acreditar empresa?
@@ -499,7 +866,6 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   </label>
                 </div>
               </div>
-
             </div>
           </div>
 
@@ -534,7 +900,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   name="numeroContrato"
                   value={formData.numeroContrato}
                   onChange={handleInputChange}
-                  placeholder="Ej: CON-2025-001"
+                  placeholder="Ej: +56 9 1234 5678"
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>
@@ -565,7 +931,9 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
               <WorkerList 
                 workers={workers} 
                 onAddWorker={handleAddWorker} 
-                onRemoveWorker={handleRemoveWorker} 
+                onRemoveWorker={handleRemoveWorker}
+                targetWorkerCount={targetWorkerCountMyma}
+                onTargetWorkerCountChange={setTargetWorkerCountMyma}
               />
             </div>
           </div>
@@ -594,7 +962,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
                 {horarios.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                    <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400">schedule</span>
+                    <span className="material-symbols-outlined text-4xl mb-2 block text-gray-400 mx-auto">schedule</span>
                     <p className="text-sm">No hay horarios agregados. Haz clic en "Agregar Horario" para comenzar.</p>
                   </div>
                 ) : (
@@ -666,12 +1034,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 />
               </label>
 
-              {placasPatente.length > 0 && (
+              {vehiculosMyma.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente</h4>
+                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente y conductores</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {placasPatente.map((placa, index) => (
-                      <div key={index} className="flex flex-col gap-2">
+                    {vehiculosMyma.map((vehiculo, index) => (
+                      <div key={index} className="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <span className="text-[#111318] text-xs font-medium">Vehículo {index + 1}</span>
                         <div className="relative">
                           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">directions_car</span>
@@ -679,8 +1047,18 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                             type="text" 
                             placeholder="Ej: ABCD12"
                             className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                            value={placa}
-                            onChange={(e) => handlePlacaChange(index, e.target.value)}
+                            value={vehiculo.placa}
+                            onChange={(e) => handleVehiculoMymaChange(index, 'placa', e.target.value)}
+                          />
+                        </div>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">person</span>
+                          <input 
+                            type="text" 
+                            placeholder="Nombre del conductor"
+                            className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            value={vehiculo.conductor}
+                            onChange={(e) => handleVehiculoMymaChange(index, 'conductor', e.target.value)}
                           />
                         </div>
                       </div>
@@ -735,7 +1113,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">description</span>
-                Información del Contrato
+                Información del Contrato Contratista
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -755,14 +1133,19 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 
               <label className="flex flex-col gap-2">
                 <span className="text-[#111318] text-sm font-medium">Razón social de contratista</span>
-                <input 
-                  type="text" 
+                <select 
                   name="razonSocialContratista"
                   value={formData.razonSocialContratista}
                   onChange={handleInputChange}
-                  placeholder="Ingrese la razón social"
-                  className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
-                />
+                  className="form-select w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                >
+                  <option value="">Seleccione...</option>
+                  {proveedores.map((proveedor, index) => (
+                    <option key={index} value={proveedor}>
+                      {proveedor}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
           </div>
@@ -772,7 +1155,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
             <div className="border-b border-[#e5e7eb] px-6 py-4 bg-gray-50/50">
               <h3 className="text-[#111318] text-base lg:text-lg font-bold leading-tight flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">person</span>
-                Responsable de la Solicitud
+                Responsable de la Solicitud Contratista
               </h3>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -842,7 +1225,10 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 onAddWorker={handleAddWorkerContratista} 
                 onRemoveWorker={handleRemoveWorkerContratista}
                 requireCompanySelection={true}
-                companies={MOCK_COMPANIES.map(c => c.name)}
+                companies={proveedores.length > 0 ? proveedores : MOCK_COMPANIES.map(c => c.name)}
+                selectedCompany={formData.razonSocialContratista}
+                targetWorkerCount={targetWorkerCountContratista}
+                onTargetWorkerCountChange={setTargetWorkerCountContratista}
               />
             </div>
           </div>
@@ -869,12 +1255,12 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                 />
               </label>
 
-              {placasPatenteContratista.length > 0 && (
+              {vehiculosContratista.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente</h4>
+                  <h4 className="text-sm font-semibold text-[#111318]">Placas de patente y conductores</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {placasPatenteContratista.map((placa, index) => (
-                      <div key={index} className="flex flex-col gap-2">
+                    {vehiculosContratista.map((vehiculo, index) => (
+                      <div key={index} className="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <span className="text-[#111318] text-xs font-medium">Vehículo {index + 1}</span>
                         <div className="relative">
                           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">directions_car</span>
@@ -882,8 +1268,18 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                             type="text" 
                             placeholder="Ej: ABCD12"
                             className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                            value={placa}
-                            onChange={(e) => handlePlacaContratistaChange(index, e.target.value)}
+                            value={vehiculo.placa}
+                            onChange={(e) => handleVehiculoContratistaChange(index, 'placa', e.target.value)}
+                          />
+                        </div>
+                        <div className="relative">
+                          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">person</span>
+                          <input 
+                            type="text" 
+                            placeholder="Nombre del conductor"
+                            className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            value={vehiculo.conductor}
+                            onChange={(e) => handleVehiculoContratistaChange(index, 'conductor', e.target.value)}
                           />
                         </div>
                       </div>
