@@ -1368,19 +1368,26 @@ export const createProyectoRequerimientos = async (
     console.log(`    Vehiculos disponibles: ${vehiculosProyecto.length}`);
     
     // Función auxiliar para crear un registro base
-    const crearRegistroBase = (empresaAcreditacionValue: string | null = null): any => {
+    const crearRegistroBase = (
+      empresaAcreditacionValue: string | null = null,
+      categoriaEmpresaValue: string | null = null
+    ): any => {
+      const responsableFinal = isCategoriaEmpresaContratista(categoriaEmpresaValue)
+        ? 'JPRO'
+        : req.responsable;
+
       return {
         codigo_proyecto: codigoProyecto,
         id_proyecto: proyectoId,
         requerimiento: req.requerimiento,
-        responsable: req.responsable,
+        responsable: responsableFinal,
         estado: 'Pendiente',
         cliente: cliente,
         categoria_requerimiento: req.categoria_requerimiento,
         observaciones: req.observaciones || null,
         nombre_responsable: nombreResponsable,
         nombre_trabajador: null,
-        categoria_empresa: null,
+        categoria_empresa: categoriaEmpresaValue,
         id_proyecto_trabajador: null,
         ...(empresaAcreditacionValue ? { empresa_acreditacion: empresaAcreditacionValue } : {})
       };
@@ -1492,14 +1499,14 @@ export const createProyectoRequerimientos = async (
       
       // Si requiere_acreditar_empresa es TRUE, crear registro con MyMA
       if (requiereAcreditarEmpresa) {
-        const registroMyMA = crearRegistroBase('MyMA');
+        const registroMyMA = crearRegistroBase('MyMA', 'MyMA');
         proyectoRequerimientos.push(registroMyMA);
         console.log(`    ✅ Registro creado con empresa_acreditacion = "MyMA"`);
       }
       
       // Si requiere_acreditar_contratista es TRUE y hay razón social, crear registro con contratista
       if (requiereAcreditarContratista && razonSocialContratista) {
-        const registroContratista = crearRegistroBase(razonSocialContratista);
+        const registroContratista = crearRegistroBase(razonSocialContratista, 'Contratista');
         proyectoRequerimientos.push(registroContratista);
         console.log(`    ✅ Registro creado con empresa_acreditacion = "${razonSocialContratista}"`);
       }
