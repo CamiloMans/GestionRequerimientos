@@ -21,7 +21,59 @@ interface Servicio {
   notaTotalPonderada?: number | null;
 }
 
+interface ContactoDetalleProveedor {
+  nombre: string;
+  correo: string;
+  telefono: string;
+  cargo: string;
+}
+
 type ProveedorDetalleView = 'ejecutados' | 'catalogo';
+
+const toPlainObject = (value: unknown): Record<string, unknown> => {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Si no es JSON valido, retorna objeto vacio.
+      }
+    }
+  }
+
+  return {};
+};
+
+const toText = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value).trim();
+};
+
+const toContactoDetalleProveedor = (value: unknown): ContactoDetalleProveedor => {
+  const obj = toPlainObject(value);
+
+  return {
+    nombre: toText(obj.nombre),
+    correo: toText(obj.correo),
+    telefono: toText(obj.telefono),
+    cargo: toText(obj.cargo),
+  };
+};
+
+const hasContactoDetalleData = (value: ContactoDetalleProveedor): boolean => {
+  return Object.values(value).some((item) => item.trim() !== '');
+};
 
 const ProveedorDetalle: React.FC = () => {
   const navigate = useNavigate();
@@ -688,6 +740,20 @@ const ProveedorDetalle: React.FC = () => {
     );
   }
 
+  const informacionContactoObj = toPlainObject(proveedor.informacion_contacto);
+  const contactoComercial = toContactoDetalleProveedor(informacionContactoObj.contacto_comercial);
+  const contactoAdicional1 = toContactoDetalleProveedor(informacionContactoObj.contacto_adicional_1);
+  const contactoAdicional2 = toContactoDetalleProveedor(informacionContactoObj.contacto_adicional_2);
+  const correoContactoFallback = toText(proveedor.correo_contacto);
+  const tieneInformacionContacto =
+    hasContactoDetalleData(contactoComercial) ||
+    hasContactoDetalleData(contactoAdicional1) ||
+    hasContactoDetalleData(contactoAdicional2);
+  const contactoCorreo = tieneInformacionContacto
+    ? contactoComercial.correo
+    : correoContactoFallback;
+  const contactoCargo = tieneInformacionContacto ? contactoComercial.cargo : '';
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -718,12 +784,25 @@ const ProveedorDetalle: React.FC = () => {
                       <span className="font-medium">Razón Social:</span> {proveedor.razon_social}
                     </div>
                   )}
-                  {proveedor.correo_contacto && (
+                  <div className="flex flex-col gap-1.5">
+                    {contactoCorreo ? (
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-gray-400">email</span>
+                        <span className="text-sm text-[#111318]">{contactoCorreo}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-gray-400">email</span>
+                        <span className="text-sm text-gray-400">Sin correo comercial</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-base">email</span>
-                      <span>{proveedor.correo_contacto}</span>
+                      <span className="material-symbols-outlined text-base text-gray-400">badge</span>
+                      <span className={`text-sm ${contactoCargo ? 'text-gray-600' : 'text-gray-400'}`}>
+                        {contactoCargo || 'Sin cargo comercial'}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1551,5 +1630,4 @@ const ProveedorDetalle: React.FC = () => {
 };
 
 export default ProveedorDetalle;
-
 

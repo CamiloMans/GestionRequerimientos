@@ -900,7 +900,7 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
                   name="numeroContrato"
                   value={formData.numeroContrato}
                   onChange={handleInputChange}
-                  placeholder="Ej: +56 9 1234 5678"
+                  placeholder=""
                   className="form-input w-full rounded-lg border border-[#dbdfe6] bg-white px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" 
                 />
               </label>
@@ -1361,4 +1361,3 @@ const FieldRequestForm: React.FC<FieldRequestFormProps> = ({ onBack }) => {
 };
 
 export default FieldRequestForm;
-

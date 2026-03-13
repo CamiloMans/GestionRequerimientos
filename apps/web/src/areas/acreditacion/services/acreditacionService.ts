@@ -1066,6 +1066,17 @@ export const fetchProyectoRequerimientoObservaciones = async (
   return null;
 };
 
+// Helpers para normalizar y clasificar categoria_empresa.
+const normalizeCategoriaEmpresa = (value?: string | null): string =>
+  (value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const isCategoriaEmpresaContratista = (value?: string | null): boolean =>
+  normalizeCategoriaEmpresa(value) === 'contratista';
+
 // Función para crear requerimientos de acreditación de un proyecto
 export const createProyectoRequerimientos = async (
   codigoProyecto: string,
@@ -1097,7 +1108,7 @@ export const createProyectoRequerimientos = async (
   console.log('\n🔍 Verificando requerimientos existentes...');
   const { data: existingReqs, error: checkError } = await supabase
     .from('brg_acreditacion_solicitud_requerimiento')
-    .select('id, requerimiento, categoria_requerimiento, responsable')
+    .select('id, requerimiento, categoria_requerimiento, categoria_empresa, responsable')
     .eq('codigo_proyecto', codigoProyecto);
   
   if (checkError) {
@@ -1120,8 +1131,10 @@ export const createProyectoRequerimientos = async (
       
       // Actualizar cada requerimiento existente con el nombre del responsable correspondiente
       for (const req of existingReqs) {
+        const esCategoriaContratista = isCategoriaEmpresaContratista((req as any).categoria_empresa);
+        const cargoResponsable = esCategoriaContratista ? 'JPRO' : req.responsable;
         let nombreResponsable = '';
-        switch (req.responsable) {
+        switch (cargoResponsable) {
           case 'JPRO':
             nombreResponsable = responsables.jpro_nombre || '';
             break;
@@ -1135,11 +1148,19 @@ export const createProyectoRequerimientos = async (
             nombreResponsable = responsables.legal_nombre || '';
             break;
         }
-        
+
+        const updatePayload: any = {};
+        if (esCategoriaContratista && req.responsable !== 'JPRO') {
+          updatePayload.responsable = 'JPRO';
+        }
         if (nombreResponsable) {
+          updatePayload.nombre_responsable = nombreResponsable;
+        }
+        
+        if (Object.keys(updatePayload).length > 0) {
           const { error: updateError } = await supabase
             .from('brg_acreditacion_solicitud_requerimiento')
-            .update({ nombre_responsable: nombreResponsable })
+            .update(updatePayload)
             .eq('id', req.id);
           
           if (updateError) {
@@ -1384,7 +1405,7 @@ export const createProyectoRequerimientos = async (
           codigo_proyecto: codigoProyecto,
           id_proyecto: proyectoId,
           requerimiento: req.requerimiento,
-          responsable: req.responsable,
+          responsable: isCategoriaEmpresaContratista(trabajador.categoria_empresa) ? 'JPRO' : req.responsable,
           estado: 'Pendiente',
           cliente: cliente,
           categoria_requerimiento: req.categoria_requerimiento,
@@ -1417,7 +1438,7 @@ export const createProyectoRequerimientos = async (
           codigo_proyecto: codigoProyecto,
           id_proyecto: proyectoId,
           requerimiento: req.requerimiento,
-          responsable: req.responsable,
+          responsable: isCategoriaEmpresaContratista(conductor.categoria_empresa) ? 'JPRO' : req.responsable,
           estado: 'Pendiente',
           cliente: cliente,
           categoria_requerimiento: req.categoria_requerimiento,
@@ -1450,7 +1471,7 @@ export const createProyectoRequerimientos = async (
           codigo_proyecto: codigoProyecto,
           id_proyecto: proyectoId,
           requerimiento: req.requerimiento,
-          responsable: req.responsable,
+          responsable: isCategoriaEmpresaContratista(vehiculo.categoria_empresa) ? 'JPRO' : req.responsable,
           estado: 'Pendiente',
           cliente: cliente,
           categoria_requerimiento: req.categoria_requerimiento,
@@ -1854,8 +1875,7 @@ export const updateProyectoRequerimientosResponsables = async (
   for (const req of requerimientos) {
     let nombreResponsable = '';
 
-    const categoriaEmpresaNormalizada = (req.categoria_empresa || '').trim().toLowerCase();
-    const esCategoriaContratista = categoriaEmpresaNormalizada === 'contratista';
+    const esCategoriaContratista = isCategoriaEmpresaContratista(req.categoria_empresa);
     const debeForzarNombreJpro =
       tieneContratistaExterno &&
       Boolean(jproSeleccionado) &&
@@ -1889,6 +1909,11 @@ export const updateProyectoRequerimientosResponsables = async (
       updated_at: new Date().toISOString()
     };
 
+    if (esCategoriaContratista && req.responsable !== 'JPRO') {
+      updateData.responsable = 'JPRO';
+      console.log('[Req ' + req.id + '] Contractor override applied: responsable -> JPRO');
+    }
+
     if (nombreResponsable) {
       updateData.nombre_responsable = nombreResponsable;
     }
@@ -1909,6 +1934,7 @@ export const updateProyectoRequerimientosResponsables = async (
     }
 
     const tieneDatosParaActualizar =
+      Boolean(updateData.responsable) ||
       Boolean(nombreResponsable) ||
       Boolean(responsables.acreditacion_id) ||
       Boolean(responsables.acreditacion_nombre);
@@ -2678,4 +2704,3 @@ export const subirDocumentoAcreditacion = async (
     throw wrappedError;
   }
 };
-
