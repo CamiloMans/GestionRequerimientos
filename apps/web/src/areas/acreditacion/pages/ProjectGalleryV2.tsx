@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { FieldRequestFormSnapshot, ProjectGalleryItem } from '../types';
+import { Cliente, FieldRequestFormSnapshot, ProjectGalleryItem } from '../types';
 import type { AcreditacionAccessLevel } from '../utils/navigationPolicy';
 import AssignResponsiblesModal, { ResponsablesData } from './AssignResponsiblesModal';
 import ProjectDetailView from './ProjectDetailView';
 import SelectCompanyAndRequirementsView from './SelectCompanyAndRequirementsView';
 import FieldRequestForm from './FieldRequestForm';
-import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables, fetchProjectGalleryItems, deleteSolicitudAcreditacion, fetchFieldRequestFormSnapshotByProjectId } from '../services/acreditacionService';
+import { updateResponsablesSolicitud, fetchEmpresaRequerimientos, createProyectoRequerimientos, updateProyectoRequerimientosResponsables, fetchProjectGalleryItems, deleteSolicitudAcreditacion, fetchFieldRequestFormSnapshotByProjectId, fetchClientes } from '../services/acreditacionService';
 import { supabase } from '../../../shared/api-client/supabase';
 
 interface ProjectGalleryV2Props {
@@ -40,6 +40,7 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<ProjectGalleryItem | null>(null);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const isDrillDownView = showDetailView || showCompanyView || showSubmittedFormView;
   
   // Estado local para los proyectos (se actualiza automáticamente cada 10 segundos)
@@ -64,6 +65,20 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
   useEffect(() => {
     setLocalProjects(projects);
   }, [projects]);
+
+  // Cargar clientes válidos desde dim_acreditacion_cliente
+  useEffect(() => {
+    const loadClientes = async () => {
+      try {
+        const data = await fetchClientes();
+        setClientes(data);
+      } catch (e) {
+        console.error('Error cargando clientes desde dim_acreditacion_cliente:', e);
+      }
+    };
+
+    loadClientes();
+  }, []);
 
   // Actualizar proyectos cada 10 segundos solo en la galería.
   // Al entrar a detalle/formulario, este polling se pausa.
@@ -93,8 +108,13 @@ const ProjectGalleryV2: React.FC<ProjectGalleryV2Props> = ({
     return () => clearInterval(interval);
   }, [isDrillDownView]);
 
-  // Obtener lista única de clientes
-  const uniqueClients = Array.from(new Set(localProjects.map(p => p.clientName))).sort();
+  // Obtener lista única de clientes, restringida a los existentes en dim_acreditacion_cliente
+  const uniqueClientsFromProjects = Array.from(new Set(localProjects.map(p => p.clientName))).sort();
+  const allowedClientNames = new Set(clientes.map((c) => c.nombre));
+  const uniqueClients =
+    allowedClientNames.size > 0
+      ? uniqueClientsFromProjects.filter((client) => allowedClientNames.has(client))
+      : uniqueClientsFromProjects;
 
   // Filtrar proyectos
   const filteredProjects = localProjects.filter(project => {
