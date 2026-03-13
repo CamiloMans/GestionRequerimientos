@@ -1669,7 +1669,7 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                     <div className="flex items-center gap-2 relative filter-dropdown-container">
-                      <span>Nombre Trabajador</span>
+                      <span>TRABAJADOR / PATENTE</span>
                       <button
                         onClick={() => handleFilterToggle('trabajador')}
                         className={`p-1 rounded hover:bg-gray-200 transition-colors ${filterNombreTrabajador ? 'text-primary' : 'text-gray-400'}`}
@@ -1881,7 +1881,9 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                         {/* Nombre Trabajador */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-gray-600 text-[20px]">person</span>
+                            <span className="material-symbols-outlined text-gray-600 text-[20px]">
+                              {isVehicleRequirement(req) ? 'directions_car' : 'person'}
+                            </span>
                             {req.nombre_trabajador ? (
                               canOpenWorkerName ? (
                                 <button
@@ -2598,4 +2600,3 @@ const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 };
 
 export default ProjectDetailView;
-
