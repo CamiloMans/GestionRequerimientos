@@ -20,6 +20,7 @@ const Dashboard: React.FC = () => {
   });
   
   const [searchEspecialidad, setSearchEspecialidad] = useState('');
+  const [showAllEspecialidades, setShowAllEspecialidades] = useState(false);
 
   const getAreaPath = (path: string) => {
     return `/app/area/${AreaId.PROVEEDORES}/${path}`;
@@ -183,9 +184,13 @@ const Dashboard: React.FC = () => {
 
       return { nombre: especialidad.nombre, cantidad };
     });
-    // Mostrar todas las especialidades en orden alfabetico
-    let filtered = componentes
-      .sort((a, b) => normalizeSearchText(a.nombre).localeCompare(normalizeSearchText(b.nombre), 'es'));
+    // Ordenar por cantidad de proveedores (descendente) y, en empate, por nombre
+    let filtered = componentes.sort((a, b) => {
+      if (b.cantidad !== a.cantidad) {
+        return b.cantidad - a.cantidad;
+      }
+      return normalizeSearchText(a.nombre).localeCompare(normalizeSearchText(b.nombre), 'es');
+    });
 
     // Aplicar filtro de búsqueda si existe
     if (searchEspecialidad.trim()) {
@@ -197,6 +202,13 @@ const Dashboard: React.FC = () => {
 
     return filtered;
   }, [proveedores, especialidades, searchEspecialidad]);
+
+  const isSearchingEspecialidad = searchEspecialidad.trim().length > 0;
+  const showOnlyTopEspecialidades = !showAllEspecialidades && !isSearchingEspecialidad;
+  const especialidadesVisibles = showOnlyTopEspecialidades
+    ? proveedoresPorComponente.slice(0, 10)
+    : proveedoresPorComponente;
+  const canToggleEspecialidades = !isSearchingEspecialidad && proveedoresPorComponente.length > 10;
 
   // Distribución por clasificación
   const distribucionClasificacion = useMemo(() => {
@@ -218,7 +230,7 @@ const Dashboard: React.FC = () => {
     ];
   }, [proveedores]);
 
-  // Top proveedores categoría A (ordenados por mejor promedio_nota_total_ponderada, luego por total_evaluaciones)
+  // Top proveedores categoría A (ordenados por mayor cantidad de evaluaciones)
   const topProveedores = useMemo(() => {
     return proveedores
       .filter(p => 
@@ -229,16 +241,19 @@ const Dashboard: React.FC = () => {
         p.promedio_nota_total_ponderada !== undefined
       )
       .sort((a, b) => {
-        // Primero ordenar por promedio_nota_total_ponderada (descendente)
+        const evaluacionesA = a.total_evaluaciones || 0;
+        const evaluacionesB = b.total_evaluaciones || 0;
+        if (evaluacionesB !== evaluacionesA) {
+          return evaluacionesB - evaluacionesA;
+        }
+
         const promedioA = a.promedio_nota_total_ponderada || 0;
         const promedioB = b.promedio_nota_total_ponderada || 0;
         if (promedioB !== promedioA) {
           return promedioB - promedioA;
         }
-        // Si tienen el mismo promedio, ordenar por total_evaluaciones (descendente)
-        const evaluacionesA = a.total_evaluaciones || 0;
-        const evaluacionesB = b.total_evaluaciones || 0;
-        return evaluacionesB - evaluacionesA;
+
+        return a.nombre.localeCompare(b.nombre, 'es');
       })
       .slice(0, 5); // Mostrar top 5
   }, [proveedores]);
@@ -409,7 +424,11 @@ const Dashboard: React.FC = () => {
               <span className="material-symbols-outlined text-primary">groups</span>
               <h2 className="text-lg font-bold text-[#111318]">Proveedores por Especialidad</h2>
             </div>
-            <span className="text-sm text-gray-500">{proveedoresPorComponente.length} Especialidades</span>
+            <span className="text-sm text-gray-500">
+              {showOnlyTopEspecialidades
+                ? `Mostrando 10 de ${proveedoresPorComponente.length} especialidades`
+                : `${proveedoresPorComponente.length} especialidades`}
+            </span>
           </div>
           <div className="mb-4">
             <div className="relative max-w-md">
@@ -425,8 +444,8 @@ const Dashboard: React.FC = () => {
               />
             </div>
           </div>
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {proveedoresPorComponente.map((componente, index) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {especialidadesVisibles.map((componente, index) => (
               <div
                 key={index}
                 onClick={() => {
@@ -438,18 +457,33 @@ const Dashboard: React.FC = () => {
                     });
                   }
                 }}
-                className="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-primary transition-colors cursor-pointer"
+                className="flex flex-col items-center p-2 rounded-lg border border-gray-200 hover:border-primary transition-colors cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
-                  <span className="material-symbols-outlined text-primary text-xl">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mb-1.5">
+                  <span className="material-symbols-outlined text-primary text-lg">
                     {getComponentIcon(componente.nombre)}
                   </span>
                 </div>
-                <p className="text-xs font-medium text-[#111318] text-center mb-1">{componente.nombre}</p>
-                <p className="text-lg font-bold text-primary">{componente.cantidad}</p>
+                <p className="text-[11px] leading-tight font-medium text-[#111318] text-center mb-0.5 min-h-[2rem] flex items-center">
+                  {componente.nombre}
+                </p>
+                <p className="text-base font-bold text-primary">{componente.cantidad}</p>
               </div>
             ))}
           </div>
+          {canToggleEspecialidades && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setShowAllEspecialidades((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {showAllEspecialidades ? 'Ver menos' : 'Ver más'}
+                <span className="material-symbols-outlined text-base">
+                  {showAllEspecialidades ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Criterios de Elegibilidad */}
@@ -489,7 +523,7 @@ const Dashboard: React.FC = () => {
                 <div>
                   <h3 className="font-semibold text-red-700 mb-1">Categoría C</h3>
                   <p className="text-sm text-red-600 mb-1">Cumplimiento &lt; 50%</p>
-                  <p className="text-xs text-gray-600">INHABILITADO PARA CONTRATACIÓN.</p>
+                  <p className="text-xs text-gray-600">Inhabilitado para contratación.</p>
                 </div>
               </div>
             </div>

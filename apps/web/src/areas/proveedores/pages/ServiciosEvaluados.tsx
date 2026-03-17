@@ -42,6 +42,7 @@ const ServiciosEvaluados: React.FC<ServiciosEvaluadosProps> = ({ onDashboardChan
   const [filterEspecialidad, setFilterEspecialidad] = useState<string>('Todas');
   const [filterCategoria, setFilterCategoria] = useState<string>('Todas');
   const [searchEspecialidad, setSearchEspecialidad] = useState('');
+  const [showAllEspecialidades, setShowAllEspecialidades] = useState(false);
   const [especialidades, setEspecialidades] = useState<{ id: number; nombre: string }[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -179,6 +180,13 @@ const ServiciosEvaluados: React.FC<ServiciosEvaluadosProps> = ({ onDashboardChan
 
     return filtered;
   }, [servicios, especialidades, searchEspecialidad]);
+
+  const isSearchingEspecialidad = searchEspecialidad.trim().length > 0;
+  const showOnlyTopEspecialidades = !showAllEspecialidades && !isSearchingEspecialidad;
+  const especialidadesVisibles = showOnlyTopEspecialidades
+    ? serviciosPorEspecialidad.slice(0, 10)
+    : serviciosPorEspecialidad;
+  const canToggleEspecialidades = !isSearchingEspecialidad && serviciosPorEspecialidad.length > 10;
 
   // Filtrar servicios excluyendo proveedor "PRUEBA" para cálculos
   const serviciosSinPrueba = useMemo(() => {
@@ -543,7 +551,11 @@ const ServiciosEvaluados: React.FC<ServiciosEvaluadosProps> = ({ onDashboardChan
               <span className="material-symbols-outlined text-primary">groups</span>
               <h2 className="text-lg font-bold text-[#111318]">Servicios por Especialidad</h2>
             </div>
-            <span className="text-sm text-gray-500">{serviciosPorEspecialidad.length} Especialidades</span>
+            <span className="text-sm text-gray-500">
+              {showOnlyTopEspecialidades
+                ? `Mostrando 10 de ${serviciosPorEspecialidad.length} especialidades`
+                : `${serviciosPorEspecialidad.length} especialidades`}
+            </span>
           </div>
           <div className="mb-4">
             <div className="relative max-w-md">
@@ -559,8 +571,8 @@ const ServiciosEvaluados: React.FC<ServiciosEvaluadosProps> = ({ onDashboardChan
               />
             </div>
           </div>
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {serviciosPorEspecialidad.map((especialidad, index) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {especialidadesVisibles.map((especialidad, index) => (
               <div
                 key={index}
                 onClick={() => {
@@ -575,18 +587,33 @@ const ServiciosEvaluados: React.FC<ServiciosEvaluadosProps> = ({ onDashboardChan
                     setCurrentPage(1);
                   }
                 }}
-                className="flex flex-col items-center p-3 rounded-lg border border-gray-200 hover:border-primary transition-colors cursor-pointer"
+                className="flex flex-col items-center p-2 rounded-lg border border-gray-200 hover:border-primary transition-colors cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
-                  <span className="material-symbols-outlined text-primary text-xl">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mb-1.5">
+                  <span className="material-symbols-outlined text-primary text-lg">
                     {getComponentIcon(especialidad.nombre)}
                   </span>
                 </div>
-                <p className="text-xs font-medium text-[#111318] text-center mb-1">{especialidad.nombre}</p>
-                <p className="text-lg font-bold text-primary">{especialidad.cantidad}</p>
+                <p className="text-[11px] leading-tight font-medium text-[#111318] text-center mb-0.5 min-h-[2rem] flex items-center">
+                  {especialidad.nombre}
+                </p>
+                <p className="text-base font-bold text-primary">{especialidad.cantidad}</p>
               </div>
             ))}
           </div>
+          {canToggleEspecialidades && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setShowAllEspecialidades((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {showAllEspecialidades ? 'Ver menos' : 'Ver más'}
+                <span className="material-symbols-outlined text-base">
+                  {showAllEspecialidades ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Distribución por Clasificación */}
