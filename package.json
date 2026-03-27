@@ -1,22 +1,23 @@
 {
-  "name": "gestión-de-solicitudes",
+  "name": "myma-monorepo",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.87.3",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "node apps/web/server.js",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
-  }
+    "turbo": "^2.0.0",
+    "typescript": "~5.8.2"
+  },
+  "engines": {
+    "node": "20.x",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
 }
